@@ -1,0 +1,103 @@
+---
+title: Modelo PRAM y Teorema de Brent
+description: RAM → PRAM, EREW/CREW/CRCW, paradigma work-time, Brent y costo óptimo.
+---
+import Quiz from '../../../components/Quiz.tsx';
+import Solucion from '../../../components/Solucion.astro';
+import Fuente from '../../../components/Fuente.astro';
+
+$$
+RAM\longrightarrow PRAM\longrightarrow\text{pseudocódigo paralelo}\longrightarrow\text{Work y Span}\longrightarrow\text{Speedup}
+$$
+
+- **RAM**: 1 procesador + memoria infinita de acceso directo; sumar $n$ números es $\Theta(n)$.
+- **PRAM**: $p$ procesadores idénticos + **memoria compartida**, ejecutando el **mismo código de forma síncrona**. Sin red: se comunican vía memoria. Ignora cachés, latencia y costos físicos. Cada paso: leer memoria compartida → cómputo local → escribir.
+
+## Clasificación por acceso a memoria
+
+| Modelo | Regla | Ejemplo |
+|---|---|---|
+| **EREW** | cada dirección la lee/escribe **un solo** procesador por paso | suma de vectores, reducción binaria |
+| **CREW** | lectura concurrente, escritura exclusiva | broadcast; $B_i=A_i+x$ (todos leen $x$) |
+| ERCW | escritura concurrente, lectura exclusiva | poco usado |
+| **CRCW** | lectura **y** escritura concurrentes | Global OR/AND |
+
+$$
+EREW\subset CREW\subset CRCW
+$$
+
+**Escritura concurrente (CW):** **común** (todos escriben el mismo dato) · **arbitrario** (gana uno cualquiera) · **combinado** (se acumula/reduce lo escrito) · **prioritario** (gana el de mayor prioridad).
+
+:::tip[En el examen: ¿qué modelo es?]
+Mira **un paso** del pseudocódigo y pregúntate: ¿dos procesadores **leen** la misma celda? (CR) ¿dos **escriben** la misma celda? (CW). Si nadie comparte: **EREW**. En matmul con un proceso por celda $P_{i,j}$ que solo escribe $C[i,j]$ y cuyos índices `(i+j+k) mod n` no coinciden entre procesos en el mismo paso ⇒ **EREW** (PD02 2026-I).
+:::
+
+## Métricas
+
+- $T_p(n)$: pasos con $p$ procesadores. **Costo** $C_p(n)=T_p(n)\cdot P(n)$.
+- **Span** $T_\infty$: tiempo con procesadores ilimitados. **Trabajo** $W(n)$: total de operaciones.
+- **Costo óptimo**: $C_p(n)=\Theta(T_s(n))$.
+
+## Paradigma work-time y Teorema de Brent
+
+Conociendo el paralelismo ideal ($W$, $T_\infty$ con procesadores ilimitados), ¿cuánto tarda con $p\ll n$?
+
+$$
+\frac{W(n)}{p}\;\le\;T_p(n,p)=\sum_{i=1}^{T_\infty}\left\lceil\frac{W_i(n)}{p}\right\rceil\;\le\;\left\lfloor\frac{W(n)}{p}\right\rfloor+T_\infty(n)
+$$
+
+**Idea:** el paso $i$ tiene $W_i$ operaciones; con $p$ procesadores toma $\lceil W_i/p\rceil\le W_i/p+1$ pasos; sumando sobre los $T_\infty$ pasos sale la cota. Versión intuitiva: $T_p\le\dfrac{W-T_\infty}{p}+T_\infty=\dfrac Wp+\left(1-\dfrac1p\right)T_\infty$.
+
+- Costo máximo: $C_p=O(W+T_\infty p)$; $W$ y $C_p$ coinciden cuando $p=O(W/T_\infty)$.
+- Ejemplo: $W=1000$, $T_\infty=20$: $p=10\Rightarrow T_p\approx120$; $p=100\Rightarrow T_p\approx30$.
+- **WT-óptimo**: $W(n)=T_s(n)$ (el trabajo iguala al secuencial óptimo).
+
+:::caution[Error común]
+Escribir solo $T_p=W/p$. **Brent siempre suma el span**: $T_p=O(W/p+T_\infty)$. Y recuerda: Brent es un modelo **sin comunicación** (sincronización implícita).
+:::
+
+## Pseudocódigo `pardo`
+
+```text
+for 1 ≤ i ≤ n pardo
+    B(i) ← A(i)
+```
+
+Las $n$ iteraciones son independientes y corren a la vez ($P_i$ hace $B(i)\leftarrow A(i)$), típicamente con $n=p$.
+
+## Ejercicio (PD02 2026-I, Ej. 3 — arquetipo F)
+
+```text
+for each process P(i,j) do
+  C[i,j] := 0
+  for k := 0 to n-1 do
+    C[i,j] := C[i,j] + A[i,(i+j+k) mod n] × B[(i+j+k) mod n, j]
+```
+
+Matrices $n\times n$, $t_c$ = tiempo de suma/multiplicación. (3.1) $T_p$. (3.2) $S$, $E$. (3.3) Escalabilidad. (3.4) ¿Qué modelo PRAM?
+
+<Solucion>
+
+**3.1** Cada proceso ejecuta un bucle lineal en $n$: $T_p=O\!\left(\dfrac{n^3}{p}t_c+n\right)$.
+
+**3.2** $S=O\!\left(\dfrac{n^3t_c}{n^3t_c/p+n}\right)$, $\;E=O\!\left(\dfrac{t_cn^3/p}{n^3t_c/p+n}\right)=\dfrac{1}{1+\frac{p}{t_cn^2}}$.
+
+**3.3** $n$ constante ⇒ $E=O(1/p)$: no escala fuerte. Si $n$ crece, $E=O(1)$ si $n\propto\sqrt p$: escala débil.
+
+**3.4** **EREW**: cada $P_{i,j}$ escribe solo $C[i,j]$, y el índice rotado $(i+j+k)\bmod n$ hace que en un mismo paso ningún par de procesos lea la misma celda de $A$ o $B$.
+
+</Solucion>
+
+<Quiz
+	client:visible
+	id="pram-modelo"
+	preguntas={[
+		{ q: 'Todos los procesadores leen la variable $x$ y cada uno escribe su $B_i$. Modelo mínimo:', opts: ['EREW', 'CREW', 'ERCW', 'CRCW'], ok: 1 },
+		{ q: 'Brent con $W=n\\log n$, $T_\\infty=\\log^2 n$:', opts: ['$O(n\\log n/p)$', '$O(n\\log n/p+\\log^2 n)$', '$O(\\log^2 n/p)$', '$O(n\\log n+p)$'], ok: 1 },
+		{ q: '¿Para qué $p$ coinciden $W$ y $C_p$?', opts: ['$p=O(W/T_\\infty)$', '$p=O(T_\\infty)$', '$p=n$', 'nunca'], ok: 0 },
+		{ q: 'CRCW “combinado” significa…', opts: ['gana el de mayor prioridad', 'se acumula lo que escribe cada procesador', 'gana uno cualquiera', 'todos escriben el mismo valor'], ok: 1 },
+		{ q: 'La jerarquía correcta es…', opts: ['$CRCW\\subset CREW\\subset EREW$', '$EREW\\subset CREW\\subset CRCW$', '$CREW\\subset EREW\\subset CRCW$', 'no hay relación'], ok: 1 },
+	]}
+/>
+
+<Fuente archivos={['estudio/04_PRAM.md §1–5', 'U2.2-Diseño_en_paralelo-PRAM_01.pdf', 'previos/2026-I-CS4052-PD02(sol).pdf (Ej. 3)', '08_Solvers (Arquetipo F)']} />

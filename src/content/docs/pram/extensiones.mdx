@@ -1,0 +1,77 @@
+---
+title: Extensiones de PRAM (APRAM, BSP, LogP…)
+description: Qué supuesto relaja cada modelo y cómo cambia el costo de una reducción.
+---
+import Quiz from '../../../components/Quiz.tsx';
+import Solucion from '../../../components/Solucion.astro';
+import Fuente from '../../../components/Fuente.astro';
+
+El PRAM clásico idealiza: procesadores sincronizados, memoria global con acceso $O(1)$, comunicación implícita. **No** representa $T_{comunicación}$, $T_{sincronización}$ ni $T_{latencia}$. Cada extensión relaja un supuesto:
+
+| Modelo | Supuesto que modifica | Extensión |
+|---|---|---|
+| **APRAM** (asíncrono) | sincronización global | procesadores a velocidades distintas; sincronizan solo en dependencias (`wait(flag)`) |
+| **Phase PRAM** | sincronización gratuita | fases: cómputo → **barrera** → cómputo…; $T_{sync}=S\cdot T_{barrier}$ |
+| **LPRAM** (memoria local) | acceso uniforme | $T_{local}<T_{global}$: jerarquía de memoria (cachés, NUMA, GPU) |
+| **BPRAM** (bloques) | acceso palabra a palabra | transferencias de bloques de tamaño $b$: $T=\alpha+\beta b$, $\alpha\gg\beta$ |
+
+## BSP (Bulk Synchronous Parallel)
+
+Supersteps: cómputo local → comunicación → barrera. Máquina $(p,g,L)$:
+
+$$
+T_{superstep}=\underbrace{w}_{\text{cómputo}}+\underbrace{g\,h}_{\text{comunicación}}+\underbrace{L}_{\text{sincronización}}\qquad T_{BSP}=\sum_s w_s+g\sum_s h_s+S\,L
+$$
+
+**Reducción de $p$ valores:** $\log_2p$ supersteps con $w=h=O(1)$ ⇒ $T_{red}=\log p\,(1+g+L)$ y
+
+$$
+T_{BSP}=O\!\left(\frac np+g\log p+L\log p\right)
+$$
+
+(en PRAM puro era solo $O(\log p)$: **BSP hace explícito** que cada nivel paga comunicación y sincronización). $BSP\approx$ Phase PRAM + localidad + comunicación + sincronización.
+
+## LogP
+
+Ejecución **asíncrona** con costos explícitos: $L$ (latencia), $o$ (overhead de CPU al enviar/recibir), $g$ (gap mínimo entre envíos ⇒ ancho de banda), $P$ (procesadores).
+
+$$
+T_{LogP}=O\!\left(\frac np+\log p\,(L+o+g)\right)
+$$
+
+($n/p$ cómputo local, $o\log p$ overhead, $L\log p$ latencia, $g\log p$ ancho de banda.)
+
+:::tip[En el examen…]
+Si preguntan «¿qué modelo usarías?»: asíncrono con dependencias ⇒ **APRAM**; fases con barreras (`barrier()` en el PRAM del arquetipo C) ⇒ **Phase PRAM**; transferencia por bloques ⇒ **BPRAM**; todo junto ⇒ **BSP**.
+:::
+
+:::caution[Error común]
+Confundir el $L$ de BSP (costo de **sincronización**/barrera) con el $L$ de LogP (**latencia** de un mensaje).
+:::
+
+## Niveles de paralelismo en hardware real
+
+threads (SIMD/superescalar) → core (L1/L2) → procesador (L3) → nodo (memoria principal) → red de nodos → discos/Internet. Estrategia: modelos **híbridos** con pocos niveles bien definidos.
+
+## Ejercicio
+
+Compara LogP y BSP: ¿qué parámetro separa LogP que BSP no separa explícitamente? Escribe el costo de una reducción en ambos.
+
+<Solucion>
+
+LogP separa el **overhead de CPU $o$** (tiempo en que el procesador está ocupado enviando/recibiendo) de la **latencia $L$** y del **gap $g$**; BSP agrupa todo el costo de comunicación en $g\,h$ y la sincronización en $L$. Reducción: BSP $O(n/p+(g+L)\log p)$; LogP $O(n/p+(L+o+g)\log p)$.
+
+</Solucion>
+
+<Quiz
+	client:visible
+	id="pram-ext"
+	preguntas={[
+		{ q: 'Modelo que introduce transferencias por bloques $\\alpha+\\beta b$:', opts: ['APRAM', 'LPRAM', 'BPRAM', 'LogP'], ok: 2 },
+		{ q: 'En BSP, $L$ es…', opts: ['latencia de un mensaje', 'costo de sincronización global', 'número de procesadores', 'tamaño del bloque'], ok: 1 },
+		{ q: 'Costo BSP de una reducción de $n$ datos:', opts: ['$O(\\log p)$', '$O(n/p+(g+L)\\log p)$', '$O(n+gp)$', '$O(np)$'], ok: 1 },
+		{ q: '¿Qué modelo reconoce que la memoria local es más barata que la global?', opts: ['LPRAM', 'Phase PRAM', 'APRAM', 'CRCW'], ok: 0 },
+	]}
+/>
+
+<Fuente archivos={['estudio/04_PRAM.md §9', 'U2.3-Diseño_en_paralelo-PRAM_02.pdf']} />

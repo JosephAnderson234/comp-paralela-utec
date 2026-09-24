@@ -1,0 +1,57 @@
+---
+title: Parcial CS4052 — Computación Paralela y Distribuida
+description: Web de estudio interactiva para el parcial (UTEC, Prof. José Fiestas).
+tableOfContents: false
+---
+import { CardGrid, LinkCard, Steps } from '@astrojs/starlight/components';
+import Fuente from '../../components/Fuente.astro';
+
+Web de estudio para el **parcial de CS4052** (UTEC, 2026-II, Prof. José Fiestas). Todo el contenido sale de las notas, slides, exámenes previos resueltos y del código de clase; cada página cita su fuente al pie.
+
+## Cómo usar esta web
+
+<Steps>
+
+1. **Repasa la teoría por unidad** (barra lateral). Cada página sigue el mismo orden: teoría breve → avisos «en el examen» / «error común» → playground → ejercicio con solución desplegable → quiz corto.
+2. **Juega con los playgrounds.** Mueve los sliders hasta poder *predecir* el resultado antes de verlo. Ahí es cuando lo entendiste.
+3. **Practica con exámenes previos.** En [Solvers por arquetipo](/examen/arquetipos/) está la plantilla paso a paso; en [PD02 previos](/examen/previos-pd02/) los enunciados con la solución oficial oculta.
+4. **Cierra con flashcards** ([banco de preguntas](/examen/flashcards/)). El progreso queda guardado en este navegador.
+5. **Imprime el [formulario](/formulario/)** la noche anterior.
+
+</Steps>
+
+## Mapa: temas × arquetipos de examen
+
+Los 4 PD02 previos (2025-I, 2025-II S01/S02, 2026-I) son variaciones de **6 arquetipos**. Todos terminan pidiendo lo mismo: $S(n,p)$, $E(n,p)$ y escalabilidad fuerte/débil.
+
+| Arquetipo | Qué te dan | Temas que necesitas | Apareció en |
+|---|---|---|---|
+| **A** PRAM de operación global | suma, norma-p, normalización | [PRAM](/pram/modelo/), [comunicación lineal/árbol](/diseno/particionamiento/) | 2025-I, 2025-II S01, S02 |
+| **B** Filas vs bloques | dos fórmulas de $T_p$ | [escalabilidad](/performance/escalabilidad/), [matriz-vector](/mpi/practica-matvec/) | 2025-II S01, S02 |
+| **C** DAG desde código + barreras | función con tareas que comparten arrays | [DAG](/fundamentos/dag/), [Brent](/pram/modelo/) | 2025-II S01, S02 (y PD01) |
+| **D** FLOPs dados (N-Body) | $V(n,p)\approx\dfrac{\gamma N^{2+x}}{\alpha N^{2+x}/p+\beta\log p}$ | [FLOPs](/performance/flops/), [N-Body](/diseno/nbody-dyv/) | 2025-I, 2026-I |
+| **E** Recurrencia D&V / árbol | quicksort, árbol 2-3, mergesort | [D&V y teorema maestro](/diseno/nbody-dyv/), [prefix sum](/pram/casos/) | 2025-I, 2026-I, P1 |
+| **F** Matmul en memoria compartida | pseudocódigo por proceso $P_{i,j}$ | [EREW/CREW/CRCW](/pram/modelo/) | 2026-I |
+| **MPI** (U3) | código C++/MPI | [bloqueo y deadlock](/mpi/bloqueante/), [tipos](/mpi/tipos-derivados/) | PD03, U3.5 repaso |
+
+:::tip[Estrategia]
+El cierre de **todo** ejercicio es el mismo: $W$ y $T_\infty$ por separado → Brent → $S$ → $E=O\!\left(\dfrac{1}{1+p\cdot\text{algo}}\right)$ → fuerte (¿$E\to0$ con $n$ fijo?) y débil (¿qué $n=f(p)$ mantiene $E$ constante?). Ver el [checklist de cierre](/examen/arquetipos/#checklist-de-cierre).
+:::
+
+## Playgrounds
+
+<CardGrid>
+	<LinkCard title="Amdahl vs Gustafson" href="/performance/amdahl-gustafson/" description="Sliders f_s y p, techo 1/f_s, ley generalizada α." />
+	<LinkCard title="DAG: work / span" href="/fundamentos/dag/" description="DAGs reales del curso, camino crítico, cota de Brent y Gantt." />
+	<LinkCard title="Prefix sum paso a paso" href="/pram/casos/" description="Up-sweep / down-sweep, quién lee y escribe, ¿EREW o CREW?" />
+	<LinkCard title="Brent y escalabilidad" href="/performance/escalabilidad/" description="W(n), T∞(n) → S, E, isoeficiencia (reproduce P1)." />
+	<LinkCard title="Simulador de mensajes MPI" href="/mpi/bloqueante/" description="Anillos Send/Ssend/Isend, ping-pong, deadlock del PD03." />
+	<LinkCard title="Colectivas: lineal vs árbol" href="/mpi/colectivas/" description="Bcast/Scatter/Gather/Reduce/Allreduce con costo α y β." />
+	<LinkCard title="Tipos derivados MPI" href="/mpi/tipos-derivados/" description="contiguous, vector, indexed y struct sobre la matriz." />
+	<LinkCard title="Matriz × vector" href="/mpi/practica-matvec/" description="Filas / columnas / bloques + datos medidos de la práctica 3." />
+	<LinkCard title="Montecarlo π" href="/diseno/random/" description="Semillas, leapfrog, splitting, Reduce y convergencia." />
+	<LinkCard title="Mandelbrot" href="/diseno/particionamiento/" description="Estático vs work pool: carga por proceso." />
+	<LinkCard title="Teorema maestro" href="/diseno/nbody-dyv/" description="a, b, f(n) → caso y resultado, árbol de recursión." />
+</CardGrid>
+
+<Fuente archivos={['estudio/00_Indice_y_Formulario.md', 'estudio/08_Solvers_Examenes_Previos.md']} />

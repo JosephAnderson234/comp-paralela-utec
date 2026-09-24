@@ -1,0 +1,421 @@
+/* ---------- Tokens ---------- */
+:root {
+	--sl-color-accent-low: #0d2b33;
+	--sl-color-accent: #1a8fa6;
+	--sl-color-accent-high: #a6e4f0;
+
+	--pg-c1: #4cc3d9; /* serie 1 (cyan) */
+	--pg-c2: #f2a541; /* serie 2 (naranja) */
+	--pg-c3: #b38cf2; /* serie 3 (violeta) */
+	--pg-c4: #6fd08c; /* serie 4 (verde) */
+	--pg-c5: #f27a7a; /* serie 5 (rojo) */
+	--pg-c6: #e8d15a;
+	--pg-ok: #6fd08c;
+	--pg-bad: #f27a7a;
+	--pg-warn: #f2a541;
+	--pg-surface: var(--sl-color-gray-6);
+	--pg-surface-2: var(--sl-color-gray-5);
+	--pg-border: var(--sl-color-gray-5);
+	--pg-muted: var(--sl-color-gray-3);
+}
+:root[data-theme='light'] {
+	--sl-color-accent-low: #cdeef5;
+	--sl-color-accent: #0f7489;
+	--sl-color-accent-high: #0b3c47;
+
+	--pg-c1: #0f7f99;
+	--pg-c2: #c46a00;
+	--pg-c3: #7446c9;
+	--pg-c4: #238a46;
+	--pg-c5: #c43b3b;
+	--pg-c6: #9a8200;
+	--pg-ok: #238a46;
+	--pg-bad: #c43b3b;
+	--pg-warn: #c46a00;
+	--pg-surface: var(--sl-color-gray-7, #f6f7f9);
+	--pg-surface-2: var(--sl-color-gray-6);
+	--pg-border: var(--sl-color-gray-5);
+	--pg-muted: var(--sl-color-gray-3);
+}
+
+/* ---------- KaTeX ---------- */
+.katex-display {
+	overflow-x: auto;
+	overflow-y: hidden;
+	padding: 0.25rem 0;
+}
+.sl-markdown-content .katex {
+	font-size: 1.05em;
+}
+
+/* ---------- Solución desplegable ---------- */
+details.solucion {
+	border: 1px solid var(--pg-border);
+	border-left: 4px solid var(--sl-color-accent);
+	border-radius: 0.5rem;
+	padding: 0.5rem 1rem;
+	background: var(--pg-surface);
+}
+details.solucion > summary {
+	cursor: pointer;
+	font-weight: 600;
+	color: var(--sl-color-accent-high);
+}
+details.solucion[open] > summary {
+	margin-bottom: 0.5rem;
+}
+.solucion-body > :first-child {
+	margin-top: 0;
+}
+
+/* ---------- Fuente ---------- */
+.fuente {
+	margin-top: 2.5rem !important;
+	padding-top: 0.75rem;
+	border-top: 1px dashed var(--pg-border);
+	font-size: var(--sl-text-sm);
+	color: var(--pg-muted);
+}
+.fuente code {
+	font-size: 0.85em;
+}
+
+/* ---------- Playground base ---------- */
+.pg {
+	border: 1px solid var(--pg-border);
+	border-radius: 0.75rem;
+	padding: 1rem;
+	background: var(--pg-surface);
+	margin: 1.5rem 0;
+	font-size: var(--sl-text-sm);
+}
+.pg * {
+	box-sizing: border-box;
+}
+.pg h4 {
+	margin: 0 0 0.25rem 0 !important;
+	font-size: var(--sl-text-lg);
+}
+.pg .pg-sub {
+	color: var(--pg-muted);
+	margin: 0 0 0.75rem 0;
+}
+.pg .pg-row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.75rem 1.25rem;
+	align-items: center;
+	margin: 0.5rem 0 !important;
+}
+.pg .pg-grid-2 {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 1rem;
+	margin: 0 !important;
+}
+@media (max-width: 50rem) {
+	.pg .pg-grid-2 {
+		grid-template-columns: 1fr;
+	}
+}
+.pg label.pg-field {
+	display: flex;
+	flex-direction: column;
+	gap: 0.2rem;
+	min-width: 9rem;
+	flex: 1 1 9rem;
+	margin: 0 !important;
+}
+.pg label.pg-field > span {
+	color: var(--pg-muted);
+	font-size: var(--sl-text-xs);
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+.pg label.pg-field b {
+	color: var(--sl-color-white);
+	font-variant-numeric: tabular-nums;
+	text-transform: none;
+	font-size: var(--sl-text-sm);
+}
+.pg input[type='range'] {
+	width: 100%;
+	accent-color: var(--sl-color-accent);
+}
+.pg select,
+.pg input[type='number'],
+.pg input[type='text'] {
+	background: var(--sl-color-bg);
+	color: var(--sl-color-white);
+	border: 1px solid var(--pg-border);
+	border-radius: 0.4rem;
+	padding: 0.3rem 0.5rem;
+	font: inherit;
+	min-height: 2rem;
+}
+.pg button,
+.pg-btn {
+	background: var(--pg-surface-2);
+	color: var(--sl-color-white);
+	border: 1px solid var(--pg-border);
+	border-radius: 0.4rem;
+	padding: 0.35rem 0.8rem;
+	font: inherit;
+	cursor: pointer;
+	min-height: 2rem;
+	margin: 0 !important;
+}
+.pg button:hover:not(:disabled) {
+	border-color: var(--sl-color-accent);
+}
+.pg button:disabled {
+	opacity: 0.45;
+	cursor: not-allowed;
+}
+.pg button.primary {
+	background: var(--sl-color-accent);
+	border-color: var(--sl-color-accent);
+	color: var(--sl-color-black);
+	font-weight: 600;
+}
+:root[data-theme='light'] .pg button.primary {
+	color: #fff;
+}
+.pg button.active {
+	border-color: var(--sl-color-accent);
+	background: var(--sl-color-accent-low);
+	color: var(--sl-color-accent-high);
+}
+.pg .pg-seg {
+	display: inline-flex;
+	flex-wrap: wrap;
+	gap: 0.35rem;
+	margin: 0 !important;
+}
+.pg .pg-stats {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+	gap: 0.5rem;
+	margin: 0.75rem 0 !important;
+}
+.pg .pg-stat {
+	background: var(--sl-color-bg);
+	border: 1px solid var(--pg-border);
+	border-radius: 0.5rem;
+	padding: 0.45rem 0.6rem;
+	margin: 0 !important;
+}
+.pg .pg-stat .k {
+	display: block;
+	font-size: var(--sl-text-xs);
+	color: var(--pg-muted);
+}
+.pg .pg-stat .v {
+	display: block;
+	font-size: var(--sl-text-lg);
+	font-weight: 600;
+	color: var(--sl-color-white);
+	font-variant-numeric: tabular-nums;
+}
+.pg .pg-note {
+	background: var(--sl-color-bg);
+	border-left: 3px solid var(--sl-color-accent);
+	padding: 0.5rem 0.75rem;
+	border-radius: 0.3rem;
+	margin: 0.75rem 0 !important;
+}
+.pg .pg-note.bad {
+	border-left-color: var(--pg-bad);
+}
+.pg .pg-note.ok {
+	border-left-color: var(--pg-ok);
+}
+.pg .pg-note.warn {
+	border-left-color: var(--pg-warn);
+}
+.pg table {
+	width: 100%;
+	border-collapse: collapse;
+	font-variant-numeric: tabular-nums;
+	display: table;
+	margin: 0.5rem 0 !important;
+}
+.pg th,
+.pg td {
+	border: 1px solid var(--pg-border);
+	padding: 0.25rem 0.45rem;
+	text-align: center;
+}
+.pg .pg-scroll {
+	overflow-x: auto;
+	margin: 0 !important;
+}
+.pg svg {
+	display: block;
+	max-width: 100%;
+	height: auto;
+	margin: 0 !important;
+}
+.pg svg text {
+	fill: var(--sl-color-gray-2);
+	font-family: var(--sl-font);
+}
+.pg .legend {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.3rem 1rem;
+	font-size: var(--sl-text-xs);
+	margin: 0.25rem 0 0 0 !important;
+}
+.pg .legend span {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+	margin: 0 !important;
+}
+.pg .legend i {
+	display: inline-block;
+	width: 1rem;
+	height: 3px;
+	border-radius: 2px;
+}
+.pg pre.pg-code {
+	margin: 0 !important;
+	padding: 0.5rem 0;
+	background: var(--sl-color-bg);
+	border: 1px solid var(--pg-border);
+	border-radius: 0.5rem;
+	font-size: 0.78rem;
+	line-height: 1.45;
+	overflow-x: auto;
+	max-height: 30rem;
+}
+.pg pre.pg-code .ln {
+	display: flex;
+	gap: 0.5rem;
+	padding: 0 0.6rem;
+	white-space: pre;
+	margin: 0 !important;
+	min-height: 1.45em;
+}
+.pg pre.pg-code .ln .num {
+	color: var(--pg-muted);
+	width: 2ch;
+	text-align: right;
+	flex-shrink: 0;
+	user-select: none;
+}
+.pg pre.pg-code .ln.hl {
+	background: color-mix(in srgb, var(--sl-color-accent) 22%, transparent);
+}
+.pg pre.pg-code .ln .badges {
+	margin-left: auto;
+	padding-left: 1rem;
+	display: flex;
+	gap: 0.2rem;
+}
+.pg .badge {
+	display: inline-block;
+	padding: 0 0.35rem;
+	border-radius: 0.25rem;
+	font-size: 0.7rem;
+	font-weight: 700;
+	color: #111;
+	line-height: 1.4;
+}
+.pg .kbd {
+	font-family: var(--__sl-font-mono, monospace);
+	background: var(--sl-color-bg);
+	border: 1px solid var(--pg-border);
+	border-radius: 0.25rem;
+	padding: 0 0.3rem;
+	font-size: 0.85em;
+}
+
+/* ---------- Quiz ---------- */
+.quiz .q {
+	border-top: 1px solid var(--pg-border);
+	padding-top: 0.75rem;
+	margin-top: 0.75rem !important;
+}
+.quiz .q:first-of-type {
+	border-top: none;
+	padding-top: 0;
+}
+.quiz .opts {
+	display: grid;
+	gap: 0.35rem;
+	margin: 0.5rem 0 !important;
+}
+.quiz .opts button {
+	text-align: left;
+	width: 100%;
+}
+.quiz .opts button.correct {
+	border-color: var(--pg-ok);
+	background: color-mix(in srgb, var(--pg-ok) 18%, transparent);
+}
+.quiz .opts button.wrong {
+	border-color: var(--pg-bad);
+	background: color-mix(in srgb, var(--pg-bad) 18%, transparent);
+}
+
+/* ---------- Flashcards ---------- */
+.flash-card {
+	min-height: 11rem;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	text-align: center;
+	background: var(--sl-color-bg);
+	border: 1px solid var(--pg-border);
+	border-radius: 0.75rem;
+	padding: 1.25rem;
+	cursor: pointer;
+	font-size: var(--sl-text-base);
+	margin: 0.75rem 0 !important;
+	width: 100%;
+	color: var(--sl-color-white);
+}
+.flash-card .side {
+	font-size: var(--sl-text-xs);
+	color: var(--pg-muted);
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	margin-bottom: 0.5rem;
+}
+
+/* ---------- Impresión (formulario) ---------- */
+@media print {
+	header,
+	nav.sidebar,
+	.sidebar-pane,
+	.right-sidebar-container,
+	mobile-starlight-toc,
+	starlight-toc,
+	.pagination-links,
+	footer,
+	.no-print {
+		display: none !important;
+	}
+	.main-frame {
+		padding: 0 !important;
+	}
+	body {
+		background: #fff !important;
+		color: #000 !important;
+	}
+	.sl-markdown-content {
+		font-size: 10.5pt;
+	}
+	.sl-markdown-content h2 {
+		break-after: avoid;
+	}
+}
+
+/* KaTeX dentro de etiquetas en mayúsculas */
+.pg label.pg-field > span .katex,
+.pg label.pg-field > span b {
+	text-transform: none;
+}

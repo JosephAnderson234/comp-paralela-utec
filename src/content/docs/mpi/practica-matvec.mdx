@@ -1,0 +1,101 @@
+---
+title: 'Práctica: matriz × vector'
+description: Filas vs columnas vs bloques, código MPI de la práctica 3 y speedup/eficiencia medidos.
+---
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import MatVecPartition from '../../../components/playgrounds/MatVecPartition.tsx';
+import Quiz from '../../../components/Quiz.tsx';
+import Solucion from '../../../components/Solucion.astro';
+import Fuente from '../../../components/Fuente.astro';
+
+PD03, Ej. 2: $x=A\,v$ con $A$ de $N\times N$. P0 tiene $A$ y $v$, reparte por **bloques de filas** o de **columnas**, envía $v$ y obtiene $x$. $W(N)=\Theta(N^2)$ en ambos: toda la diferencia de escalabilidad está en el **overhead**.
+
+<Tabs>
+<TabItem label="Filas (colectivas)">
+
+```cpp title="practica_3_ofi/ejercicio02_row.cpp (núcleo)" {1-2,10}
+MPI_Bcast(v, N, MPI_LONG_LONG, 0, MPI_COMM_WORLD);
+MPI_Scatter(A, elem_proc, MPI_INT, local_A, elem_proc, MPI_INT, 0, MPI_COMM_WORLD);
+
+for (i = 0; i < fil_proc; i++) {          // fil_proc = N / size
+    local_x[i] = 0;
+    for (j = 0; j < N; j++)
+        local_x[i] += local_A[i * N + j] * v[j];
+}
+
+MPI_Gather(local_x, fil_proc, MPI_LONG_LONG, x, fil_proc, MPI_LONG_LONG, 0, MPI_COMM_WORLD);
+```
+
+</TabItem>
+<TabItem label="Columnas (Send + vector)">
+
+```cpp title="practica_3_ofi/ejercicio02_col.cpp (núcleo)" {1,5-8,19}
+MPI_Type_vector(N, col_proc, N, MPI_LONG_LONG, &coltype);   // bloque de columnas
+MPI_Type_commit(&coltype);
+
+if (rank == 0) {
+    for (dest = 1; dest < size; dest++) {                      // p-1 envíos secuenciales
+        MPI_Send(&A[dest * col_proc], 1, coltype, dest, 0, MPI_COMM_WORLD);
+        MPI_Send(&v[dest * col_proc], col_proc, MPI_LONG_LONG, dest, 1, MPI_COMM_WORLD);
+    }
+} else {
+    MPI_Recv(local_A, N * col_proc, MPI_LONG_LONG, 0, 0, MPI_COMM_WORLD, &status);
+    MPI_Recv(local_v, col_proc, MPI_LONG_LONG, 0, 1, MPI_COMM_WORLD, &status);
+}
+
+for (i = 0; i < N; i++) {                  // x parcial de largo N
+    partial_x[i] = 0;
+    for (j = 0; j < col_proc; j++)
+        partial_x[i] += local_A[i * col_proc + j] * local_v[j];
+}
+MPI_Reduce(partial_x, x, N, MPI_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+```
+
+</TabItem>
+</Tabs>
+
+<MatVecPartition client:visible />
+
+## Análisis (de `analisis_escalabilidad.md`)
+
+| Esquema | $T_o(N,p)$ | Isoeficiencia | $E(p=10)$: $N=240\to600$ |
+|---|---|---|---|
+| Filas | $\Theta(p\log p)$ (colectivas en árbol) | $N=\Theta(\sqrt{p\log p})$ | $0.058\to0.184$ (mejora) |
+| Columnas | $\Theta(p)+\Theta(N^2)$ (bucle de Send en P0) | no hay favorable | $0.048\to0.030$ (no mejora) |
+
+En columnas, P0 mueve $\Theta(N^2)$ datos él solo: una **fracción serial al estilo Amdahl** del mismo orden que el trabajo, que no se diluye al crecer $N$. En filas, la fracción serial efectiva $\frac{\Theta(p\log p)}{\Theta(N^2)+\Theta(p\log p)}\to0$ (estilo Gustafson).
+
+:::caution[Medición]
+Con $N\le600$ los tiempos son de milisegundos, cerca de la resolución del reloj: algunos speedups > 1 en filas son **ruido**, no superlinealidad. La tendencia general no cambia.
+:::
+
+:::tip[En el examen…]
+Con $N=5040$ fijo el tiempo total **crece** con $p$ (communication-bound, sin óptimo interno de $p$): respuesta de manual para «¿punto óptimo de procesos?» ⇒ el menor $p$ probado. Y siempre relaciona: **granularidad** (cómputo/comunicación), **overhead** y **escalabilidad**.
+:::
+
+## Ejercicio (PD02 2025-II, Ej. 2 — arquetipo B)
+
+$T_p^{filas}=\gamma\frac{n^2}{p}+\alpha\log p+\beta n$ y $T_p^{bloques}=\gamma\frac{n^2}{p}+2\alpha\log\sqrt p+\beta\frac{n}{\sqrt p}$. (a) ¿Cuál tiene mayor granularidad? (b) Condición de escalabilidad. (c) ¿Cuál es más escalable?
+
+<Solucion>
+
+**(a)** $G_{filas}=\dfrac{n^2}{p(n+\log p)}$, $\;G_{bloques}=\dfrac{n^2}{p\left(\frac{n}{\sqrt p}+2\log\sqrt p\right)}$. Bloques tiene el denominador más chico ⇒ **mayor granularidad** ⇒ menor overhead de comunicación.
+
+**(b)** Filas: $n\propto p$. Bloques: $n\propto\sqrt{p\log p}$.
+
+**(c)** **Bloques** es más escalable. Solución oficial: con filas, al duplicar $n$ se obtiene $p_2=2p_1$; con bloques se obtiene otra relación, «lo que lo hace más escalable, ya que cuando $n$ crece se requieren menos procesos para mantener la eficiencia constante». Dicho de otra forma: para un mismo $p$, bloques necesita un $n$ mucho menor ($\sqrt{p\log p}\ll p$) para sostener la misma eficiencia.
+
+</Solucion>
+
+<Quiz
+	client:visible
+	id="matvec"
+	preguntas={[
+		{ q: 'En la partición por filas, ¿qué recibe cada proceso de $v$?', opts: ['nada', 'solo su tramo', 'todo $v$ (Bcast)', 'una columna'], ok: 2 },
+		{ q: 'En columnas, el resultado se combina con…', opts: ['Gather de $N/p$ elementos', 'Reduce(SUM) de $N$ elementos', 'Bcast', 'Allgather'], ok: 1 },
+		{ q: 'Según los datos medidos, al pasar de N=240 a N=600 con p=10, la eficiencia en filas…', opts: ['baja', 'sube (0.058 → 0.184)', 'no cambia', 'llega a 1'], ok: 1 },
+		{ q: '¿Por qué columnas no mejora con $N$?', opts: ['por el Reduce', 'P0 envía $\\Theta(N^2)$ datos secuencialmente: overhead del orden del trabajo', 'por el tipo vector', 'por el caché'], ok: 1 },
+	]}
+/>
+
+<Fuente archivos={['practica_3_ofi/ejercicio02_row.cpp', 'practica_3_ofi/ejercicio02_col.cpp', 'practica_3_ofi/executed/eficiencia_resultados.csv', 'resultados_5040.csv', 'executed/analisis_escalabilidad.md', 'executed/informe_2_3.md', 'previos/2025-II PD02 S01/S02 (Ej. 2)']} />

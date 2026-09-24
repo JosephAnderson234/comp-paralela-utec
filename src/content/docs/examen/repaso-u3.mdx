@@ -1,0 +1,124 @@
+---
+title: Repaso U3.5 y PD03
+description: Ejercicios de repaso del profesor (Foster, FFT, prefix sum, comunicación, Amdahl, MPI) y la PD03.
+---
+import Solucion from '../../../components/Solucion.astro';
+import Fuente from '../../../components/Fuente.astro';
+
+Los «Ejemplos de repaso» (U3.5, 20-sep-2026) cubren: **Foster · escalabilidad · PRAM · comunicación · Amdahl/Gustafson · MPI**. Muy probablemente el parcial se parece a esto.
+
+## Ej. 1 — Modelo climático (Foster)
+
+Malla $N_x\times N_y\times N_z$ con $N_z=64$, $N_x=2N_z$, $N_y=1024$. Cada celda se comunica con 8 vecinas horizontales y 2 verticales, y en cada paso se acumula la masa atmosférica (suma). (1.1) Pasos de Foster. (1.2) Optimice con $p=2^{10}$ procesos, considerando que las celdas de frontera no comunican en algunas direcciones.
+
+<Solucion>
+
+**1.1**
+- **Particionamiento:** una tarea por celda ⇒ $N_xN_yN_z$ tareas $O(1)$.
+- **Comunicación:** cada tarea necesita 8 + 2 vecinas ⇒ $10\,N_xN_yN_z$ canales, más la suma de la masa ($N_xN_yN_z$).
+- **Aglomeración:** tareas de $k$ celdas ⇒ canales reducidos a $\approx\dfrac{6\,N_xN_yN_z}{k}$.
+- **Mapeo:** una tarea de $\dfrac{N_xN_yN_z}{p}$ celdas por proceso (según capacidad de los procesadores).
+
+**1.2** Canales originales $\approx2^{10}\cdot2^6\cdot2^7-2(2^{10}2^7+2^{10}2^6+2^72^6)\approx2^{23}$ (descontando fronteras). Con $p=2^{10}$: $\approx2^{23}/2^{10}=2^{13}$, unas **1000 veces menos**.
+
+</Solucion>
+
+## Ej. 2 — Transformada de Fourier
+
+$T_s=O(n\log n)$, $T_p=O\!\left(t_c\frac np\log n+\alpha\log p+\beta\frac np\log p\right)$. (1) Granularidad. (2) $S$, $E$. (3) Escalabilidad. (4) Granularidad con $E$ constante.
+
+<Solucion>
+
+1. $G=O\!\left(\dfrac{\frac np\log n}{\log p+\frac np\log p}\right)=O\!\left(\dfrac{\log n}{\log p}\right)$.
+2. $S=O\!\left(\dfrac{n\log n}{\frac np\log n+\log p+\frac np\log p}\right)$, $E=O\!\left(\dfrac{n\log n/p}{\frac np\log n+\log p+\frac np\log p}\right)$.
+3. Fuerte: $E=O\!\left(\frac{1}{p\log p}\right)$, no escala. Débil: $E=O\!\left(\dfrac{1}{1+\frac{p\log p}{n\log n}+\frac{\log p}{\log n}}\right)$: dos condiciones, la dominante $p\log p\propto n\log n$.
+4. Reemplazando esa condición en $G$: $G=O(p/n)\ll1$ porque $p\ll n$.
+
+</Solucion>
+
+## Ej. 3 — Suma de prefijos (PRAM recursivo)
+
+(a) $T(n)$ y $W(n)$. (b) Paradigma. (c) ¿Es WT-óptimo ($W(n)=T^*(n)$)?
+
+<Solucion>
+
+(a) `if` $O(1)$; los dos `pardo` $O(1)$ en tiempo y $O(n/2)$, $O(n)$ en trabajo; recursión $T(n)=T(n/2)+c=\dots=T(1)+c\log n$ ⇒ $T(n)=O(\log n)$; $W(n)=W(n/2)+dn=\dots\le2dn$ ⇒ $W(n)=O(n)$. (b) Memoria compartida. (c) Sí: el secuencial es $O(n)=W(n)$. Anímalo en [casos PRAM](/pram/casos/).
+
+</Solucion>
+
+## Ej. 4 — Comunicación aleatoria
+
+El maestro elige un rank al azar y le envía su nombre; ese proceso suma su rank al dato, elige otro rank al azar (no a sí mismo, ni al maestro, ni a uno que ya recibió) y reenvía. El último elegido no envía. $3\le p\le50$. (a) PRAM con directivas de comunicación. (b) ¿`MPI_ANY_SOURCE`? (c) Complejidad de comunicación. (d) ¿Hace falta comunicación colectiva?
+
+<Solucion>
+
+(a)
+```text
+for i := 1 to p pardo  M[i] := 0
+if (nproc < 3 or nproc > 50) abort()
+for i = 1 to p pardo
+  if (i == 1)
+     id_next := random entre 2 y p;  M[i] += i;  send M to id_next
+  else if (M[i] == 0)
+     receive M from any_source
+     do id_next := random entre 2 y p while (M[id_next] != 0)
+     M[i] += i;  send M to id_next
+```
+(b) Sí: la comunicación siempre es única entre un par de procesos. (c) Punto a punto $\alpha+x\beta$ con $x=1$, repetido $p$ veces ⇒ $T_{comm}=p(\alpha+\beta)$. (d) Se podría usar un Bcast para informar quién ya envió, pero el PRAM se logra sin él.
+
+</Solucion>
+
+## Ej. 5 — Amdahl/Gustafson con 1000 procesos
+
+Resuelto en [Amdahl y Gustafson](/performance/amdahl-gustafson/#ejercicio-u35-ej-5).
+
+## Ej. 6 — Ping-pong · Ej. 8 — Latencia en anillo
+
+Simúlalos en [Bloqueante vs no bloqueante](/mpi/bloqueante/). Para el Ej. 8: latencia = tiempo de un mensaje de tamaño 0; en la práctica se mide con mensajes de varios tamaños y se extrapola a tamaño 0 (ordenada al origen del ajuste tiempo vs tamaño), promediando varios experimentos. El caso no bloqueado evita la serialización del anillo.
+
+## Ej. 7 — Vectores
+
+$C[j]=\sum_{i=0}^{N-1}A[j][i]\cdot B[j][i]$, $j=0..M-1$. (7.1) Paralelice con MPI bloqueado. (7.2) Complejidad. (7.3) $S$, $E$ y escalabilidad.
+
+<Solucion>
+
+**Resolución propuesta** (sin solución oficial).
+
+```cpp
+// M divisible por size; cada proceso recibe M/size vectores (filas) de A y B
+MPI_Scatter(A, (M/size)*N, MPI_DOUBLE, Al, (M/size)*N, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+MPI_Scatter(B, (M/size)*N, MPI_DOUBLE, Bl, (M/size)*N, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+for (int j = 0; j < M/size; j++) {
+  Cl[j] = 0;
+  for (int i = 0; i < N; i++) Cl[j] += Al[j*N + i] * Bl[j*N + i];
+}
+MPI_Gather(Cl, M/size, MPI_DOUBLE, C, M/size, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+```
+
+$T_s=O(MN)$. $T_{comp}=O(MN/p)$; $T_{comm}=O(\alpha\log p+\beta MN)$ (2 scatters en árbol) $+\,O(\alpha\log p+\beta M)$ (gather). Así $E=\dfrac{1}{1+\frac{p\alpha\log p}{MN}+p\beta}$: el término $\beta MN$ (mover los datos) es del **mismo orden** que el trabajo ⇒ si los datos se generan en P0, la comunicación domina. Optimización: que cada proceso **genere o lea** su parte (sin scatter) o solapar con `Isend/Irecv`; entonces $E=\frac{1}{1+p\alpha\log p/(MN)}$ y escala débil con $MN\propto p\log p$.
+
+</Solucion>
+
+## PD03 — Ej. 1: servidores en anillo
+
+$p$ servidores en anillo, capacidad $C_i$, tareas $T_i$, saldo $S_i=C_i-T_i$. Si $S_i<0$ y $S_{i+1}>0$, se transfiere $E_i=\min(-S_i,S_{i+1})$ al siguiente. Mientras el envío está en curso se hace un cálculo local independiente; luego se recibe del anterior y se actualiza el saldo. (1.1) PRAM. (1.2) MPI optimizado. (1.3) Ventaja con un ejemplo numérico.
+
+<Solucion>
+
+**Resolución propuesta.**
+
+```text
+for 1 ≤ i ≤ p pardo
+   S_i := C_i − T_i ;  E_i := 0
+   if (S_i < 0 and S_{i+1} > 0) then E_i := min(−S_i, S_{i+1}) ; T_i := T_i − E_i
+   Irecv(R_i ← P_{i−1});  Isend(E_i → P_{i+1})         // iniciar comunicación
+   resolver localmente las T_i tareas que no se envían  // cómputo solapado
+   Wait(ambas)
+   T_i := T_i + R_i ;  S_i := C_i − T_i
+```
+
+En MPI: `MPI_Irecv` del vecino izquierdo **antes** del `MPI_Isend` al derecho, cómputo local y `MPI_Waitall`. **Ventaja:** con bloqueo, $T=T_{comm}+T_{comp}$ (y en anillo con `Ssend` puede incluso bloquearse o serializarse: $p$ pasos); sin bloqueo, $T\approx\max(T_{comm},T_{comp})$. Ejemplo: $T_{comp}=5$ ms, $T_{comm}=2$ ms por proceso ⇒ bloqueado 7 ms; no bloqueado ≈5 ms (−29 %). En el anillo serializado con $p=8$, la comunicación bloqueada puede costar $8\times2=16$ ms frente a ≈2 ms.
+
+</Solucion>
+
+<Fuente archivos={['U3.5 Ejercicios de repaso.pdf', 'practica_3_ofi/enunciado/CS4052-PD03-S02.pdf', 'practica_pc3/2026I-Ejercicio01_test.cpp']} />

@@ -1,0 +1,123 @@
+---
+title: Modelo DAG
+description: Trabajo, span, paralelismo, clasificación y cómo construir un DAG desde código.
+---
+import DagPlayground from '../../../components/playgrounds/DagPlayground.tsx';
+import Quiz from '../../../components/Quiz.tsx';
+import Solucion from '../../../components/Solucion.astro';
+import Fuente from '../../../components/Fuente.astro';
+
+Un **DAG** $G=(V,E)$ es un grafo dirigido **sin ciclos**: vértices = tareas; aristas = canales = **dependencias de datos** ($j$ no empieza hasta que $i$ termina). Todo conjunto de tareas sin arista entre ellas puede ir en paralelo; la ausencia de ciclos garantiza un orden topológico.
+
+## Métricas
+
+:::note[Definición]
+- **Trabajo** $W(n)$: total de operaciones = tiempo del secuencial óptimo, $W(n)=T_s^*(n)$.
+- **Span** $T_\infty$: longitud del **camino crítico** = tiempo con procesadores infinitos, $T_\infty=\max\sum t_i$ sobre el camino más largo.
+:::
+
+$$
+T_p\ge\frac{T_s}{p}\;\Rightarrow\;S\le p\qquad\qquad T_p\ge T_\infty\qquad\qquad S_{max}=\frac{W}{T_\infty}\;(\text{paralelismo})
+$$
+
+## Clasificación
+
+| Tipo | Estructura | Paralelismo |
+|---|---|---|
+| Secuencial | cadena $T_0\to T_1\to\dots$ | 0 % |
+| Paralelo | todas independientes | 100 % |
+| **SPA** (secuencial-paralelo alternado) | niveles fork-join en secuencia | por niveles (pipelines) |
+| **NSPA** | dependencias arbitrarias | irregular, scheduling dinámico |
+
+## Playground
+
+<DagPlayground client:visible />
+
+:::caution[Error común]
+Con tareas de costo distinto, **contar nodos no sirve**: el span es la suma de **costos** del camino más pesado. En el Ej. 4, un camino de 3 nodos con una tarea $O(n^2)$ domina a cualquier camino de muchos nodos $O(1)$.
+:::
+
+:::tip[En el examen: construir el DAG desde código]
+1. Una tarea por llamada/bloque; anota su complejidad.
+2. Arista $T_i\to T_j$ si $T_j$ **lee** lo que $T_i$ **escribió** (flujo). Si $T_j$ **sobrescribe** algo que $T_i$ lee, también hay orden (anti-dependencia, WAR).
+3. Dos tareas que **solo leen** la misma variable **no** se conectan.
+4. Grado máximo de concurrencia = ancho máximo de un nivel.
+5. $W$ = suma de todo; $T_\infty$ = camino más costoso.
+:::
+
+## Ejemplos del curso (resultados)
+
+| DAG | $W$ | $T_\infty$ | Nota |
+|---|---|---|---|
+| Ej. 1 (18 tareas $O(1)$) | 18 | 9 | contar nodos / camino más largo |
+| Ej. 2 Fibonacci | $W(n)=W(n-1)+W(n-2)+1$ | $T_\infty(n)=\max(T_\infty(n-1),T_\infty(n-2))+1$ | el árbol de llamadas **es** el DAG |
+| Ej. 3 suma de 16, $p=8$ | 15 | 4 | $S=15/4$, $E=0.47$ |
+| Ej. 3 suma de 16, $p=5$ | 15 | 5 | $S=15/5$, $E=0.60$ — menos speedup, **más** eficiencia |
+
+## Ejercicio (PD01 2026-II, Ej. 2)
+
+```c
+double a,b,c,e,d,f;
+T1(&a,&b);   // 10n FLOP
+c=T2(a);     // 2n FLOP
+c=T3(c);     // 5n FLOP
+d=T4(b);     // 9n² FLOP
+e=T5(c);     // 9n² FLOP
+f=T6(c);     // 11n FLOP
+b=T7(c);     // 8n FLOP
+```
+
+(a) Genere el DAG. (b) $T_s$, $T_\infty$, $W$. (c) $S$ y $E$ sin reducir términos.
+
+<Solucion>
+
+**Resolución propuesta** (el PD01 no trae solución oficial; compárala con el preset «PD01 Ej.2» del playground).
+
+Aristas de flujo (RAW): $T1\to T2$ (a), $T2\to T3$ (c), $T1\to T4$ (b), $T3\to T5$, $T3\to T6$, $T3\to T7$ (c). Además **$T4\to T7$ (WAR)**: $T7$ sobrescribe `b`, que $T4$ necesita leer antes.
+
+$$
+T_s=W=10n+2n+5n+9n^2+9n^2+11n+8n=18n^2+36n
+$$
+
+Caminos: $T1\to T2\to T3\to T5=9n^2+17n$; $T1\to T4\to T7=9n^2+18n$ (por la WAR). Entonces
+
+$$
+T_\infty=9n^2+18n\qquad S=\frac{18n^2+36n}{9n^2+18n}=2\qquad E=\frac{S}{p}=\frac{18n^2+36n}{p\,(9n^2+18n)}
+$$
+
+Si se elimina la WAR (renombrando `b` en T7), $T_\infty=9n^2+17n$ y $S=\dfrac{18n^2+36n}{9n^2+17n}\approx2$. Grado máximo de concurrencia: 3 con la WAR ($T4$, $T5$, $T6$ a la vez); 4 sin ella ($T4\dots T7$).
+
+</Solucion>
+
+## Ejercicio (U1.3, Ej. 4)
+
+```c
+double a[N],b[N],c[N],v=0.0,w=0.0;
+T1(a,&v); T2(b,&w); T3(b,&v);
+T4(c,&w); T5(c,&v); T6(a,&w);   // leen y modifican ambos argumentos
+```
+
+Calcule $T_s$, $T_\infty$, $W$, $S$ con tareas $O(1)$ y luego con $T1,T2,T5=O(n)$, $T3=O(n\log n)$, $T4=O(\log n)$, $T6=O(n^2)$.
+
+<Solucion>
+
+**Resolución propuesta.** Aristas (variable compartida, en orden del programa): $T1\to T3$ (v), $T2\to T3$ (b), $T2\to T4$ (w), $T3\to T5$ (v), $T4\to T5$ (c), $T1\to T6$ (a), $T4\to T6$ (w).
+
+- $O(1)$: $W=T_s=6$, $T_\infty=3$ (p. ej. $T2\to T4\to T5$), $S=2$.
+- Heterogéneo: $W=3n+n\log n+\log n+n^2=O(n^2)$; el camino $T2\to T4\to T6$ cuesta $n+\log n+n^2$ ⇒ $T_\infty=O(n^2)$ ⇒ $S=O(1)$. La tarea $O(n^2)$ en el camino crítico anula el paralelismo.
+
+</Solucion>
+
+<Quiz
+	client:visible
+	id="dag"
+	preguntas={[
+		{ q: 'Un DAG tiene $W(n)=O(n^2)$ y $T_\infty(n)=O(n)$. ¿Cota de Brent?', opts: ['$O(n^2/p)$', '$O(n^2/p+n)$', '$O(n/p+n^2)$', '$O(n^2+p)$'], ok: 1, why: 'Brent: $T_p=O(W/p+T_\infty)$.' },
+		{ q: 'Si una tarea $O(n^2)$ está FUERA del camino crítico, ¿qué cambia?', opts: ['Solo el span', 'Solo el trabajo', 'Ambos', 'Ninguno'], ok: 1, why: 'El trabajo suma todas las tareas; el span solo las del camino crítico. (Ojo: si pesa $n^2$, probablemente sí esté en el camino crítico.)' },
+		{ q: 'Un pipeline de 3 etapas de procesamiento de imágenes es…', opts: ['Secuencial', 'Paralelo', 'SPA', 'NSPA'], ok: 2 },
+		{ q: '¿Por qué $T_p\\ge T_\\infty$ para cualquier $p$?', opts: ['Por la comunicación', 'Porque el camino crítico es una cadena de dependencias que no se puede acortar', 'Por Amdahl', 'Porque $W\\ge T_\\infty$'], ok: 1 },
+		{ q: 'Suma de 16 números: con $p=8$, $E=0.47$; con $p=5$, $E=0.60$. ¿Por qué?', opts: ['Con $p=5$ hay menos trabajo', 'Con $p=5$ los procesos están ocupados una fracción mayor del tiempo', 'Error de medición', 'Con $p=8$ el span es mayor'], ok: 1, why: 'Mismo $W=15$; con $p=8$ muchos procesadores quedan ociosos en los niveles altos del árbol.' },
+	]}
+/>
+
+<Fuente archivos={['estudio/02_DAG.md', 'U1.3-Fundamentos_DAG-apuntes.pdf (Ej. 1–4)', 'Resumen_U1.3_DAG_y_U2.1_Diseno_Paralelo.md', 'CS4052-PD01-S02.pdf (Ej. 2)', 'previos/2025-II PD02 S01/S02 (Ej. 3)']} />

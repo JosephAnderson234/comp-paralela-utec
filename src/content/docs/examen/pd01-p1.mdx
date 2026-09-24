@@ -1,0 +1,63 @@
+---
+title: PD01 y P1 resueltos
+description: Práctica dirigida 01 (suavizado, DAG, particionamiento) y el ejercicio P1 de subsecuencia máxima.
+---
+import Solucion from '../../../components/Solucion.astro';
+import Fuente from '../../../components/Fuente.astro';
+
+## PD01 2026-II — Unidad 1: DAG, Foster
+
+### Ej. 1 — Suavizado (2 pts)
+
+Resuelto paso a paso en [Método de Foster](/fundamentos/foster/#ejercicio-pd01-2026-ii-ej-1-suavizado): Foster con límite de 4 MB ⇒ $2^{20}$ píxeles por proceso, halo exchange, $T_s=3ntt_c$, $T_p=t[3\frac npt_c+8t_w]$, isoeficiencia lineal.
+
+### Ej. 2 — DAG (2 pts)
+
+Resuelto en [Modelo DAG](/fundamentos/dag/#ejercicio-pd01-2026-ii-ej-2) (incluye la dependencia WAR sobre `b`); cárgalo en el playground con el preset «PD01 Ej.2».
+
+### Ej. 3 — Particionamiento (2 pts)
+
+Se deben completar $n$ tareas en $m$ procesos idénticos ($n\gg m$). El proceso $p_j$ tarda $t_i$ en la tarea $i$ y ejecuta una tarea a la vez; con el conjunto $J_j$ necesita $T_j=\sum_{i\in J_j}t_i$. Describa el particionamiento y la complejidad de un algoritmo que reparta las $n$ tareas minimizando el tiempo total.
+
+<Solucion>
+
+**Resolución propuesta** (sin solución oficial). El tiempo total es el **makespan** $T=\max_jT_j$; minimizarlo exactamente es NP-difícil (partición multiproceso), así que se usa una heurística de **particionamiento de tareas con balanceo**:
+
+1. **Estático (LPT, *longest processing time first*):** ordenar las tareas por $t_i$ descendente, $O(n\log n)$; asignar cada una al proceso con menor carga actual (un min-heap de $m$ cargas), $O(n\log m)$. Total $O(n\log n+n\log m)=O(n\log n)$. Garantiza un makespan ≤ $\frac43$ del óptimo.
+2. **Dinámico (work pool):** si los $t_i$ no se conocen de antemano, los procesos toman la siguiente tarea al quedar libres (como Mandelbrot), pagando $T_{msg}+T_{sched}$ por tarea.
+
+Cota inferior útil para argumentar: $T\ge\max\!\left(\frac1m\sum_it_i,\ \max_it_i\right)$ — la misma idea que $\max(W/p,T_\infty)$ de Brent.
+
+</Solucion>
+
+## P1 — Subsecuencia máxima (Divide y Vencerás)
+
+`SubsecuenciaMaxima` hace dos llamadas recursivas sobre mitades y `MaximoCentro` recorre linealmente de $l$ a $r$. (a) Recurrencia. (b) Paralelización, $W$ y $T_\infty$. (c) $T_p$, $S$, $E$ y escalabilidad fuerte/débil.
+
+<Solucion>
+
+**(a)** $T(n)=2T(n/2)+\Theta(n)$; maestro con $a=b=2$, $f(n)=\Theta(n)=n^{\log_2 2}$ ⇒ $\Theta(n\log n)$.
+
+**(b)**
+```text
+pardo
+   ML ← SubsecuenciaMaxima(A, l, m)
+   MR ← SubsecuenciaMaxima(A, m+1, r)
+```
+`MaximoCentro` con dos scans del algoritmo de clase (*Parallel Prefix using Binary Tree Traversal*): prefix-sum (`+`) desde $m$ hacia $l$ (y desde $m+1$ hacia $r$) y luego prefix-max; el último valor es `maxIzq`/`maxDer`. Cada scan: $O(n)$ trabajo, $O(\log n)$ span.
+
+$$
+W(n)=2W(n/2)+O(n)=\Theta(n\log n)\qquad T_\infty(n)=O(\log^2n)
+$$
+
+($\log n$ niveles, cada uno aporta $\log n$ de span por `MaximoCentro`; sin paralelizarlo, $T_\infty=O(n)$.)
+
+**(c)**
+$$
+T_p=O\!\left(\frac{n\log n}{p}+\log^2n\right)\quad S=\frac{n\log n}{\frac{n\log n}{p}+\log^2n}\quad E=\frac{1}{1+\frac{p\log n}{n}}
+$$
+Fuerte: $E=O(1/p)$ ⇒ no escala. Débil: $p\propto n/\log n$ ⇒ $E$ constante, escala.
+
+</Solucion>
+
+<Fuente archivos={['CS4052-PD01-S02.pdf', 'PD01-Ejercicio1-Resolucion.md', 'P1.md']} />

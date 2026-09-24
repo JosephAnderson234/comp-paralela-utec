@@ -1,0 +1,102 @@
+---
+title: Casos PRAM
+description: Global OR, máximo, suma por reducción, suma de prefijos (stepper) y el banco de 4 cajeros.
+---
+import PrefixSumStepper from '../../../components/playgrounds/PrefixSumStepper.tsx';
+import Quiz from '../../../components/Quiz.tsx';
+import Solucion from '../../../components/Solucion.astro';
+import Fuente from '../../../components/Fuente.astro';
+
+## Global OR (CRCW)
+
+$R=a_0\lor a_1\lor\dots\lor a_{n-1}$: cada procesador evalúa `if x[i]` y escribe `Result ← 1`. Basta que uno escriba 1 (todos escriben el **mismo** valor ⇒ CRCW común).
+
+$$
+T_\infty(n)=\Theta(1)\qquad W(n)=\Theta(n)\qquad S_n=\Theta(n)\qquad E_n=\Theta(1)
+$$
+
+Global AND es análogo con `if not x[i]` → `Result ← 0`.
+
+## Máximo de $n$ números (CRCW)
+
+```text
+forall (i,j) ∈ {1..n}² pardo   B[i,j] ← A[i] ≥ A[j]
+forall i ∈ {1..n} pardo        M[i] ← AND_j B[i,j]
+```
+
+Cada elemento se compara contra todos; donde el AND da 1 está el máximo. $O(n^2)$ procesadores, tiempo $O(1)$.
+
+## Suma de $n$ números (reducción binaria)
+
+```text
+for i=1 to n pardo           B[i] ← A[i]                 // paso 1
+for h=1 to log n do
+  for i=1 to n/2^h pardo     B[i] ← B[2i-1] + B[2i]      // paso 2
+S ← B[1]                                                  // paso 3
+```
+
+$$
+W(n)=n+\sum_{j=1}^{\log n}\frac{n}{2^j}+1=O(n)\qquad T_\infty=O(\log n)\qquad T_p=O\!\left(\frac np+\log n\right)
+$$
+
+Con $C_p=O(n+p\log n)$ es **WT-óptimo**. Con $p$ procesadores explícitos: cada $s$ suma localmente sus $n/p$ y luego participa en $\log$ niveles del árbol (activo solo mientras $s\le2^{k-h}$).
+
+## Suma de prefijos (scan)
+
+Dada una operación **asociativa** $*$: $s_i=x_1*x_2*\dots*x_i$.
+
+<PrefixSumStepper client:visible />
+
+:::note[Complejidad]
+Paso 1: $n$ ops · Paso 2: $\sum_{m=1}^{k}n/2^m$ · Paso 3: $\sum_{m=0}^{k}2^m$ ⇒ $W(n)=O(n)$, $T(n)=2O(\log n)+1=O(\log n)$. Con Brent:
+$$
+\frac{W}{p}\le T(n,p)\le O\!\left(\frac np+\log n\right)\qquad E(n,p)=\frac{O(1)}{O\!\left(1+p\frac{\log n}{n}\right)}
+$$
+:::
+
+### Versión recursiva
+
+```text
+if n = 1:  s1 ← x1
+for 1 ≤ i ≤ n/2 pardo:  y_i ← x_{2i-1} * x_{2i}
+(z_1..z_{n/2}) ← PrefixSum(y_1..y_{n/2})
+for 1 ≤ i ≤ n pardo:
+   i par:       s_i ← z_{i/2}
+   i = 1:       s_1 ← x_1
+   i impar > 1: s_i ← z_{(i-1)/2} * x_i
+```
+
+$T(n)=T(n/2)+a\Rightarrow O(\log n)$; $\;W(n)=W(n/2)+bn\Rightarrow O(n)$. Como el secuencial es $O(n)$: **WT-óptimo**; paradigma de memoria compartida (U3.5, Ej. 3).
+
+:::tip[En el examen…]
+La suma de prefijos es una **subrutina** que el enunciado te regala: «$O(n)$ trabajo, $O(\log n)$ span». Úsala sin rederivarla (quicksort 2025-I, P1).
+:::
+
+:::caution[Error común]
+Olvidar que la operación debe ser **asociativa** (+, ×, max, min, AND, OR…). La resta no sirve.
+:::
+
+## Banco con 4 cajeros
+
+C1–C2 comparten una memoria local, C3–C4 otra; entre pares solo hay red. Cada cajero deposita/retira de una cuenta $v$ con cualquier frecuencia. ¿Paradigma? ¿Flynn? ¿Aplica CRCW?
+
+<Solucion>
+
+- **Paradigma: híbrido** (memoria compartida dentro de cada par + distribuida entre pares).
+- **Flynn: MIMD** (instrucciones distintas, datos distintos, asíncrono).
+- **CRCW puro no encaja bien**: la escritura concurrente sobre $v$ exigiría el submodelo **combinado** (acumular depósitos/retiros) o serializar con exclusión mutua; además CRCW supone pasos **síncronos** y el banco es asíncrono ⇒ se modela mejor con **APRAM**.
+
+</Solucion>
+
+<Quiz
+	client:visible
+	id="pram-casos"
+	preguntas={[
+		{ q: 'Global OR en CRCW común tiene $T_\\infty=$', opts: ['$\\Theta(1)$', '$\\Theta(\\log n)$', '$\\Theta(n)$', '$\\Theta(n^2)$'], ok: 0 },
+		{ q: 'Prefix sum: $W$ y $T$…', opts: ['$O(n\\log n)$, $O(\\log n)$', '$O(n)$, $O(\\log n)$', '$O(n)$, $O(n)$', '$O(n^2)$, $O(1)$'], ok: 1 },
+		{ q: '¿Cuántos procesadores usa el máximo en $O(1)$?', opts: ['$n$', '$n\\log n$', '$n^2$', '$\\log n$'], ok: 2 },
+		{ q: 'En el down-sweep, $C(h,2m)$ y $C(h,2m+1)$ leen $C(h+1,m)$ en el mismo paso. Eso es…', opts: ['escritura concurrente', 'lectura concurrente', 'EREW', 'un error del algoritmo'], ok: 1 },
+	]}
+/>
+
+<Fuente archivos={['estudio/04_PRAM.md §6–8', 'U2.2/U2.3 PRAM (apuntes)', 'U3.5 Ejercicios de repaso.pdf (Ej. 3)']} />

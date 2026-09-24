@@ -1,0 +1,68 @@
+---
+title: Speedup, eficiencia y costo
+description: Métricas base del diseño paralelo, granularidad y overhead.
+---
+import Quiz from '../../../components/Quiz.tsx';
+import Solucion from '../../../components/Solucion.astro';
+import Fuente from '../../../components/Fuente.astro';
+
+## Definiciones
+
+$$
+S=\frac{T_s}{T_p}\le p\qquad\qquad E=\frac{S}{p}=\frac{T_s}{p\,T_p}\le1\qquad\qquad C_p(n)=T_p(n)\cdot p
+$$
+
+- **Speedup**: ¿cuánto más rápido corro? $S=p$ es speedup lineal perfecto ($E=1$).
+- **Eficiencia**: ¿qué tan bien uso cada procesador agregado? $S=4$ con 8 procesadores ⇒ $E=0.5$: la mitad del hardware desperdiciado.
+- **Costo**: $C_p=p\,T_p$. **Costo óptimo** si $C_p(n)=\Theta(T_s(n))$.
+
+:::note[Granularidad]
+$G=\dfrac{T_{comp}}{T_{comm}}$: cuánto trabajo útil hay por unidad de overhead. **Fino**: muchas tareas chicas (buen balance, mucha comunicación). **Grueso**: pocas tareas grandes (poca comunicación, riesgo de desbalance). **Medio**: combinación — lo más común en aplicaciones reales.
+:::
+
+:::tip[En el examen…]
+Cuando piden «granularidad», escribe $G$ como cociente y **compara denominadores**: el esquema con denominador (comunicación) más chico tiene mayor granularidad y menor overhead relativo (arquetipo B).
+:::
+
+:::caution[Error común]
+Calcular $E$ con $T_p$ del **mejor caso** y $T_s$ de un algoritmo secuencial **peor** que el óptimo. $T_s$ debe ser el **mejor** secuencial conocido ($W=T_s^*$), si no el speedup sale inflado.
+:::
+
+## Overhead e isoeficiencia (vista rápida)
+
+$$
+T_o=p\,T_p-T_s\qquad\Rightarrow\qquad E=\frac{T_s}{T_s+T_o}
+$$
+
+Para mantener $E$ constante, $T_s$ debe crecer al ritmo de $T_o$: $T_s=K\,T_o$. De ahí se despeja $n=f(p)$ (**función de isoeficiencia**): cuanto más lento crece, más escalable. Más en [escalabilidad](/performance/escalabilidad/).
+
+## Ejercicio (clase U2.1): 4 desarrolladores, $p=1000$
+
+1. 80 % del tiempo en comunicación. 2. 20 % en comunicación. 3. No logra paralelizar el 10 % ($f_s=0.10$). 4. No logra paralelizar el 90 % ($f_s=0.90$). Ordene por eficiencia.
+
+<Solucion>
+
+Casos 3 y 4 son Amdahl directo, $E=\dfrac{1}{p\,(f_s+(1-f_s)/p)}$:
+
+$$
+E_3=\frac{1}{1000\,(0.10+0.0009)}\approx0.0099\qquad E_4=\frac{1}{1000\,(0.90+0.0001)}\approx0.0011
+$$
+
+Casos 1 y 2 no son fracción secuencial sino **overhead de comunicación**, que resta tiempo útil de forma análoga: con 20 % en comunicación se logra más eficiencia que con 80 %. (Una lectura posible: si una fracción $c$ del tiempo paralelo es comunicación, a lo más $1-c$ es cómputo útil ⇒ $E\le0.2$ vs $E\le0.8$.)
+
+**Conclusión de las notas:** con $p$ grande, cualquier fracción no paralelizable — secuencial **o** de comunicación — domina brutalmente la eficiencia. El peor es el caso 4.
+
+</Solucion>
+
+<Quiz
+	client:visible
+	id="metricas"
+	preguntas={[
+		{ q: '$T_s=100$ s, $T_8=20$ s. ¿$E$?', opts: ['0.2', '0.625', '5', '0.8'], ok: 1, why: '$S=5$, $E=5/8=0.625$.' },
+		{ q: '¿Cuándo es un algoritmo de costo óptimo?', opts: ['$C_p=\\Theta(T_s)$', '$S=p$ siempre', '$T_p=T_\\infty$', '$E>0.5$'], ok: 0 },
+		{ q: 'Mayor granularidad significa…', opts: ['más comunicación por cómputo', 'más cómputo por unidad de comunicación', 'más procesos', 'menos trabajo total'], ok: 1 },
+		{ q: '$T_o=p T_p - T_s$ representa…', opts: ['el tiempo secuencial', 'el overhead paralelo total', 'el span', 'la latencia'], ok: 1 },
+	]}
+/>
+
+<Fuente archivos={['estudio/03_Amdahl_Gustafson.md §1, §5', 'U2.4 (Granularidad)', 'PD01-Ejercicio1-Resolucion.md (overhead, CCR, isoeficiencia)', '04_PRAM.md §3']} />

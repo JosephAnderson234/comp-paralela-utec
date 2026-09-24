@@ -1,0 +1,103 @@
+---
+title: Particionamiento de datos y tareas
+description: Topologías lineal vs árbol, suma de array, image warping, Mandelbrot estático vs work pool.
+---
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import MandelbrotBalance from '../../../components/playgrounds/MandelbrotBalance.tsx';
+import Quiz from '../../../components/Quiz.tsx';
+import Solucion from '../../../components/Solucion.astro';
+import Fuente from '../../../components/Fuente.astro';
+
+## Costo de comunicación
+
+$$
+T_{comm}=f(p)\,(\alpha+x\beta)
+$$
+
+$\alpha$ = **latencia** (enviar un mensaje de tamaño 0), $\beta$ = costo por byte (inverso del ancho de banda), $x$ = tamaño del mensaje, $f(p)$ = depende de la **topología**. Se comunica para: repartir datos desde el maestro, intercambiar entre procesos (p. ej. halos del suavizado) y reducir/recolectar al final.
+
+## Topologías
+
+| | Lineal (cada proceso tiene vecino anterior/posterior) | Árbol binario |
+|---|---|---|
+| Broadcast | $O(p(\alpha+m\beta))$ ($p-1$ pasos si el maestro está en un extremo, $\lfloor p/2\rfloor$ si está al medio) | $O(\log p\,(\alpha+m\beta))$ |
+| Scatter/Gather | $(p-1)(\alpha+\beta m/p)=O(\alpha p+\beta m)$ | $\sum_{i=0}^{\log p-1}\left(\alpha+\beta2^i\frac mp\right)=\alpha\log p+\beta m\left(1-\frac1p\right)$ |
+
+:::note[Clave]
+El árbol reduce la **latencia** de $O(\alpha p)$ a $O(\alpha\log p)$ **sin** empeorar el término de ancho de banda $\beta m$ (el volumen total a mover es el mismo). Anímalo en [Colectivas](/mpi/colectivas/).
+:::
+
+## Ejemplo: suma de un array con $p$ procesos
+
+<Tabs>
+<TabItem label="Topología lineal">
+
+- Envío: $O(p(\alpha+\frac np\beta))$ · Cómputo: $O(n/p)$ · Recolección: $O(p(\alpha+\beta))$ · Suma final: $O(p)$
+
+$$
+T_p(n,p)=O\big(p\alpha+(n+p)\beta+n/p\big)
+$$
+
+</TabItem>
+<TabItem label="Árbol (O(log p))">
+
+- Envío: $O(\alpha\log p+\frac np\beta)$ · Cómputo: $O(n/p)$ · Reducción: $O(\log p(\alpha+\beta+1))$
+
+$$
+T_p(n,p)=O\!\left(\frac np+\alpha\log p+\frac np\beta\right)
+$$
+
+El span $O(\log n)$ del DAG de la reducción se convierte en el factor $\log p$ de comunicación.
+
+</TabItem>
+</Tabs>
+
+:::tip[En el examen (arquetipo A)]
+Si el enunciado dice «comunicación optimizada, $f(p)=O(\log p)$», usa la columna del **árbol**. Siempre di el **paradigma**: PRAM = memoria compartida; si hay α y β, hay mensajes (distribuida).
+:::
+
+## Procesamiento de imágenes
+
+- **Intensidad**: cada píxel independiente ⇒ cada proceso trabaja su región sin comunicarse.
+- **Image warping** (rotación): cada píxel de salida usa coordenadas rotadas + interpolación bilineal:
+$$
+x'=(x-c_x)\cos\theta+(y-c_y)\sin\theta+c_x\qquad y'=-(x-c_x)\sin\theta+(y-c_y)\cos\theta+c_y
+$$
+- Imagen $n\times n$: $T_s=O(n^2)$; $\;T_p=O\!\left(\frac{n^2}{p}+\alpha\log p+\beta\frac{n^2}{p}\right)$. Repartir/recolectar la imagen es caro ⇒ **memoria compartida (incl. GPU) es óptima**.
+
+## Particionamiento de tareas: Mandelbrot
+
+Cada píxel itera $z_{k+1}=z_k^2+c$ desde $z_0=0$ hasta $|z|>2$ o $K_{max}$. Los píxeles son independientes entre sí (el cálculo de uno no se paraleliza internamente).
+
+$$
+W=O(n^2K_{max})\qquad T_\infty=O(K_{max})\qquad T_p=O\!\left(\frac{n^2K_{max}}{p}+K_{max}\right)\qquad T_{comm}=O(\log p\,(\alpha+\beta N^2))
+$$
+
+<MandelbrotBalance client:visible />
+
+:::caution[Error común]
+«Cada proceso recibe la misma cantidad de píxeles ⇒ está balanceado». **Falso**: el costo por píxel varía de 1 a $K_{max}$ iteraciones. La distribución **estática** desbalancea; el **work pool** (dinámico) balancea a cambio de $T_{msg}$ + $T_{sched}$. En los datos del curso ($K_{max}=10^5$, MPI vs OMP) la versión dinámica/guided mantiene mejor eficiencia al crecer $p$.
+:::
+
+## Ejercicio
+
+Calcule $W$, $T_\infty$ y la cota de Brent para Mandelbrot con $n=1000$, $K_{max}=200$, $p=100$.
+
+<Solucion>
+
+$W=n^2K_{max}=10^6\cdot200=2\times10^8$ iteraciones (cota superior); $T_\infty=K_{max}=200$; Brent: $T_p\le\frac{2\times10^8}{100}+200=2\,000\,200$. Domina $W/p$: con $p\le n^2$ y $K_{max}$ constante, $T_p=O(n^2/p)$. (Sin comunicación; en MPI agregar $O(\log p(\alpha+\beta N^2))$.)
+
+</Solucion>
+
+<Quiz
+	client:visible
+	id="particionamiento"
+	preguntas={[
+		{ q: 'Scatter en árbol binario cuesta…', opts: ['$O(\\alpha p+\\beta m)$', '$O(\\alpha\\log p+\\beta m)$', '$O(\\log p(\\alpha+\\beta))$', '$O(p\\beta m)$'], ok: 1 },
+		{ q: '¿Qué término NO mejora el árbol en scatter/gather?', opts: ['latencia', '$\\beta m$ (volumen)', 'ambos', 'ninguno'], ok: 1 },
+		{ q: 'Para image warping se prefiere…', opts: ['memoria distribuida', 'memoria compartida/GPU', 'topología lineal', 'work pool'], ok: 1, why: 'Repartir y recolectar la imagen completa es caro.' },
+		{ q: 'El work pool agrega overhead de…', opts: ['$T_{msg}$ y $T_{sched}$', 'span', 'memoria', 'nada'], ok: 0 },
+	]}
+/>
+
+<Fuente archivos={['estudio/05_Particionamiento.md', 'U2.4-Diseño_en_paralelo-Particionamiento-Random.pdf', '08_Solvers (Arquetipo A)']} />

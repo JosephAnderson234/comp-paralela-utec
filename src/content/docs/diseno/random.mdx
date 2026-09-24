@@ -1,0 +1,82 @@
+---
+title: Random en paralelo y Montecarlo
+description: Monte Carlo vs Las Vegas, π, integración, LCG, estrategias de generación en paralelo, MRG32k3a.
+---
+import MonteCarloPi from '../../../components/playgrounds/MonteCarloPi.tsx';
+import Quiz from '../../../components/Quiz.tsx';
+import Solucion from '../../../components/Solucion.astro';
+import Fuente from '../../../components/Fuente.astro';
+
+Un algoritmo **estocástico** usa variables aleatorias: dos ejecuciones con la misma entrada pueden diferir.
+
+| | Tiempo | Resultado |
+|---|---|---|
+| **Monte Carlo** | controlado (fijo/acotado) | puede tener error |
+| **Las Vegas** | variable aleatoria | siempre correcto |
+
+## π por Montecarlo
+
+$N$ puntos al azar en el cuadrado; $n$ caen en el círculo inscrito: $\dfrac nN=\dfrac{\pi r^2}{4r^2}\Rightarrow\pi=4\dfrac nN$ (típicamente $10^3<N<10^6$).
+
+```c title="U2.6 — paralelo con OpenMP" {1}
+#pragma omp parallel for reduction(+:count)
+for(i=0; i<num_trials; i++){
+    x = (double)rand()/RAND_MAX;
+    y = (double)rand()/RAND_MAX;
+    test = x*x + y*y;
+    if(test <= r*r) Ncirc++;
+}
+pi = 4.0 * ((double)Ncirc/(double)num_trials);
+```
+
+Las iteraciones son independientes ⇒ paralelización trivial con una **reducción** (en MPI: cada rank cuenta y `MPI_Reduce(SUM)`).
+
+## Generación de números aleatorios en paralelo
+
+**LCG:** $x_{i+1}=(a\,x_i+c)\bmod m$, p. ej. $a=16807$, $m=2^{31}-1$, $c=0$.
+
+| Estrategia | Idea | Trade-off |
+|---|---|---|
+| Centralizada | el maestro reparte los números | bajo performance (cuello de botella + comunicación) |
+| Replicativa | cada proceso su semilla, mismo generador | riesgo de **correlaciones** |
+| Distribuida | semilla basada en los random de los vecinos | eficiente pero difícil |
+
+- **Random tree:** dos LCG, $L(x)=a_Lx+c_L$ y $R(x)=a_Rx+c_R\pmod m$, generan un árbol de semillas: streams independientes sin comunicación.
+- **MRG32k3a** (L'Ecuyer, 1999): $1.8\times10^{19}$ streams independientes, cada uno con $2.3\times10^{15}$ substreams de período $7.6\times10^{22}$; período total $3.1\times10^{57}$. Cada proceso usa **su propio stream**.
+
+<MonteCarloPi client:visible />
+
+:::note[Leapfrog y sequence splitting]
+Son las dos formas estándar de repartir **un solo** stream entre $p$ procesos sin solapamiento (el playground las incluye como complemento; en las slides la idea equivalente es la de streams/substreams de MRG32k3a): **leapfrog** — el proceso $r$ toma $x_r, x_{r+p}, x_{r+2p},\dots$; **splitting** — el proceso $r$ toma un bloque contiguo del stream.
+:::
+
+:::caution[Error común]
+«Cada proceso usa `srand(rank)` y listo». Con un LCG multiplicativo ($c=0$), la secuencia de semilla $s$ es $s\cdot$(secuencia de semilla 1) mod $m$: streams **correlacionados** (el playground mide $\rho\approx0.5$ entre P0 y P1). Y con la **misma** semilla todos generan los mismos puntos: haces $p$ veces el mismo trabajo.
+:::
+
+## Integración numérica
+
+$I=\int_a^bf(x)dx$ con $N$ puntos; cada proceso cubre $(b-a)/p$ y se suma en el maestro. **La generación aleatoria se delega a cada proceso** ⇒ sin comunicación. En `pi-reduce.cpp` (session2) se integra $\pi=\int_0^1\frac{4}{1+x^2}dx\approx\frac1n\sum_{i=1}^n\frac{4}{1+\left(\frac{i-0.5}{n}\right)^2}$ con `MPI_Bcast(n)` + `MPI_Reduce`.
+
+## Ejercicio
+
+¿Por qué conviene que cada proceso genere sus propios números en la integración Montecarlo, en vez de recibirlos del maestro? ¿Qué pasaría con π si necesitaras el **orden** en que caen los puntos?
+
+<Solucion>
+
+Recibirlos del maestro es la estrategia **centralizada**: $O(N)$ datos por la red y un cuello de botella en el maestro; generándolos localmente solo se comunica **un número por proceso** al final (la reducción). Si importara el orden global de los puntos, las iteraciones dejarían de ser independientes (habría dependencia secuencial) y ya no bastaría una `reduction`.
+
+</Solucion>
+
+<Quiz
+	client:visible
+	id="random"
+	preguntas={[
+		{ q: 'Quicksort con pivote aleatorio (siempre ordena bien, tiempo variable) es…', opts: ['Monte Carlo', 'Las Vegas'], ok: 1 },
+		{ q: 'π por Montecarlo (tiempo fijo, resultado aproximado) es…', opts: ['Monte Carlo', 'Las Vegas'], ok: 0 },
+		{ q: 'Estrategia con riesgo de correlación entre procesos:', opts: ['centralizada', 'replicativa', 'MRG32k3a con streams', 'random tree'], ok: 1 },
+		{ q: 'Período total de MRG32k3a:', opts: ['$2^{31}-1$', '$7.6\\times10^{22}$', '$3.1\\times10^{57}$', '$1.8\\times10^{19}$'], ok: 2 },
+	]}
+/>
+
+<Fuente archivos={['estudio/06_Random_Paralelo.md', 'U2.4-Diseño_en_paralelo-Particionamiento-Random.pdf (U2.6)', 'session2/pi-reduce/ejemplo03-PI-reduce.cpp', 'U3.2 (Ejemplo 4: π por integración)']} />

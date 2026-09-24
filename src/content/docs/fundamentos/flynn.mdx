@@ -1,0 +1,59 @@
+---
+title: Taxonomía de Flynn
+description: SISD, SIMD, MISD, MIMD con quiz clasificador.
+---
+import Quiz from '../../../components/Quiz.tsx';
+import Fuente from '../../../components/Fuente.astro';
+
+Flynn (1966) clasifica arquitecturas por **cuántos flujos de instrucciones** × **cuántos flujos de datos** procesan a la vez.
+
+| | 1 flujo de datos | Múltiples flujos de datos |
+|---|---|---|
+| **1 flujo de instrucciones** | **SISD** — Von Neumann clásico (microcontroladores) | **SIMD** — GPUs, vectoriales; suma de vectores, filtros de imagen |
+| **Múltiples instrucciones** | **MISD** — sistemas tolerantes a fallos (navegación aérea) | **MIMD** — memoria compartida/distribuida, GPGPU, clusters MPI; N-Body paralelo |
+
+:::note[Definición]
+**SIMD**: una instrucción se ejecuta sobre múltiples *data streams* simultáneamente. **MIMD**: múltiples tareas en múltiples procesos, cada uno con su propio flujo de instrucciones y de datos.
+:::
+
+:::tip[En el examen…]
+Pregúntate en orden: (1) ¿cuántos flujos de **instrucción**? (2) ¿cuántos de **datos**? «Una orden, muchas manos» = SIMD. MISD casi siempre es distractor o un sistema de redundancia/votación.
+:::
+
+:::caution[Error común]
+Un programa MPI ejecuta **el mismo binario** en todos los procesos, pero cada proceso sigue su propio flujo de control (ramas por `rank`) sobre sus propios datos y de forma asíncrona ⇒ es **MIMD** (estilo SPMD), no SIMD.
+:::
+
+## Marco general del curso
+
+Toda solución paralela considera 3 componentes: **el algoritmo** (abstracción y código), **alto performance** (speedup, eficiencia, precisión) y **la topología** (determinada por la herramienta; no se optimiza en el curso).
+
+## Ejercicio
+
+Clasifica según Flynn: (a) GPU aplicando el mismo shader a cada píxel, (b) cluster MPI donde cada nodo ejecuta un programa distinto sobre datos distintos, (c) votación triple redundante en un avión, (d) el banco con 4 cajeros del examen PRAM.
+
+import Solucion from '../../../components/Solucion.astro';
+
+<Solucion>
+
+(a) **SIMD** — una instrucción, muchos píxeles. (b) **MIMD**. (c) **MISD** — varias unidades ejecutan instrucciones (posiblemente distintas) sobre el **mismo** dato y votan. (d) **MIMD** — cada cajero ejecuta instrucciones potencialmente distintas sobre datos distintos, de forma asíncrona (ver [PRAM → banco](/pram/casos/#banco-con-4-cajeros)).
+
+</Solucion>
+
+## Quiz clasificador
+
+<Quiz
+	client:visible
+	id="flynn"
+	titulo="¿Qué clase de Flynn es?"
+	preguntas={[
+		{ q: 'Suma de dos vectores $c_i=a_i+b_i$ en una unidad vectorial.', opts: ['SISD', 'SIMD', 'MISD', 'MIMD'], ok: 1, why: 'Una sola instrucción (suma) aplicada a múltiples datos a la vez.' },
+		{ q: 'Un microcontrolador ejecutando un bucle secuencial.', opts: ['SISD', 'SIMD', 'MISD', 'MIMD'], ok: 0, why: 'Un flujo de instrucciones, un flujo de datos.' },
+		{ q: 'Multiplicación de matrices con varios hilos (OpenMP) en un multicore.', opts: ['SISD', 'SIMD', 'MISD', 'MIMD'], ok: 3, why: 'Cada hilo tiene su propio flujo de instrucciones y datos (MIMD de memoria compartida).' },
+		{ q: 'Tres computadoras de vuelo calculan la misma altitud con algoritmos distintos y votan.', opts: ['SISD', 'SIMD', 'MISD', 'MIMD'], ok: 2, why: 'Múltiples instrucciones sobre el mismo dato: tolerancia a fallos.' },
+		{ q: 'N-Body con MPI en 64 nodos.', opts: ['SISD', 'SIMD', 'MISD', 'MIMD'], ok: 3, why: 'Memoria distribuida, procesos independientes: MIMD.' },
+		{ q: 'Un filtro de imagen aplicado por una GPU (mismo kernel para todos los píxeles).', opts: ['SIMD', 'MISD', 'SISD', 'MIMD'], ok: 0, why: 'Una instrucción (kernel) sobre muchos datos.' },
+	]}
+/>
+
+<Fuente archivos={['estudio/01_Flynn_Foster.md §1', 'U1.2-Fundamentos-Foster_Flynn-apuntes.pdf', '04_PRAM.md §8']} />

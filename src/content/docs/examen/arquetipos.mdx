@@ -1,0 +1,149 @@
+---
+title: Solvers por arquetipo (A–F)
+description: Plantilla paso a paso para cada tipo de ejercicio de los PD02 previos y checklist de cierre.
+---
+import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import Fuente from '../../../components/Fuente.astro';
+
+| Arquetipo | 2025-I | 2025-II S01 | 2025-II S02 | 2026-I |
+|---|---|---|---|---|
+| **A** PRAM de operación agregada global | Ej.1 (suma) | Ej.1 (p-norma) | Ej.1 (normalización) | — |
+| **B** Particionamiento filas vs bloques | — | Ej.2 | Ej.2 | — |
+| **C** DAG desde código + PRAM con barreras | — | Ej.3 | Ej.3 | — |
+| **D** Escalabilidad con FLOPs dados (N-Body) | Ej.2 | — | — | Ej.1 |
+| **E** Recurrencia D&V / árbol (W, T∞, Brent) | Ej.3 (quicksort) | — | — | Ej.2 (árbol 2-3) |
+| **F** Multiplicación de matrices en paralelo | — | — | — | Ej.3 |
+
+<Tabs>
+<TabItem label="A · PRAM global">
+
+**Reconocerlo:** fórmula (suma, norma, normalización) sobre un array/matriz; piden PRAM, $T_{comp}$, $T_{comm}$, $S$, $E$, escalabilidad.
+
+<Steps>
+
+1. **Paradigma:** memoria compartida (PRAM). Dilo explícitamente: es punto de examen.
+2. **PRAM:** cada proceso hace `pardo` sobre su porción $n/p$ (o $n^2/p$), acumula localmente; al final **reduce** (árbol).
+   ```text
+   for 1 ≤ i ≤ n/p pardo        // proceso s
+       acc_s += g(x_i)           // g = x², |x|, producto…
+   // reducción global de los acc_s (árbol binario)
+   ```
+3. $T_{comp}(n,p)=O(n/p+\log p)$ (o $n^2/p$ si es matriz).
+4. $T_{comm}$: sin optimizar, Scatter $O(p(\alpha+\frac np\beta))$ + Reduce $O(p(\alpha+\beta))$; **optimizada** ($f(p)=O(\log p)$) Scatter $O(\alpha\log p+\frac np\beta)$ + Reduce $O(\log p(\alpha+\beta))$.
+5. $T_p=T_{comp}+T_{comm}$ ⇒ $S=T_s/T_p$, $E=S/p$.
+6. **Fuerte:** $n$ fijo ⇒ ¿$E\to0$? (casi siempre: no escala). **Débil:** despeja $n\propto f(p)$ (típico $n\propto p\log p$ o $n\propto\sqrt{p\log p}$ si hay $n^2$).
+
+</Steps>
+
+Ejemplos oficiales: p-norma ⇒ $E=O\!\left(\frac{1}{p^2+p\log p}\right)$ con $n$ fijo; débil con $n\propto p^2$. Normalización ⇒ $T=O(n^2/p+\log p)$, $E=O\!\left(\frac{1}{1+p\log p/n^2}\right)$; débil con $n\propto\sqrt{p\log p}$.
+
+</TabItem>
+<TabItem label="B · filas vs bloques">
+
+**Reconocerlo:** te dan dos $T_p$ ya hechos y piden granularidad, condición de escalabilidad y cuál escala mejor.
+
+$$
+T_p^{filas}=\gamma\frac{n^2}{p}+\alpha\log p+\beta n\qquad T_p^{bloques}=\gamma\frac{n^2}{p}+2\alpha\log\sqrt p+\beta\frac{n}{\sqrt p}
+$$
+
+<Steps>
+
+1. $G=\dfrac{\text{cómputo}}{\text{comunicación}}$: $G_{filas}=\dfrac{n^2}{p(n+\log p)}$, $G_{bloques}=\dfrac{n^2}{p(n/\sqrt p+\log\sqrt p)}$ ⇒ bloques: denominador menor ⇒ **mayor granularidad**, menos overhead.
+2. Escalabilidad: filas $n\propto p$; bloques $n\propto\sqrt{p\log\sqrt p}$.
+3. Conclusión redactada: bloques es más escalable (necesita menos crecimiento de $n$ / menos procesos para mantener $E$).
+
+</Steps>
+
+Playground: [matriz × vector](/mpi/practica-matvec/).
+
+</TabItem>
+<TabItem label="C · DAG + barreras">
+
+**Reconocerlo:** una función con tareas que comparten arrays; piden DAG + grado de concurrencia, PRAM con `barrier()`, $T_s$, $T_p$, $S$, $E$.
+
+<Steps>
+
+1. Una tarea por llamada/bloque con su complejidad.
+2. Arista $T_i\to T_j$ si $T_j$ **lee** lo que $T_i$ **escribió**. Dos tareas que solo **leen** lo mismo **no** se conectan (el error más común).
+3. Grado de concurrencia = ancho máximo de un nivel.
+4. $T_\infty$ = suma de costos del camino **más costoso** (no el de más nodos). $W=T_s$ = suma de todo.
+5. PRAM: lo que está en el mismo nivel va con `||`, entre `barrier()`.
+   ```text
+   a = tarea_1(A); || b = tarea_2(B);
+   barrier();
+   s1 = f(B,a);    || s2 = g(B,a,b);
+   barrier();
+   z = s1 + s2;
+   ```
+6. $T_p=O\!\left(\frac{W_{paralelizable}}{p}+T_\infty\right)$; $S$, $E$. Si piden «cantidad mínima de hilos», evalúa en el $p$ que satura la concurrencia (típico $p=2$).
+
+</Steps>
+
+Oficial 2025-II S01: $T_s=T_p=O(n^2)$, $S=O(1)$, $E=O(1/p)$, $E=0.5$ con $p=2$. Playground: [DAG](/fundamentos/dag/) (presets «PD02 2025-II»).
+
+</TabItem>
+<TabItem label="D · FLOPs N-Body">
+
+$$
+V(n,p)\approx\frac{\gamma N^{2+x}}{\alpha N^{2+x}/p+\beta\log p}\quad(\gamma=500,\ \alpha=10^{-9},\ \beta=1,\ x=0.31)
+$$
+
+<Steps>
+
+1. **Puntos de cruce** = número óptimo de nodos (cómputo ↓, comunicación ↑). $N$ mayor ⇒ el óptimo se mueve a más nodos (arriba/derecha).
+2. **Sustituye numéricamente**; si domina $\alpha N^{2+x}/p$ ⇒ $V\approx\gamma p/\alpha$ = **2.5 PFLOP** con $p=5000$.
+3. ¿Depende de $N$? Justifica con el cálculo (2025-I: no; 2026-I: ligeramente).
+4. $S\propto$ FLOPs (porque $T\propto1/\text{FLOP}$).
+5. Fuerte: $E\sim1/(p\log p)$, no escala. Débil: $N^{2+x}\propto p\log p$.
+
+</Steps>
+
+Playground: [FLOPs](/performance/flops/).
+
+</TabItem>
+<TabItem label="E · recurrencia D&V">
+
+<Steps>
+
+1. $W(n)=T_s(n)$ (reutiliza subrutinas conocidas: prefix sum $O(n)$ trabajo / $O(\log n)$ span).
+2. $T_\infty$: recurrencia del camino crítico (**una** rama): $T_\infty(n)=T_\infty(n/2)+f(n)$ ⇒ $f=O(1)$: $\log n$; $f=O(\log n)$: $\log^2 n$; $f=O(n)$: $n$.
+3. Brent: $T_p=O(W/p+T_\infty)$.
+4. $S=W/T_p$, $E=\dfrac{1}{1+p\,T_\infty/W}$ — **la forma que espera el profesor**.
+5. Débil: $p\propto W/T_\infty$.
+6. Si agregan comunicación ($+\log p$), súmala a $T_p$ **antes** de $S$ y $E$: aparecen **dos** condiciones ($p\propto n/\log n$ y $p\log p\propto n\log n$); la segunda domina.
+
+</Steps>
+
+Oficiales: quicksort $W=n\log n$, $T_\infty=\log^2n$, $p\propto n/\log n$. Árbol 2-3: $W=m\log n$, $T_\infty=\log n$, $E=\frac{1}{1+p/m}$, $p\propto m$. Playground: [Brent](/performance/escalabilidad/).
+
+</TabItem>
+<TabItem label="F · matmul">
+
+<Steps>
+
+1. $T_s=O(n^3)t_c$.
+2. $T_p=O\!\left(\frac{n^3}{p}t_c+n\right)$ (bucle lineal por proceso).
+3. $S=O\!\left(\frac{n^3t_c}{n^3t_c/p+n}\right)$, $E=\dfrac{1}{1+\frac{p}{t_cn^2}}$.
+4. Fuerte: $E=O(1/p)$. Débil: $n\propto\sqrt p$.
+5. **Modelo PRAM:** ¿dos procesos leen la misma celda en el mismo paso? ¿escriben la misma? Cada $P_{i,j}$ escribe solo $C[i,j]$ y los índices $(i+j+k)\bmod n$ no se solapan ⇒ **EREW**.
+
+</Steps>
+
+Contraste: matmul por expansión + reducción (árbol) tiene $T_\infty=O(\log n)$ y necesita combinar $C'(i,j,k)$.
+
+</TabItem>
+</Tabs>
+
+## Checklist de cierre
+
+:::danger[Antes de entregar cada ejercicio]
+1. ¿Calculé $W(n)$ y $T_\infty(n)$ **por separado**?
+2. ¿Brent completo: $T_p=O(W/p+T_\infty)$ y no solo $W/p$?
+3. ¿Llevé $E$ a la forma $O\!\left(\dfrac{1}{1+p\cdot\text{algo}/\text{algo}}\right)$?
+4. ¿Distinguí **fuerte** ($n$ fijo, ¿cae $E$?) de **débil** (¿qué $n=f(p)$ mantiene $E$?)?
+5. Memoria compartida ⇒ PRAM y clasifico EREW/CREW/CRCW. Varias máquinas ⇒ $\alpha$ y $\beta$ explícitos en $T_{comm}$.
+6. DAG: nodos = $W$; camino más largo **por tiempo real** = $T_\infty$.
+7. (MPI) ¿Cada Send tiene su Recv con el mismo tag? ¿Hay un ciclo de esperas? ¿Uso colectivas en vez de bucles de Send?
+:::
+
+<Fuente archivos={['estudio/08_Solvers_Examenes_Previos.md', 'estudio/previos/*.pdf']} />

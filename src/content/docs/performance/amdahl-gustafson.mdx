@@ -1,0 +1,86 @@
+---
+title: Amdahl y Gustafson
+description: Strong scaling vs weak scaling con playground interactivo.
+---
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import AmdahlGustafson from '../../../components/playgrounds/AmdahlGustafson.tsx';
+import Quiz from '../../../components/Quiz.tsx';
+import Solucion from '../../../components/Solucion.astro';
+import Fuente from '../../../components/Fuente.astro';
+
+Tiempo secuencial normalizado a 1: $f_s$ = fracción secuencial, $f_p$ = fracción paralelizable, $f_s+f_p=1$.
+
+<Tabs>
+<TabItem label="Amdahl (strong)">
+
+**Problema de tamaño fijo**: ¿qué tan rápido lo resuelvo con $p$ procesadores?
+
+$$
+T_p=f_s+\frac{f_p}{p}\qquad S=\frac{1}{f_s+f_p/p}\qquad E=\frac{1}{p\left(f_s+\frac{1-f_s}{p}\right)}\qquad \lim_{p\to\infty}S=\frac{1}{f_s}
+$$
+
+Si el 10 % es secuencial, **nunca** pasarás de 10× aunque uses un millón de núcleos.
+
+</TabItem>
+<TabItem label="Gustafson (weak)">
+
+**El problema crece con $p$** (trabajo por procesador ~constante):
+
+$$
+T_p=f_s+f_p\qquad T_s=f_s+p\,f_p\qquad S=f_s+p\,f_p\qquad E=\frac{f_s+p\,f_p}{p}
+$$
+
+El speedup **escala con $p$**: no hay techo $1/f_s$. HPC real está más cerca de Gustafson: más procesadores para problemas más ambiciosos.
+
+</TabItem>
+<TabItem label="Generalizada (α)">
+
+Con $n\propto p$: $T_s=f_s+f_p p^\alpha$, $T_p=f_s+f_p p^{\alpha-1}$:
+
+$$
+S=\frac{f_s+f_p p^\alpha}{f_s+f_p p^{\alpha-1}}\qquad E=\frac{f_s p^{-\alpha}+(1-f_s)}{f_s p^{1-\alpha}+(1-f_s)}
+$$
+
+$\alpha=0$ ⇒ Amdahl, $E=\dfrac{1}{f_s p+(1-f_s)}$. $\alpha=1$ ⇒ $E=f_s p^{-1}+(1-f_s)$ (Gustafson).
+
+</TabItem>
+</Tabs>
+
+<AmdahlGustafson client:visible />
+
+:::tip[En el examen…]
+Identifica la palabra clave: «tamaño fijo», «mismo problema más rápido» ⇒ **Amdahl**. «Problema más grande», «más partículas», «n crece con p» ⇒ **Gustafson**. La escalabilidad (E constante al crecer $n$ y $p$) **no** se puede describir con Amdahl.
+:::
+
+:::caution[Error común]
+Usar $S=f_s+p f_p$ con $n$ fijo. Esa fórmula asume que el problema **creció** $p$ veces en su parte paralela.
+:::
+
+## Ejercicio (U3.5, Ej. 5)
+
+Un algoritmo se paraleliza en 1000 procesos: (a) totalmente paralelizable, (b) 50 % paralelizable, (c) no paralelizable. Calcule $S$ y $E$ en strong y weak scaling ($\alpha=1$) y describa la escalabilidad.
+
+<Solucion>
+
+| Caso | Strong $S$ | Strong $E$ | Weak $S$ | Weak $E$ |
+|---|---|---|---|---|
+| (a) $f_p=1$ | $\dfrac{f_p}{f_p/p}=p=1000$ | 1 | $f_p p=p$ | 1 |
+| (b) $f_p=0.5$ | $\dfrac{1}{0.5+0.5/p}=\dfrac{2p}{p+1}\approx2$ | $\approx0.002$ | $f_s+f_p p=\dfrac{p+1}{2}\approx500$ | $\approx0.5$ |
+| (c) $f_p=0$ | 1 | $1/p$ | 1 | $1/p$ |
+
+(a) eficiencia constante: escalable en ambos casos. (b) con weak scaling sube mucho el speedup y la eficiencia: más escalable. (c) la eficiencia cae con $p$: no es escalable.
+
+</Solucion>
+
+<Quiz
+	client:visible
+	id="amdahl"
+	preguntas={[
+		{ q: '$f_s=0.05$. Speedup máximo según Amdahl:', opts: ['5', '20', '95', 'ilimitado'], ok: 1, why: '$1/f_s=20$.' },
+		{ q: 'Con Gustafson, $f_s=0.1$, $p=100$: $S=$', opts: ['9.17', '90.1', '10', '100'], ok: 1, why: '$0.1+100\\cdot0.9=90.1$.' },
+		{ q: 'Con Amdahl, $f_s=0.1$, $p=100$: $S\\approx$', opts: ['9.17', '90.1', '10', '100'], ok: 0, why: '$1/(0.1+0.9/100)=1/0.109\\approx9.17$.' },
+		{ q: '¿Por qué la eficiencia en strong scaling cae con más nodos y en weak se mantiene?', opts: ['Porque en weak el problema crece y el trabajo por nodo se mantiene', 'Porque weak usa menos comunicación por mensaje', 'Por la ley de Brent', 'No es cierto'], ok: 0, why: 'Ejemplo SPH-EXA en Piz Daint: strong 1.0→~0.2–0.4 con 32 nodos; weak 1.0→~0.4 en 512–1024 nodos.' },
+	]}
+/>
+
+<Fuente archivos={['estudio/03_Amdahl_Gustafson.md §2–3', 'U2.1-Diseño_en_paralelo-performance.pdf', 'U3.5 Ejercicios de repaso.pdf (Ej. 5)']} />

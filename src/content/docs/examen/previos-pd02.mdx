@@ -1,0 +1,228 @@
+---
+title: PD02 previos resueltos
+description: Los 4 PD02 (2025-I, 2025-II S01, 2025-II S02, 2026-I) con la solución oficial oculta.
+---
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import Solucion from '../../../components/Solucion.astro';
+import Fuente from '../../../components/Fuente.astro';
+
+:::tip[Cómo practicar]
+Lee el enunciado, **resuélvelo en papel con el [solver del arquetipo](/examen/arquetipos/)** y recién después abre la solución. Las soluciones son las oficiales del profesor (transcritas de los PDF).
+:::
+
+<Tabs>
+<TabItem label="2025-I">
+
+### Ej. 1 — Suma de números (A, 2 pts)
+
+Enviar un vector de tamaño $x$ demora $t=(\alpha+x\beta)$. (a) Determine $t_p(p,q)$ para $s=\sum_{j=1}^{q\cdot2^N}y_j$ con $p=2^N$ procesos; la suma secuencial de $n$ números cuesta $n\,t_a$; incluya la comunicación. (b) $E(p,q)$; ¿cuándo $E\ge0.5$? Evalúe con $\alpha=1000$, $\beta=10$, $N=6$, $q=10,100,1000$.
+
+<Solucion>
+
+$T_s=n\,t_a$ ($n=q\,p$). $\;T_p=q\,t_a+p(\alpha+\beta)+p(\alpha+q\beta)+p\,t_a$: $q\,t_a$ cómputo por proceso; $p(\alpha+q\beta)$ reparto; $p(\alpha+\beta)$ comunicación de sumas parciales al maestro; $p\,t_a$ suma de los parciales en el maestro.
+
+$$
+S=O\!\left(\frac{n\,t_a}{q\,t_a+p(\alpha+\beta)+p(\alpha+q\beta)+p\,t_a}\right)\qquad E=O\!\left(\frac{1}{1+\frac{p}{q\,t_a}(\alpha+\beta+q\beta+t_a)}\right)
+$$
+
+$E=\frac{1}{1+\frac{p}{q t_a}(\alpha+\beta+q\beta+t_a)}>0.5$ y transformando, la solución oficial obtiene $q>p\,\dfrac{t_a}{\alpha+1}$. Numérico: $q=10\Rightarrow E=0.0001$; $q=100\Rightarrow E=0.0007$; $q=1000\Rightarrow E=0.0142$. Se comprueba la relación: $E$ crece con $q$.
+
+</Solucion>
+
+### Ej. 2 — Escalabilidad N-Body (D, 2 pts)
+
+(1) Puntos de cruce en T vs nodos (64K y 512K cuerpos); gráfico para $N=10^6$ y speedup vs nodos. (2) FLOPs con $V\approx\frac{\gamma N^{2+x}}{\alpha N^{2+x}/p+\beta\log p}$ en 5000 nodos; ¿depende de $N$? (3) Condición de escalabilidad. (4) Fuerte y débil.
+
+<Solucion>
+
+1. Número **óptimo** de nodos: ≈12 (64K), ≈40 (10⁶). Para $N=10^6$ el cruce se mueve arriba y a la derecha.
+2. $S\approx\gamma p/\alpha$ = **2.5 PFLOP**. **No depende de N.**
+3. $N^{2+x}\propto(\beta/\alpha)\,p\log p$.
+4. $N$ constante ⇒ $E\approx\frac{1}{p\log p}$: no escala. Débil: requiere la condición anterior.
+
+</Solucion>
+
+### Ej. 3 — Quicksort paralelo (E, 2 pts)
+
+Cada elemento asignado a un proceso (memoria compartida); pivote aleatorio $v$, $f_i=[d_i\le v]$, posición por **suma de prefijos**, recursión en la partición izquierda/derecha. (a) $W$, $T_\infty$, $T_p$, $S$, $E$, escalabilidad (use la complejidad de prefix sum vista en clase). (b) Agregue comunicación colectiva $T(p)=O(\log p)$.
+
+<Solucion>
+
+**(a)** $W=T_s=O(n\log n)$; $T_\infty(n)=T_\infty(n/2)+O(\log n)=O(\log^2n)$; $T_p=O\!\left(\frac{n\log n}{p}+\log^2n\right)$; $S=\frac{n\log n}{n\log n/p+\log^2n}$; $E=\frac{1}{1+\frac{p\log n}{n}}$ ⇒ $p\propto n/\log n$.
+
+**(b)** $T_p=O\!\left(\frac{n\log n}{p}+\log^2n+\log p\right)$; $E=\frac{1}{1+\frac{p\log n}{n}+\frac{p\log p}{n\log n}}$ ⇒ dos condiciones: $p\propto n/\log n$ y $p\log p\propto n\log n$, **la segunda dominante**.
+
+</Solucion>
+
+</TabItem>
+<TabItem label="2025-II S01">
+
+### Ej. 1 — p-norma (A, 2 pts)
+
+$\|x\|_p=\left(\sum_{i=1}^n|x_i|^p\right)^{1/p}$, $\|x\|_\infty=\max_i|x_i|$. (a) PRAM y paradigma. (b) $T_{comp}$, $T_{comm}$. (c) $S$, $E$. (d) Escalabilidad.
+
+<Solucion>
+
+**(a)** Por proceso $s$: generar su porción; luego
+```text
+for n/p·s + 1 ≤ i ≤ n/p·(s+1) do
+   norma 1 o 2:  norma += |a_i|  o  norma += a_i²
+   norma ∞:      if (norma < |a_i|) norma = |a_i|
+```
+Paradigma: **memoria compartida**.
+
+**(b)** Scatter $O(p(\alpha+\frac np\beta))$ + Reduce $O(\log p(\alpha+\beta))$ ⇒ $T_{comm}=O\!\left(p(\alpha+\frac np\beta)+\log p(\alpha+\beta)\right)$; $T_{comp}=O(n/p)$.
+
+**(c)** $S=O\!\left(\frac{n}{\frac np+p(\alpha+\frac np\beta)+\log p(\alpha+\beta)}\right)$, $E=S/p$.
+
+**(d)** Fuerte: $E=O\!\left(\frac{1}{p^2+p\log p}\right)$ ⇒ no escala. Débil: condiciones $n\propto p^2$ y $n\propto p\log p$ ⇒ escala bajo la primera.
+
+</Solucion>
+
+### Ej. 2 — Matriz-vector filas vs bloques (B, 1.5 pts)
+
+(a) ¿Qué método tiene mayor granularidad? Ventajas/desventajas. (b) Condición de escalabilidad. (c) ¿Cuál es más escalable?
+
+<Solucion>
+
+(a) $G_{filas}=\frac{n^2}{p(n+\log p)}$, $G_{bloques}=\frac{n^2}{p(n/\sqrt p+2\log\sqrt p)}$ ⇒ **bloques**, menor overhead de comunicación. (b) filas $n\propto p$; bloques $n\propto\sqrt{p\log p}$. (c) Bloques: «cuando $n$ crece se requieren menos procesos para mantener la eficiencia constante».
+
+</Solucion>
+
+### Ej. 3 — DAG (C, 1.5 pts)
+
+```c
+double sistema() {
+  double A[n][n], B[n][n], a, b, x, y, z;
+  ini(A,B);                    // 2n² flops
+  a  = tarea_1(A);             // O(n²)
+  b  = tarea_2(B);             // O(n²)
+  s1 = suma_prefijos1(B,a);    // O(n)
+  s2 = suma_prefijos2(B,a,b);  // O(n)
+  z  = s1 + s2;
+  return z;
+}
+```
+
+Parámetros de entrada no se modifican. (3.1) DAG y grado máximo de concurrencia. (3.2) PRAM en memoria compartida. (3.3) $T_s$, $T_p$, $S$ y $E$ para la cantidad mínima de hilos.
+
+<Solucion>
+
+(3.1) `ini` → (`tarea_1` ∥ `tarea_2`) → (`s1`, usa a ∥ `s2`, usa a y b) → `z`. Concurrencia máxima **2**.
+
+(3.2)
+```text
+ini(A,B);
+barrier();
+a = tarea_1(A); || b = tarea_2(B);
+barrier();
+s1 = suma_prefijos1(B,a); || s2 = suma_prefijos2(B,a,b);
+barrier();
+z = s1 + s2;
+```
+
+(3.3) $T_s=T_p=O(n^2)$, $S=O(1)$, $E=O(1/p)$; $E=0.5$ con $p=2$.
+
+</Solucion>
+
+</TabItem>
+<TabItem label="2025-II S02">
+
+### Ej. 1 — Normalización (A, 2 pts)
+
+$sum=\sum_{i,j=1}^{n}A_{ij}\cdot A_{ji}$, $f=1/sum$, $A_{ij}=A_{ij}\cdot f$. (a) PRAM y paradigma. (b) $T_{comp}$, $T_{comm}$ con comunicación optimizada $f(p)=O(\log p)$. (c) $S$, $E$. (d) Escalabilidad.
+
+<Solucion>
+
+```text
+for 1 ≤ i,j ≤ n² pardo   sum += A_ij · A_ji
+f = 1/sum
+for 1 ≤ i,j ≤ n² pardo   A_ij = A_ij · f
+```
+
+$T_s=O(n^2)$, $T_p=O(n^2/p+\log p)$ (reducción global $2\log p(\alpha+\beta)$: reduce + broadcast). $S=O\!\left(\frac{n^2}{n^2/p+\log p}\right)$, $E=O\!\left(\frac{1}{1+\frac{p\log p}{n^2}}\right)$. Fuerte: $E=O\!\left(\frac{1}{p\log p}\right)$, no escala. Débil: $E=O(1)$ si $n\propto\sqrt{p\log p}$.
+
+</Solucion>
+
+### Ej. 2 — Matriz-vector (B, 1.5 pts)
+
+(a) ¿Cuál muestra **menor** granularidad? ¿Es una ventaja? (b) Escalabilidad. (c) ¿Cuál es más escalable?
+
+<Solucion>
+
+Igual que S01: bloques tiene **mayor** granularidad (filas la menor) y eso es una ventaja (menor overhead). Filas $n\propto p$, bloques $n\propto\sqrt{p\log p}$; bloques más escalable.
+
+</Solucion>
+
+### Ej. 3 — DAG (C, 1.5 pts)
+
+```c
+double OpArr(double A[], double B[], double C[], int n){
+  suma_de_prefijos(A,n);          // prefijos de A
+  quicksort(B,n);                 // ordena B
+  scan_left(C+x,n);               // acumula C más una constante x
+  for (i=0;i<n;i++){ s1=0; for(j..) s1+=A[j]*B[j]; for(j..) A[j]*=s1; }   // tarea 4
+  for (i=0;i<n;i++){ s2=0; for(j..) s2+=B[j]*C[j]; for(j..) C[j]*=s2; }   // tarea 5
+  a=s1/s2; res=0; for (i=0;i<n;i++) res+=a*C[i];                          // cálculo final
+  return res;
+}
+```
+
+(3.1) DAG y concurrencia. (3.2) PRAM. (3.3) $T_s$, $T_p$, $S$, $E$.
+
+<Solucion>
+
+```text
+suma_de_prefijos(A,n) || quicksort(B,n) || scan_left(C+x,n)
+tarea 4 || tarea 5
+a = s1/s2; res = 0; for i: res += a*C[i]
+```
+
+Concurrencia máxima 3. $T_s=O(3n+n\log n+2n^2)$; $T_p=O\!\left(\frac{3n+n\log n+2n^2}{p}\right)$ en la forma oficial $\approx O(n+n\log n+n^2)$; $S=O(1)$, $E=O(1/p)$.
+
+</Solucion>
+
+</TabItem>
+<TabItem label="2026-I">
+
+### Ej. 1 — Performance N-Body (D, 2.5 pts)
+
+Gráficas T vs nodos (64K, 512K); cruces = datos experimentales, curvas = teoría. (1.1) Puntos de cruce y $N=10^6$. (1.2) FLOPs en 5000 nodos; ¿depende de $N$? (1.3) Relación speedup–FLOPs. (1.4) Escalabilidad con la fórmula de speedup.
+
+<Solucion>
+
+1.1 Óptimo de nodos (≈12 para 64K, ≈40 para 512K); para 1M se mueve arriba/derecha (más procesadores); se proyecta con la fórmula de complejidad.
+1.2 **2.5 PFLOP**; **depende ligeramente de N**.
+1.3 $S\propto$ FLOPs, ya que $T_s\propto$ FLOP.
+1.4 $E=O\!\left(\frac{1}{1+\frac{p\log p}{N^{2+x}}}\right)$: $N$ cte ⇒ $E=O\!\left(\frac{1}{p\log p}\right)$; escala si $N^{2.31}\propto p\log p$.
+
+</Solucion>
+
+### Ej. 2 — Árbol 2-3 (E, 3 pts)
+
+(2.1) PRAM y span para buscar $m$ elementos. (2.2) $W$, $T_\infty$. (2.3) $T_p$, $S$, $E$. (2.4) Escalabilidad.
+
+<Solucion>
+
+```text
+for i ← 1 to m pardo
+   R[i] ← busqueda23(T.raiz, Q[i])
+```
+$W(h,m)=W(h-1,m)+O(m)=O(mh)=O(m\log n)$; $T_\infty(h)=T_\infty(h-1)+O(1)=O(\log n)$. $T_p=O\!\left(\frac{m\log n}{p}+\log n\right)$, $E=O\!\left(\frac{1}{1+p/m}\right)$. Fuerte: $E=O(1/p)$; débil: $p\propto m$.
+
+</Solucion>
+
+### Ej. 3 — Multiplicación de matrices (F, 1.5 pts)
+
+`for each P(i,j): C[i,j] := Σ_k A[i,(i+j+k) mod n] × B[(i+j+k) mod n, j]`. (3.1) $T_p$. (3.2) $S$, $E$. (3.3) Escalabilidad. (3.4) Modelo PRAM.
+
+<Solucion>
+
+$T_p=O\!\left(\frac{n^3}{p}t_c+n\right)$; $S=O\!\left(\frac{n^3t_c}{n^3t_c/p+n}\right)$; $E=\frac{1}{1+\frac{p}{t_cn^2}}$. Fuerte: $E=O(1/p)$. Débil: $n\propto\sqrt p$. Modelo **EREW**.
+
+</Solucion>
+
+</TabItem>
+</Tabs>
+
+<Fuente archivos={['previos/2025-I-CS4052-PD02-sol.pdf', 'previos/2025-II-CS4052-PD02-S01(sol).pdf', 'previos/2025-II-CS4052-PD02-S02(sol).pdf', 'previos/2026-I-CS4052-PD02(sol).pdf']} />

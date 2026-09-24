@@ -1,0 +1,110 @@
+---
+title: Tipos derivados MPI
+description: count, contiguous, vector (fila/columna/submatriz), indexed, struct, Pack y Sendrecv.
+---
+import DerivedTypesViz from '../../../components/playgrounds/DerivedTypesViz.tsx';
+import Quiz from '../../../components/Quiz.tsx';
+import Solucion from '../../../components/Solucion.astro';
+import Fuente from '../../../components/Fuente.astro';
+
+MPI describe los mensajes por **tipos**, no por bytes (sistemas heterogéneos). Un **tipo derivado** es una lista de (tipo básico, desplazamiento) que describe la data en memoria. Sirve para:
+
+- enviar data **no contigua** de un tipo (una columna, una submatriz) o de **varios tipos** (structs);
+- no hacer una llamada por elemento (**múltiples latencias**) ni copiar a arrays contiguos.
+
+:::note[Ciclo de vida]
+**1. Construir** (`MPI_Type_vector`…) → **2. `MPI_Type_commit`** → **3. usar** en Send/Recv/Bcast… → **4. `MPI_Type_free`**.
+:::
+
+| Constructor | Firma | Uso |
+|---|---|---|
+| contiguous | `MPI_Type_contiguous(count, old, &new)` | una fila (`rowtype`), un punto 3D |
+| vector | `MPI_Type_vector(count, blocklength, stride, old, &new)` | columna, bloque de columnas, submatriz |
+| indexed | `MPI_Type_indexed(count, blocklens[], displs[], old, &new)` | bloques de largo variable (triangular) |
+| struct | `MPI_Type_create_struct(count, blocklens[], displs[], types[], &new)` | tipos mezclados |
+
+**vector:** `count` bloques de `blocklength` elementos; de **inicio a inicio** de cada bloque hay `stride` elementos.
+
+<DerivedTypesViz client:visible />
+
+:::tip[En el examen…]
+Columna de una matriz $N\times M$ (row-major): `MPI_Type_vector(N, 1, M, …)`, enviada desde `&A[0][col]`. Bloque de `k` columnas: `MPI_Type_vector(N, k, M, …)`. El receptor puede usar **otro** tipo con la misma firma (p. ej. `N` floats contiguos): así una columna llega como fila.
+:::
+
+:::caution[Error común]
+Poner `stride` = distancia entre el **fin** de un bloque y el inicio del siguiente. Es de **inicio a inicio**. Y olvidar `MPI_Type_commit` antes de usarlo.
+:::
+
+## struct: el anillo de `ejemplo08`
+
+```cpp title="U3.4/ejemplo08-struct.cpp" {8-9,15-16,20-22}
+struct buff { int i; float f; } snd_buf, rcv_buf, sum;
+int          array_of_blocklengths[2];
+MPI_Aint     array_of_displacements[2], first_var_address, second_var_address;
+MPI_Datatype array_of_types[2], send_recv_type;
+
+array_of_blocklengths[0] = 1;
+array_of_blocklengths[1] = 1;
+MPI_Get_address(&snd_buf.i, &first_var_address);
+MPI_Get_address(&snd_buf.f, &second_var_address);
+array_of_displacements[0] = (MPI_Aint) 0;
+array_of_displacements[1] = MPI_Aint_diff(second_var_address, first_var_address);
+array_of_types[0] = MPI_INT;
+array_of_types[1] = MPI_FLOAT;
+
+MPI_Type_create_struct(2, array_of_blocklengths, array_of_displacements, array_of_types, &send_recv_type);
+MPI_Type_commit(&send_recv_type);
+
+for (i = 0; i < size; i++) {                          // p vueltas al anillo
+  MPI_Issend(&snd_buf, 1, send_recv_type, right, 17, MPI_COMM_WORLD, &request);
+  MPI_Recv(&rcv_buf, 1, send_recv_type, left, 17, MPI_COMM_WORLD, &status);
+  MPI_Wait(&request, &status);
+  snd_buf = rcv_buf;
+  sum.i += rcv_buf.i;  sum.f += rcv_buf.f;
+}
+MPI_Type_free(&send_recv_type);
+```
+
+## Pack/Unpack y Sendrecv
+
+- **`MPI_Pack`/`MPI_Unpack`** (tipo `MPI_PACKED`): empaquetar variables en un buffer de bytes. Muy dinámico (estructura que cambia en ejecución, uso único), pero con costo de copia. Si la misma estructura se envía **en un bucle**, conviene `MPI_Type_create_struct`.
+- **`MPI_Sendrecv(&sbuf, scnt, stype, dest, stag, &rbuf, rcnt, rtype, src, rtag, comm, &status)`**: envío y recibo en una llamada — MPI evita el bloqueo mutuo de un anillo.
+
+## Ejercicio (`ejemplo04_contiguous.cpp`)
+
+Complete el anillo que suma dos enteros `{i, j}` por proceso usando `MPI_Type_contiguous` y comunicación no bloqueada (como en PD3).
+
+<Solucion>
+
+```cpp {1-3,6-8,13}
+MPI_Datatype pairtype;
+MPI_Type_contiguous(2, MPI_INT, &pairtype);   // struct {int i; int j;} = 2 ints contiguos
+MPI_Type_commit(&pairtype);
+sum.i = 0; sum.j = 0; snd_buf.i = my_rank; snd_buf.j = 10 * my_rank;
+for (i = 0; i < size; i++) {
+  MPI_Issend(&snd_buf, 1, pairtype, right, 17, MPI_COMM_WORLD, &request);
+  MPI_Recv(&rcv_buf, 1, pairtype, left, 17, MPI_COMM_WORLD, &status);
+  MPI_Wait(&request, &status);
+  snd_buf = rcv_buf;
+  sum.i += rcv_buf.i;  sum.j += rcv_buf.j;
+}
+printf("PE%i:\tSum = %i\t%i\n", my_rank, sum.i, sum.j);
+MPI_Type_free(&pairtype);
+```
+
+Cada proceso imprime $\sum r=\frac{p(p-1)}{2}$ y $10\cdot\frac{p(p-1)}{2}$. Como ambos campos son `int` y no hay padding, `contiguous` basta; con tipos mezclados (int + float) se necesita `create_struct`.
+
+</Solucion>
+
+<Quiz
+	client:visible
+	id="tipos"
+	preguntas={[
+		{ q: 'Columna 3 de `float A[8][5]`:', opts: ['MPI_Type_vector(5,1,8,…) desde &A[0][3]', 'MPI_Type_vector(8,1,5,…) desde &A[0][3]', 'MPI_Type_contiguous(8,…)', 'MPI_Type_vector(8,5,1,…)'], ok: 1 },
+		{ q: '`MPI_Type_vector(2, 3, 6, MPI_DOUBLE, &t)` enviado desde `A` ($3\\times6$) manda…', opts: ['las 2 primeras filas completas', 'un bloque 2×3 (arriba a la izquierda)', '3 columnas', '6 elementos contiguos'], ok: 1 },
+		{ q: '¿Qué hay que llamar antes de usar un tipo nuevo?', opts: ['MPI_Type_free', 'MPI_Type_commit', 'MPI_Get_address', 'MPI_Pack'], ok: 1 },
+		{ q: 'Para struct {int; float} los desplazamientos se obtienen con…', opts: ['sizeof', 'MPI_Get_address', 'MPI_Type_extent', 'a mano siempre'], ok: 1 },
+	]}
+/>
+
+<Fuente archivos={['U3.4 Paralelismo Distribuido-tiposMPI.pdf', 'U3.4 Comunicacion-tiposMPI-codigo/ejemplo01–08', 'practica_3_ofi/ejercicio02_col.cpp']} />

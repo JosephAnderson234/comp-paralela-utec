@@ -1,0 +1,92 @@
+---
+title: Banco de preguntas (flashcards)
+description: Tarjetas de repaso de todo el temario con progreso guardado en el navegador.
+tableOfContents: false
+---
+import Flashcards from '../../../components/Flashcards.tsx';
+import Quiz from '../../../components/Quiz.tsx';
+import Fuente from '../../../components/Fuente.astro';
+
+Haz clic en la tarjeta para voltearla. Marca **✔ La sé** o **↻ Repasar**; activa «solo pendientes» para la segunda vuelta. El progreso se guarda en este navegador.
+
+<Flashcards
+	client:visible
+	cards={[
+		{ t: 'Fundamentos', f: 'Flynn: ¿qué es SIMD?', b: 'Single Instruction, Multiple Data: una instrucción sobre muchos datos a la vez (GPU, vectoriales).' },
+		{ t: 'Fundamentos', f: 'Flynn: un cluster MPI es…', b: '**MIMD**: cada proceso su flujo de instrucciones y de datos, asíncrono.' },
+		{ t: 'Fundamentos', f: 'Flynn: ejemplo de MISD', b: 'Sistemas tolerantes a fallos en tiempo real (navegación aérea): varias instrucciones sobre el mismo dato.' },
+		{ t: 'Fundamentos', f: 'Los 4 pasos de Foster', b: '**P**articionar → **C**omunicar → **A**glomerar → **M**apear.' },
+		{ t: 'Fundamentos', f: 'Descomposición del dominio vs funcional', b: 'Dominio: divide la **data** y luego asigna tareas. Funcional: divide la **tarea** y luego decide qué data usa.' },
+		{ t: 'Fundamentos', f: '¿Cuántas primitive tasks respecto a los procesos?', b: 'Al menos **un orden de magnitud** más, de tamaño parecido, y que crezcan con n.' },
+		{ t: 'Fundamentos', f: 'En el modelo task/channel, envío y recibo son…', b: 'Envío **asíncrono**, recibo **síncrono** (bloquea).' },
+		{ t: 'Fundamentos', f: 'Trabajo W(n) de un DAG', b: 'Total de operaciones = tiempo del secuencial óptimo $T_s^*(n)$ (suma de costos de todos los nodos).' },
+		{ t: 'Fundamentos', f: 'Span $T_\\infty$', b: 'Longitud (en tiempo) del camino crítico: tiempo con procesadores infinitos.' },
+		{ t: 'Fundamentos', f: 'DAG de 18 tareas O(1) del curso: W y $T_\\infty$', b: '$W=18$, $T_\\infty=9$.' },
+		{ t: 'Fundamentos', f: 'SPA vs NSPA', b: 'SPA: niveles fork-join en secuencia (pipelines). NSPA: dependencias arbitrarias, scheduling dinámico.' },
+		{ t: 'Performance', f: 'Speedup y eficiencia', b: '$S=T_s/T_p\\le p$; $E=S/p=T_s/(pT_p)\\le1$.' },
+		{ t: 'Performance', f: 'Amdahl: S y límite', b: '$S=1/(f_s+f_p/p)\\to1/f_s$ cuando $p\\to\\infty$.' },
+		{ t: 'Performance', f: 'Gustafson: S', b: '$S=f_s+p\\,f_p$ (el problema crece con p).' },
+		{ t: 'Performance', f: '¿Qué ley es strong scaling?', b: '**Amdahl** (tamaño fijo). Gustafson = weak scaling.' },
+		{ t: 'Performance', f: 'Definición de algoritmo escalable', b: 'Mantiene **eficiencia constante** al aumentar simultáneamente p y n. Amdahl no puede describirlo.' },
+		{ t: 'Performance', f: 'Forma de E que espera el profesor', b: '$E=O\\left(\\frac{1}{1+p\\,T_\\infty/W}\\right)$ ⇒ débil si $p\\propto W/T_\\infty$.' },
+		{ t: 'Performance', f: 'Granularidad', b: '$G=T_{comp}/T_{comm}$. Mayor G ⇒ menos overhead relativo.' },
+		{ t: 'Performance', f: 'Isoeficiencia', b: '$T_s=K\\,T_o$ con $T_o=pT_p-T_s$; despejar $n=f(p)$. Más lenta = más escalable.' },
+		{ t: 'Performance', f: 'Gauss con n = 10⁴ a 1 GFLOP/s', b: '$10^{12}$ FLOP ⇒ ~1000 s ≈ 17 min.' },
+		{ t: 'Performance', f: 'FLOPs del N-Body en 5000 nodos', b: '$V\\approx\\gamma p/\\alpha=2.5$ PFLOP/s.' },
+		{ t: 'Performance', f: 'Relación Speedup–FLOPs', b: '$S\\propto$ FLOPs, porque $T\\propto1/\\text{FLOP}$.' },
+		{ t: 'PRAM', f: 'Jerarquía PRAM', b: '$EREW\\subset CREW\\subset CRCW$.' },
+		{ t: 'PRAM', f: 'Submodelos de escritura concurrente', b: 'Común, arbitrario, combinado, prioritario.' },
+		{ t: 'PRAM', f: 'Teorema de Brent', b: '$T_p\\le\\lfloor W/p\\rfloor+T_\\infty=O(W/p+T_\\infty)$.' },
+		{ t: 'PRAM', f: 'Costo óptimo', b: '$C_p=p\\,T_p=\\Theta(T_s)$. W y $C_p$ coinciden si $p=O(W/T_\\infty)$.' },
+		{ t: 'PRAM', f: 'Global OR en CRCW', b: '$T_\\infty=\\Theta(1)$, $W=\\Theta(n)$, speedup lineal.' },
+		{ t: 'PRAM', f: 'Suma por reducción', b: '$W=O(n)$, $T_\\infty=O(\\log n)$, $T_p=O(n/p+\\log n)$, WT-óptimo.' },
+		{ t: 'PRAM', f: 'Prefix sum: W y T', b: '$W=O(n)$, $T=O(\\log n)$ (operación asociativa).' },
+		{ t: 'PRAM', f: 'Matmul P(i,j) con índices (i+j+k) mod n', b: '**EREW**; $T_p=O(n^3t_c/p+n)$; débil si $n\\propto\\sqrt p$.' },
+		{ t: 'PRAM', f: 'BSP: costo de un superstep', b: '$w+g\\,h+L$ (cómputo + comunicación + sincronización).' },
+		{ t: 'PRAM', f: 'Parámetros de LogP', b: 'L latencia, o overhead, g gap, P procesadores.' },
+		{ t: 'PRAM', f: '¿Qué modelo para el banco de 4 cajeros?', b: 'Híbrido, MIMD; asíncrono ⇒ **APRAM** mejor que CRCW.' },
+		{ t: 'Diseño', f: 'Scatter lineal vs árbol', b: 'Lineal $O(\\alpha p+\\beta m)$; árbol $O(\\alpha\\log p+\\beta m)$.' },
+		{ t: 'Diseño', f: 'Broadcast en árbol', b: '$O(\\log p\\,(\\alpha+m\\beta))$.' },
+		{ t: 'Diseño', f: '¿Por qué Mandelbrot estático desbalancea?', b: 'Cada píxel necesita un número distinto de iteraciones (1…$K_{max}$).' },
+		{ t: 'Diseño', f: 'Monte Carlo vs Las Vegas', b: 'MC: tiempo fijo, resultado con error. LV: resultado correcto, tiempo variable.' },
+		{ t: 'Diseño', f: 'LCG', b: '$x_{i+1}=(ax_i+c)\\bmod m$; p. ej. $a=16807$, $m=2^{31}-1$, $c=0$.' },
+		{ t: 'Diseño', f: 'Estrategias de random en paralelo', b: 'Centralizada (lenta), replicativa (correlaciones), distribuida (difícil). MRG32k3a: streams independientes.' },
+		{ t: 'Diseño', f: 'Mergesort paralelo: W y $T_\\infty$', b: '$W=O(n\\log n)$, $T_\\infty=O(n)$ por el merge secuencial.' },
+		{ t: 'Diseño', f: 'N-Body: operaciones de fuerza', b: '$N(N-1)/2$ ⇒ $O(N^2)$; Barnes-Hut $O(n\\log n/p)$.' },
+		{ t: 'Diseño', f: '$T(n)=T(n/2)+O(\\log n)$', b: '$\\Theta(\\log^2 n)$.' },
+		{ t: 'MPI', f: 'Firma de MPI_Send', b: '`MPI_Send(&buf, count, datatype, dest, tag, comm)`.' },
+		{ t: 'MPI', f: 'MPI_Ssend vs MPI_Send', b: 'Ssend se completa cuando el receptor empezó a recibir. Send: buffer si es chico, síncrono si es grande.' },
+		{ t: 'MPI', f: 'Isend + Wait =', b: 'Send. (Irecv + Wait = Recv.)' },
+		{ t: 'MPI', f: 'Anillo Ssend→Recv', b: '**Deadlock**: todos esperan a un receptor que nunca llega al Recv.' },
+		{ t: 'MPI', f: 'Cómo romper el deadlock del anillo', b: 'Un proceso invierte el orden (secuencial), pares/impares alternan, Irecv+Isend+Wait, o MPI_Sendrecv.' },
+		{ t: 'MPI', f: 'Allreduce vs Reduce', b: 'Allreduce deja el resultado en todos (sin root).' },
+		{ t: 'MPI', f: 'Scatter: sendcnt es…', b: 'Elementos **por proceso**, no el total.' },
+		{ t: 'MPI', f: 'Columna de float A[N][M]', b: '`MPI_Type_vector(N, 1, M, MPI_FLOAT, &col)` desde `&A[0][c]`.' },
+		{ t: 'MPI', f: 'Ciclo de vida de un tipo derivado', b: 'Construir → `MPI_Type_commit` → usar → `MPI_Type_free`.' },
+		{ t: 'MPI', f: 'stride en MPI_Type_vector', b: 'Distancia de **inicio a inicio** de bloques consecutivos.' },
+		{ t: 'MPI', f: 'Práctica 3: ¿filas o columnas escala mejor?', b: 'Filas (colectivas, $T_o=\\Theta(p\\log p)$). Columnas: P0 envía $\\Theta(N^2)$ en un bucle de Send.' },
+		{ t: 'MPI', f: 'PD03 Ej.3: ¿por qué se bloquea?', b: 'P2 espera primero a P3, y P3 espera el resultado de P2: ciclo P2⇄P3.' },
+	]}
+/>
+
+## Simulacro rápido
+
+<Quiz
+	client:visible
+	id="simulacro"
+	titulo="Simulacro mixto (10 preguntas)"
+	preguntas={[
+		{ q: 'Un algoritmo con $W=n\\log n$ y $T_\\infty=\\log^2 n$ escala débilmente si…', opts: ['$p\\propto n$', '$p\\propto n/\\log n$', '$p\\propto\\log n$', 'nunca'], ok: 1 },
+		{ q: '$f_s=0.2$: techo de Amdahl', opts: ['2', '5', '20', '80'], ok: 1 },
+		{ q: 'Scatter en topología lineal', opts: ['$O(\\alpha\\log p+\\beta m)$', '$O(\\alpha p+\\beta m)$', '$O(\\log p)$', '$O(pm)$'], ok: 1 },
+		{ q: 'Modelo PRAM de «todos leen $x$, cada uno escribe $B_i$»', opts: ['EREW', 'CREW', 'CRCW', 'ERCW'], ok: 1 },
+		{ q: 'Span de 3 tareas en cadena: $O(n)$, $O(n^2)$, $O(\\log n)$', opts: ['$O(n)$', '$O(n^2)$', '3', '$O(\\log n)$'], ok: 1 },
+		{ q: '`MPI_Type_vector(4, 2, 5, …)` envía', opts: ['4 elementos', '8 elementos', '20 elementos', '10 elementos'], ok: 1, why: '4 bloques × 2 elementos.' },
+		{ q: 'Con un bucle de `MPI_Send` desde el maestro a $p-1$ procesos, la latencia total es', opts: ['$O(\\alpha\\log p)$', '$O(\\alpha p)$', '$O(\\alpha)$', '$O(\\beta m)$'], ok: 1 },
+		{ q: 'Reducción en BSP', opts: ['$O(\\log p)$', '$O(n/p+(g+L)\\log p)$', '$O(n)$', '$O(gp)$'], ok: 1 },
+		{ q: 'Irecv antes de Isend sirve para…', opts: ['ahorrar memoria', 'evitar bloqueo mutuo y reducir sincronización', 'ordenar los mensajes', 'nada'], ok: 1 },
+		{ q: 'Bloques √p×√p vs filas en matriz-vector:', opts: ['filas más escalable', 'bloques más escalable y mayor granularidad', 'iguales', 'bloques menor granularidad'], ok: 1 },
+	]}
+/>
+
+<Fuente archivos={['Todo el temario: estudio/00–08', 'U3.1–U3.5', 'previos/*.pdf', 'practica_3_ofi']} />

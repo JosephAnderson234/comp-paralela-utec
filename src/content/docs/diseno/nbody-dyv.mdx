@@ -1,0 +1,120 @@
+---
+title: N-Body, Divide y Vencerás, Mergesort y matrices
+description: Fuerzas O(N²), Barnes-Hut, D&V paralelo, mergesort, multiplicación de matrices y teorema maestro.
+---
+import MasterTheorem from '../../../components/playgrounds/MasterTheorem.tsx';
+import Quiz from '../../../components/Quiz.tsx';
+import Solucion from '../../../components/Solucion.astro';
+import Fuente from '../../../components/Fuente.astro';
+
+## N-Body
+
+$$
+F_i=-Gm_i\sum_{j\ne i}\frac{m_j\,r_{ij}}{|r_{ij}|^3}\qquad v_{t+1}=v_t+\frac{F\Delta t}{m}\qquad x_{t+1}=x_t+v\Delta t
+$$
+
+- $N(N-1)/2$ pares ⇒ $O(N^2)$ por paso. Sin solución analítica desde $N=3$. La integración por intervalos es aproximada (se mejora con **leap-frog**).
+- **Paralelo directo:** cada proceso un subgrupo de cuerpos ⇒ $O\!\left(\frac{n(n-1)}{p}\right)$.
+- **Barnes-Hut:** un cluster lejano se aproxima como un solo cuerpo (quadtree/octree) ⇒ $O(n\log n/p)$.
+- **Compartida** (OpenMP/CUDA): sin comunicación, limitada por los núcleos de un nodo. **Distribuida** (MPI): paga comunicación pero escala el cluster.
+- $T_{total}=T_{cómputo}\downarrow+T_{comm}\uparrow$ ⇒ existe un **$p$ óptimo**; con más cuerpos se desplaza a más procesadores (ver [FLOPs](/performance/flops/)).
+
+## Divide y Vencerás
+
+**Dividir** en subproblemas de tamaño $n/b$ → **vencer** (caso base o recursión) → **combinar**. En paralelo, ramas distintas del árbol de recursión corren a la vez (`pardo`); típicamente $n/p$ datos por proceso y combinación en el maestro.
+
+### Mergesort paralelo
+
+```text
+MergeSort-Paralelo(A, n):
+  if n > 1:
+    m ← ⌊n/2⌋
+    pardo:
+      MergeSort-Paralelo(A[1..m], m)
+      MergeSort-Paralelo(A[m+1..n], n-m)
+    Merge(A, n)          // secuencial, O(n)
+```
+
+$$
+W(n)=2W(n/2)+O(n)=O(n\log n)\qquad T_\infty(n)=T_\infty(n/2)+O(n)=O(n)
+$$
+
+$$
+T_p=O\!\left(\frac{n\log n}{p}+n\right)\qquad S=O\!\left(\frac{n\log n}{\frac{n\log n}{p}+n}\right)\qquad E=O\!\left(\frac{1}{1+\frac{p}{\log n}}\right)
+$$
+
+:::caution[Error común]
+Sumar las dos ramas en el span: $T_\infty(n)=2T_\infty(n/2)+\dots$ ✗. Las ramas corren **en paralelo** ⇒ el span «ve» solo una: $T_\infty(n)=T_\infty(n/2)+\dots$ ✓. El trabajo sí suma ambas.
+:::
+
+:::tip[En el examen…]
+El `Merge` secuencial $O(n)$ es el **cuello de botella** del span. Con un merge paralelo en $O(\log n)$ el span baja a $O(\log^2 n)$ («optimizable»). Mismo patrón: quicksort con prefix sum ⇒ $T_\infty=T_\infty(n/2)+O(\log n)=O(\log^2n)$.
+:::
+
+### Multiplicación de matrices (expansión + reducción)
+
+```text
+for 1≤i,j,k≤n pardo          C'(i,j,k) ← A(i,k)·B(k,j)        // expansión: n³ productos
+for h=1 to log n do
+  for 1≤i,j≤n, 1≤k≤n/2^h pardo
+                             C'(i,j,k) ← C'(i,j,2k-1)+C'(i,j,2k)  // reducción en árbol
+for 1≤i,j≤n pardo            C(i,j) ← C'(i,j,1)
+```
+
+$W=O(n^3)$, $T_\infty=O(\log n)$, $T_p=O(n^3/p+\log n)$: una reducción binaria replicada $n^2$ veces. (Contrasta con el arquetipo F, acceso directo sin árbol, $T_\infty=O(n)$.)
+
+## Playground: teorema maestro
+
+<MasterTheorem client:visible />
+
+## Ejercicio (PD02 2026-I, Ej. 2): búsqueda de $m$ elementos en un árbol 2-3
+
+Árbol 2-3: nodos internos con 2 o 3 hijos, hojas a la misma profundidad, ordenado. (2.1) PRAM y span. (2.2) $W$, $T_\infty$. (2.3) $T_p$, $S$, $E$. (2.4) Escalabilidad.
+
+<Solucion>
+
+```text
+for i ← 1 to m pardo
+    R[i] ← busqueda23(T.raiz, Q[i])     // recursiva: baja un nivel por llamada
+```
+
+$$
+W(h,m)=W(h-1,m)+O(m)=O(mh)=O(m\log n)\qquad T_\infty(h)=T_\infty(h-1)+O(1)=O(h)=O(\log n)
+$$
+
+Las $m$ búsquedas son independientes: el span es el de **una** búsqueda.
+
+$$
+T_p=O\!\left(\frac{m\log n}{p}+\log n\right)\quad S=O\!\left(\frac{m\log n}{\frac{m\log n}{p}+\log n}\right)\quad E=O\!\left(\frac{1}{1+\frac pm}\right)
+$$
+
+Fuerte ($m$ cte): $E=O(1/p)$, no escala. Débil: $E=O(1)$ si $p\propto m$.
+
+</Solucion>
+
+## Ejercicio (PD02 2025-I, Ej. 3): quicksort paralelo con suma de prefijos
+
+Cada elemento es asignado a un proceso (memoria compartida); en cada nivel se elige pivote, se marca $f_i=[d_i\le v]$ y la posición se obtiene con **suma de prefijos**. (a) $W$, $T_\infty$, $T_p$, $S$, $E$, escalabilidad. (b) Agregue comunicación colectiva $T(p)=O(\log p)$.
+
+<Solucion>
+
+**(a)** $W=T_s=O(n\log n)$; $T_\infty(n)=T_\infty(n/2)+O(\log n)=O(\log^2n)$;
+$T_p=O\!\left(\frac{n\log n}{p}+\log^2n\right)$, $E=\dfrac{1}{1+\frac{p\log n}{n}}$ ⇒ escala si $p\propto n/\log n$.
+
+**(b)** $T_p=O\!\left(\frac{n\log n}{p}+\log^2n+\log p\right)$, $E=\dfrac{1}{1+\frac{p\log n}{n}+\frac{p\log p}{n\log n}}$ ⇒ **dos** condiciones: $p\propto n/\log n$ y $p\log p\propto n\log n$; la segunda es la dominante.
+
+</Solucion>
+
+<Quiz
+	client:visible
+	id="dyv"
+	preguntas={[
+		{ q: '$T(n)=2T(n/2)+O(n)$ ⇒', opts: ['$\\Theta(n)$', '$\\Theta(n\\log n)$', '$\\Theta(n^2)$', '$\\Theta(\\log n)$'], ok: 1 },
+		{ q: 'Span del mergesort paralelo con merge secuencial:', opts: ['$O(\\log n)$', '$O(\\log^2 n)$', '$O(n)$', '$O(n\\log n)$'], ok: 2 },
+		{ q: 'Barnes-Hut reduce N-Body a…', opts: ['$O(n^2/p)$', '$O(n\\log n/p)$', '$O(n/p)$', '$O(\\log n)$'], ok: 1 },
+		{ q: 'Operaciones de fuerza por paso en N-Body directo:', opts: ['$N$', '$N(N-1)/2$', '$N\\log N$', '$N^3$'], ok: 1 },
+		{ q: 'Span de la multiplicación de matrices por expansión+reducción:', opts: ['$O(1)$', '$O(\\log n)$', '$O(n)$', '$O(n^3)$'], ok: 1 },
+	]}
+/>
+
+<Fuente archivos={['estudio/07_NBody_DivideVenceras.md', 'U2.5-Diseño_en_paralelo-NBody-DivideYVenceras.pdf', 'previos/2026-I (Ej. 2)', 'previos/2025-I (Ej. 3)', 'P1.md']} />

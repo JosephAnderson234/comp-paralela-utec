@@ -1,0 +1,143 @@
+---
+title: MPI básico
+description: Init, rank, size, Send/Recv, Status, tags, modos de envío, compilación.
+---
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import Quiz from '../../../components/Quiz.tsx';
+import Solucion from '../../../components/Solucion.astro';
+import Fuente from '../../../components/Fuente.astro';
+
+**Message passing**: procesos con memoria **local** que se comunican enviando/recibiendo mensajes. **MPI** es el API estándar (MPI Forum, 1.0 en 1994) para C, C++ y Fortran; implementaciones MPICH y OpenMPI. Paralelismo **explícito**; funciona en CPU, nodo, NUMA y cluster, y admite híbrido (MPI + OpenMP).
+
+## Estructura de un programa
+
+```cpp title="ejemplo01.cpp" {7-10,25}
+#include <mpi.h>
+#include <iostream>
+using namespace std;
+
+int main(int argc, char *argv[]) {
+  int ierr, rank, size, dato = 10;
+  ierr = MPI_Init(&argc, &argv);            // una sola vez, al inicio
+  MPI_Comm_size(MPI_COMM_WORLD, &size);     // número total de procesos
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);     // mi id: 0..size-1
+  if (ierr == MPI_SUCCESS)
+    cout << "Hola mundo desde el proceso " << rank << " de " << size << endl;
+
+  if (rank == 2) dato = 20;                 // cada proceso tiene SU copia de dato
+  cout << "Proceso " << rank << " tiene dato = " << dato << endl;
+
+  double time = MPI_Wtime();                // reloj en segundos (double)
+  cout << "Tiempo del proceso " << rank << " = " << time << endl;
+  MPI_Finalize();
+}
+```
+
+```bash
+mpic++ -o ejemplo01 ejemplo01.cpp     # C: mpicc · Fortran: mpif90
+mpirun -np 4 ./ejemplo01
+```
+
+:::note[Handles y errores]
+`MPI_COMM_WORLD` es el comunicador predefinido con **todos** los procesos (numerados desde 0 en `rank`). Las rutinas devuelven un entero; `MPI_SUCCESS` indica éxito. `MPI_Abort(comm, err)` termina todos los procesos.
+:::
+
+## Punto a punto
+
+```text
+MPI_Send(&buffer, count, datatype, dest,   tag, comm)
+MPI_Recv(&buffer, count, datatype, source, tag, comm, &status)
+```
+
+- El mensaje es un **array de `count` elementos de `datatype`** (MPI_INT, MPI_FLOAT, MPI_DOUBLE, MPI_CHAR, MPI_BYTE, MPI_PACKED…). El tipo enviado debe coincidir con el recibido (soporte para arquitecturas heterogéneas).
+- El recibo se confirma si **source, dest y tag** corresponden (count y datatype no garantizan el emparejamiento). Comodines: `MPI_ANY_SOURCE`, `MPI_ANY_TAG`.
+- `status.MPI_SOURCE`, `status.MPI_TAG`, `MPI_Get_count(&status, type, &count)`.
+
+```cpp title="ejemplo02.cpp (fragmento)" {5,9}
+if (rank == 0) {
+    numero = 10;
+    MPI_Send(&numero, 1, MPI_INT, 1, 0, MPI_COMM_WORLD);
+    for (int i = 0; i < 10; i++) arr_numero[i] = i;
+    MPI_Send(arr_numero, 10, MPI_INT, 1, 0, MPI_COMM_WORLD);   // un array: count = 10
+} else if (rank == 1) {
+    MPI_Recv(&numero, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, &estado);
+    MPI_Recv(arr_numero, 10, MPI_INT, 0, 0, MPI_COMM_WORLD, &estado);
+}
+```
+
+## Modos de envío (bloqueantes)
+
+| Rutina | Se completa cuando… |
+|---|---|
+| `MPI_Ssend` (síncrono) | el receptor **empezó a recibir** (acuse de recibo) |
+| `MPI_Bsend` (buffered) | siempre de inmediato: copia a un buffer del usuario (`MPI_Buffer_attach/detach`) |
+| `MPI_Send` (standard) | síncrono **o** buffered según la implementación (mensaje chico ⇒ buffer; grande ⇒ síncrono) |
+| `MPI_Rsend` (ready) | de inmediato; si el receptor no estaba listo ⇒ error. Solo si el performance es crítico |
+| `MPI_Recv` | el mensaje llegó al buffer |
+
+:::caution[Error común]
+«`MPI_Send` nunca bloquea». **No se debe asumir** que el envío se complete antes de que empiece el `Recv`: con mensajes grandes se comporta como `Ssend`. Ver [bloqueo mutuo](/mpi/bloqueante/).
+:::
+
+:::tip[En el examen…]
+Cada Send necesita **su** Recv con el mismo (fuente, destino, tag). Si un proceso manda dos mensajes al mismo destino, usa **tags distintos** o respeta el orden (los mensajes entre un par con el mismo tag no se adelantan).
+:::
+
+## Ejemplos del curso
+
+<Tabs>
+<TabItem label="1 → todos (ejemplo03)">
+
+```cpp title="ejemplo03.cpp — broadcast con Send/Recv" {4-5,9}
+if (rank == 0) {
+    numero = 4;
+    for (int i = 1; i < size; i++)
+        MPI_Send(&numero, 1, MPI_INT, i, 0, MPI_COMM_WORLD);   // p-1 envíos secuenciales
+} else {
+    MPI_Recv(&numero, 1, MPI_INT, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &estado);
+}
+```
+
+Costo $O(p(\alpha+\beta))$: lineal en $p$. `MPI_Bcast` lo hace en árbol.
+
+</TabItem>
+<TabItem label="Todos → 1 (ejemplo04)">
+
+```cpp title="ejemplo04.cpp — reduce con Send/Recv" {4-5,10}
+if (my_rank == 0) {
+    int res = 5;                                  // ¡incluir el buf del maestro!
+    for (int i = 1; i < size; i++) {
+        MPI_Recv(&rbuf, 1, MPI_INT, i, 0, MPI_COMM_WORLD, &stat);
+        res += rbuf;
+    }
+    cout << "res = " << res << endl;
+} else {
+    MPI_Send(&buf, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
+}
+```
+
+</TabItem>
+</Tabs>
+
+## Ejercicio
+
+¿Qué imprime `ejemplo02.cpp` con `mpirun -np 3`? ¿Por qué el `fprintf` después de `MPI_Abort` puede no aparecer?
+
+<Solucion>
+
+Con `size > 2`, el rank 0 llama a `MPI_Abort(MPI_COMM_WORLD, -1)`, que **termina todos los procesos** del comunicador inmediatamente; el `fprintf` está *después* del abort, así que normalmente no se imprime (debería ir antes). Los ranks 1 y 2 no hacen nada (el `else` solo se ejecuta si `size ≤ 2`) y son abortados.
+
+</Solucion>
+
+<Quiz
+	client:visible
+	id="mpi-basicos"
+	preguntas={[
+		{ q: '`MPI_Comm_rank` devuelve…', opts: ['el número de procesos', 'el id del proceso (desde 0)', 'el tiempo', 'el comunicador'], ok: 1 },
+		{ q: 'Para emparejar un Send con un Recv deben coincidir…', opts: ['count y datatype', 'source/dest, tag y comunicador', 'solo el tag', 'el tamaño del buffer'], ok: 1 },
+		{ q: '¿Qué modo se completa solo cuando el receptor empezó a recibir?', opts: ['MPI_Send', 'MPI_Bsend', 'MPI_Ssend', 'MPI_Rsend'], ok: 2 },
+		{ q: 'Compilar C++ con MPI:', opts: ['g++ -mpi', 'mpic++ / mpicxx', 'mpirun -c', 'mpicc -cpp'], ok: 1 },
+	]}
+/>
+
+<Fuente archivos={['U3.1 Paralelismo Distribuido-MPI.pdf', 'ejemplo01.cpp', 'ejemplo02.cpp', 'ejemplo03.cpp', 'ejemplo04.cpp', 'mpi_getting_started.cpp']} />

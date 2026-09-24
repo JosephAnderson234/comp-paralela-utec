@@ -1,0 +1,15 @@
+---
+/** Pie de sección con las fuentes usadas (archivos / slides del curso). */
+interface Props {
+	archivos: string[];
+}
+const { archivos } = Astro.props;
+---
+<p class="fuente">
+	📚 <strong>Fuente:</strong>
+	{archivos.map((a, i) => (
+		<>
+			<code>{a}</code>{i < archivos.length - 1 ? ' · ' : ''}
+		</>
+	))}
+</p>

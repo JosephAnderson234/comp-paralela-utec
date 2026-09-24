@@ -1,0 +1,108 @@
+---
+title: Comunicación colectiva
+description: Barrier, Bcast, Scatter, Gather, Allgather, Reduce, Allreduce con visualizador.
+---
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import CollectivesViz from '../../../components/playgrounds/CollectivesViz.tsx';
+import Quiz from '../../../components/Quiz.tsx';
+import Solucion from '../../../components/Solucion.astro';
+import Fuente from '../../../components/Fuente.astro';
+
+Propiedades: **todos** los procesos del comunicador participan (cada llamada colectiva debe incluirlos a todos); no interfiere con punto a punto; el buffer se reutiliza cuando el proceso termina la llamada. **La librería optimiza la comunicación** (árboles).
+
+| Rutina | Qué hace |
+|---|---|
+| `MPI_Barrier(comm)` | sincroniza: nadie sigue hasta que todos llegan. Casi nunca hace falta (útil para debugging/medir tiempos) |
+| `MPI_Bcast(&buf, count, type, root, comm)` | root → todos |
+| `MPI_Scatter(&sbuf, scnt, stype, &rbuf, rcnt, rtype, root, comm)` | root reparte trozos de `scnt` elementos **por proceso**, en orden de rank |
+| `MPI_Gather(&sbuf, scnt, stype, &rbuf, rcnt, rtype, root, comm)` | inverso de Scatter: root junta en orden de rank |
+| `MPI_Allgather(...)` (sin root) | Gather + Bcast: todos obtienen todo |
+| `MPI_Reduce(&sbuf, &rbuf, count, type, op, root, comm)` | combina con `op` (MPI_SUM, MPI_MAX, MPI_MIN, MPI_PROD…) en root |
+| `MPI_Allreduce(&sbuf, &rbuf, count, type, op, comm)` | Reduce + resultado en **todos** |
+
+<CollectivesViz client:visible />
+
+:::caution[Error común]
+En `MPI_Scatter`, `sendcnt` es **por proceso** (elementos del array / número de procesos), no el total. Y el `recvbuf` de Gather/Reduce solo importa en root.
+:::
+
+:::tip[En el examen…]
+Cuando el código usa un bucle de `Send` desde el maestro, di que es **lineal** $O(p\alpha)$ y que la colectiva equivalente cuesta $O(\alpha\log p)$. Es el argumento de la práctica 3: filas (colectivas) escala mejor que columnas (bucle de Send).
+:::
+
+## Código de clase (session2)
+
+<Tabs>
+<TabItem label="Bcast + Reduce">
+
+```cpp title="session2/ejemplo01-bcast-reduce.cpp" {3,5,7}
+if (rank == 0) data = 5;
+// 1. el maestro envía data a todos
+MPI_Bcast(&data, 1, MPI_INT, 0, MPI_COMM_WORLD);
+data *= rank;                                      // 2. cada uno modifica
+MPI_Reduce(&data, &resultado, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+// 3. resultado (solo en el maestro) = 5·(0+1+…+(p−1))
+if (rank == 0) cout << "resultado: " << resultado << endl;
+```
+
+</TabItem>
+<TabItem label="Scatter + Gather">
+
+```cpp title="session2/ejemplo02-scatt-gath-array.cpp" {7,10}
+int data_global[10 * size], data_local[10];
+if (rank == 0)
+    for (int i = 0; i < 10 * size; i++)
+        data_global[i] = 2 * i + 1;
+// 10 elementos POR proceso
+MPI_Scatter(data_global, 10, MPI_INT, data_local, 10, MPI_INT, 0, MPI_COMM_WORLD);
+for (int i = 0; i < 10; i++) data_local[i] = rank * rank;
+MPI_Gather(data_local, 10, MPI_INT, data_global, 10, MPI_INT, 0, MPI_COMM_WORLD);
+```
+
+</TabItem>
+<TabItem label="Allreduce">
+
+```cpp title="session2/ejemplo03-allreduce.cpp" {2}
+// cada proceso aporta su rank; todos reciben la suma
+MPI_Allreduce(&me, &sum, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+printf("proceso %i: sum = %i\n", me, sum);   // todos imprimen p(p-1)/2
+```
+
+</TabItem>
+<TabItem label="π (pi-reduce)">
+
+```cpp title="session2/pi-reduce/ejemplo03-PI-reduce.cpp" {1,4}
+MPI_Bcast(&n, 1, MPI_INT, 0, MPI_COMM_WORLD);
+for (int i = (n / mpi_size * mpi_rank) + 1; i <= (n / mpi_size * (mpi_rank + 1)); ++i)
+    local_sum += (4 / (1 + pow((i - 0.5) / n, 2)));
+MPI_Reduce(&local_sum, &global_sum, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+// S(n) = O(n/(n/p)) = O(p), E(n) = O(1)
+```
+
+Pruébalo en [Montecarlo π → Integración](/diseno/random/).
+
+</TabItem>
+</Tabs>
+
+## Ejercicio (U3.2, Ej. 5): promedio
+
+Array de 1000 números aleatorios 0–100. Reparta con `MPI_Scatter`, cada proceso calcula su promedio, junte los promedios con `MPI_Gather` y el maestro calcula el promedio global. ¿Es correcto promediar los promedios? ¿Qué colectiva sería mejor?
+
+<Solucion>
+
+Es correcto **solo si todos los trozos tienen el mismo tamaño** (1000 divisible por $p$); si no, hay que ponderar por el tamaño de cada trozo. Mejor aún: cada proceso calcula su **suma** local y se hace un único `MPI_Reduce(MPI_SUM)`; el maestro divide entre 1000. Evita juntar $p$ valores en un array y el costo es $O(\log p)$ en árbol.
+
+</Solucion>
+
+<Quiz
+	client:visible
+	id="colectivas"
+	preguntas={[
+		{ q: '¿Qué colectiva deja el resultado de la reducción en TODOS los procesos?', opts: ['MPI_Reduce', 'MPI_Gather', 'MPI_Allreduce', 'MPI_Bcast'], ok: 2 },
+		{ q: '`MPI_Allgather` equivale a…', opts: ['Scatter + Gather', 'Gather + Bcast', 'Reduce + Bcast', 'Bcast + Scatter'], ok: 1 },
+		{ q: 'En Scatter con 40 elementos y 4 procesos, `sendcnt` =', opts: ['40', '10', '4', '160'], ok: 1 },
+		{ q: 'Bcast en árbol vs lineal: pasos con $p=16$', opts: ['4 vs 15', '16 vs 16', '8 vs 15', '4 vs 4'], ok: 0 },
+	]}
+/>
+
+<Fuente archivos={['U3.2 Paralelismo Distribuido-MPI.pdf', 'session2/*.cpp', 'session2/pi-reduce/ejemplo03-PI-reduce.cpp', '05_Particionamiento.md §2']} />

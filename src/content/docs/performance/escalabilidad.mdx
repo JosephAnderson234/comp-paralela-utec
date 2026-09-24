@@ -1,0 +1,86 @@
+---
+title: Escalabilidad e isoeficiencia
+description: Escalabilidad fuerte y débil, Brent, isoeficiencia; reproduce P1.
+---
+import BrentScalability from '../../../components/playgrounds/BrentScalability.tsx';
+import Quiz from '../../../components/Quiz.tsx';
+import Solucion from '../../../components/Solucion.astro';
+import Fuente from '../../../components/Fuente.astro';
+
+Un algoritmo es **escalable** si mantiene **eficiencia constante** al incrementar **simultáneamente** $p$ y el tamaño $n$.
+
+| | Qué se fija | Pregunta | Respuesta típica en el examen |
+|---|---|---|---|
+| **Fuerte** | $n$ constante | ¿$E$ se mantiene al crecer $p$? | $E=O(1/p)$ o similar ⇒ **no escala en forma fuerte** |
+| **Débil** | $n$ crece con $p$ | ¿qué $n=f(p)$ mantiene $E$ constante? | «escala si $p\propto n/\log n$» (o la relación que salga) |
+
+## El patrón maestro (Brent → E)
+
+Con $T_s=W$ y Brent $T_p=O(W/p+T_\infty)$:
+
+$$
+S=\frac{W}{\frac Wp+T_\infty}\qquad E=\frac{S}{p}=\frac{1}{1+\dfrac{p\,T_\infty(n)}{W(n)}}
+$$
+
+Débil: $E$ constante $\iff p\,T_\infty\propto W\iff p\propto\dfrac{W(n)}{T_\infty(n)}$ (el paralelismo disponible). Si se agrega comunicación, p. ej. $+\log p$:
+
+$$
+E=\frac{1}{1+\dfrac{p\,T_\infty}{W}+\dfrac{p\log p}{W}}\;\Rightarrow\;\text{dos condiciones: }p\propto\frac{W}{T_\infty}\;\text{ y }\;p\log p\propto W
+$$
+
+:::tip[En el examen…]
+Lleva siempre $E$ a la forma $\dfrac{1}{1+p\cdot(\text{algo})}$. Lo que queda multiplicando a $p$ es exactamente lo que $n$ debe «compensar». Si aparecen dos términos, la condición **dominante** es la más restrictiva (la que exige que $n$ crezca más rápido).
+:::
+
+:::caution[Error común]
+Decir «escala» sin decir **cómo**. La respuesta completa es: «no escala fuerte; escala débil si $n$ crece como $f(p)$». Y comparar esquemas: el más escalable es el que, para un mismo $p$, necesita un $n$ **menor** para sostener la eficiencia (p. ej. $n\propto\sqrt{p\log p}$ gana a $n\propto p$).
+:::
+
+<BrentScalability client:visible />
+
+## Isoeficiencia con overhead explícito
+
+$$
+E=\frac{T_s}{T_s+T_o}\quad\Rightarrow\quad T_s=K\,T_o
+$$
+
+Ejemplo PD01 (suavizado): $T_o=8\,p\,t\,t_w$ ⇒ $n=\dfrac{8Kt_w}{3t_c}\,p$: isoeficiencia **lineal**. Práctica 3 (filas, colectivas en árbol): $T_o=\Theta(p\log p)$ con $W=\Theta(N^2)$ ⇒ $N=\Theta(\sqrt{p\log p})$.
+
+## Ejercicio (P1): subsecuencia máxima con Divide y Vencerás
+
+`SubsecuenciaMaxima(A,l,r)` hace dos llamadas recursivas sobre mitades y `MaximoCentro` recorre linealmente de $l$ a $r$. (a) Recurrencia secuencial. (b) Versión paralela, $W$ y $T_\infty$. (c) $T_p$, $S$, $E$ y escalabilidad.
+
+<Solucion>
+
+**(a)** $T(n)=2T(n/2)+\Theta(n)$. Teorema maestro con $a=b=2$, $f(n)=\Theta(n)=n^{\log_2 2}$ ⇒ $T(n)=\Theta(n\log n)$.
+
+**(b)** Las llamadas `ML` y `MR` son independientes ⇒ `pardo`. `MaximoCentro` se paraleliza con dos scans (prefix-sum con `+` y prefix-max con `max`), cada uno $O(n)$ trabajo y $O(\log n)$ span:
+
+$$
+W(n)=2W(n/2)+O(n)=\Theta(n\log n)\qquad T_\infty(n)=T_\infty(n/2)+O(\log n)=O(\log^2 n)
+$$
+
+(sin paralelizar `MaximoCentro`, el span sería $O(n)$).
+
+**(c)** Brent:
+
+$$
+T_p=O\!\left(\frac{n\log n}{p}+\log^2 n\right)\quad S=\frac{n\log n}{\frac{n\log n}{p}+\log^2n}\quad E=\frac{1}{1+\frac{p\log n}{n}}
+$$
+
+Fuerte ($n$ cte): $E=O(1/p)$, no escala. Débil: $E$ constante si $p\propto n/\log n$. (Elige el preset «P1» en el playground.)
+
+</Solucion>
+
+<Quiz
+	client:visible
+	id="escalabilidad"
+	preguntas={[
+		{ q: '$E=\\dfrac{1}{1+p\\log n/n}$. Condición de escalabilidad débil:', opts: ['$p\\propto n$', '$p\\propto n/\\log n$', '$p\\propto\\log n$', '$n\\propto\\log p$'], ok: 1 },
+		{ q: 'Mergesort con merge secuencial: $W=n\\log n$, $T_\\infty=n$. ¿$p$ máximo con E constante?', opts: ['$p\\propto n$', '$p\\propto\\log n$', '$p\\propto n/\\log n$', '$p\\propto n^2$'], ok: 1, why: '$W/T_\\infty=\\log n$: pésimo paralelismo por el merge secuencial.' },
+		{ q: 'Esquema A necesita $n\\propto p$; esquema B, $n\\propto\\sqrt{p\\log p}$. ¿Cuál es más escalable?', opts: ['A', 'B', 'Iguales', 'Depende de α'], ok: 1, why: 'B requiere que $n$ crezca menos para mantener la eficiencia.' },
+		{ q: 'Con $n$ fijo, $E=O(1/(p\\log p))$. Entonces…', opts: ['escala fuerte', 'no escala fuerte', 'escala débil siempre', 'es costo óptimo'], ok: 1 },
+	]}
+/>
+
+<Fuente archivos={['P1.md', 'estudio/03_Amdahl_Gustafson.md §4', 'estudio/08_Solvers_Examenes_Previos.md (Arquetipo E)', 'practica_3_ofi/executed/analisis_escalabilidad.md', 'PD01-Ejercicio1-Resolucion.md §6']} />

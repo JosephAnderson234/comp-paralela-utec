@@ -1,0 +1,99 @@
+---
+title: Bloqueante vs no bloqueante
+description: Send/Ssend/Isend/Irecv/Wait, protocolos eager y rendezvous, deadlock en anillo, ping-pong y el DAG del PD03.
+---
+import MpiSimulator from '../../../components/playgrounds/MpiSimulator.tsx';
+import Quiz from '../../../components/Quiz.tsx';
+import Solucion from '../../../components/Solucion.astro';
+import Fuente from '../../../components/Fuente.astro';
+
+## Comunicación bloqueada (standard)
+
+- Mensaje **menor que un umbral** (KB–MB, *eager*): `MPI_Send` copia el mensaje a un buffer y el emisor sigue; se entrega cuando el destino llama a `MPI_Recv`. Menos overhead para mensajes chicos.
+- Mensaje **mayor que el umbral** (*rendezvous*): `MPI_Send` funciona como **síncrono** (espera al receptor), para no llenar el buffer.
+
+En un anillo (todos `Send` al vecino derecho y luego `Recv` del izquierdo): con mensajes grandes o `Ssend` ⇒ **BLOQUEO MUTUO**; si un proceso rompe el ciclo ⇒ **SECUENCIAL**.
+
+## Comunicación no bloqueada
+
+Tres pasos: **(1)** iniciar (`I` = retorno inmediato) → **(2)** hacer cómputo u otra comunicación → **(3)** esperar a que se complete (`Wait`/`Test`).
+
+```text
+MPI_Isend(buf, count, type, dest, tag, comm, &request)
+MPI_Irecv(buf, count, type, src,  tag, comm, &request)
+MPI_Wait(&request, &status)            // bloquea hasta completar
+MPI_Test(&request, &flag, &status)     // solo consulta (flag = true/false)
+MPI_Waitall / Waitany / Waitsome       // varias requests
+```
+
+:::note[Equivalencias]
+**Isend + Wait = Send** · **Irecv + Wait = Recv**. Cada llamada no bloqueada necesita su `MPI_Request` y su `Wait`. Se pueden mezclar: Send bloqueante con Irecv, y viceversa; los envíos no bloqueados admiten cualquier modo (`Issend`, `Ibsend`, `Irsend`).
+:::
+
+:::danger[No toques el buffer]
+Entre `Isend` y su `Wait` no modifiques el buffer de envío; entre `Irecv` y su `Wait` no **leas** el de recepción. En `ejemplo01d` el primer `printf` lee `rbuf` antes del `Waitall`: su valor no está garantizado.
+:::
+
+:::tip[En el examen…]
+Declara el **`Irecv` antes del `Isend`**: evita el bloqueo mutuo y reduce la sincronización (lámina U3.3). Analogías: Isend = invitación a una reunión (se confirma luego); Irecv = recibir mensajes sin tener abierta la aplicación.
+:::
+
+## Simulador
+
+Prueba en orden: *Send → Recv* con mensaje grande (deadlock) y pequeño (funciona); *Ssend → Recv* (siempre deadlock); *el maestro rompe el ciclo* (secuencial: mira la escalera en la línea de tiempo); *pares/impares* (dos fases); *Irecv + Isend* (sin bloqueo); y el **DAG del PD03**.
+
+<MpiSimulator client:visible />
+
+## Suavizado: bloqueado vs no bloqueado
+
+Cada proceso tiene $n/p+2$ elementos (2 celdas fantasma). Versión **bloqueada**: suaviza todo y luego `Send`/`Recv` de los bordes (el proceso espera). Versión **no bloqueada** (Algoritmos 2–3 de U3.3):
+
+```text
+A(1)   := smooth(0, 1, 2)                   // primero los bordes
+A(n/p) := smooth(n/p-1, n/p, n/p+1)
+Isend(A(1) → j-1), Isend(A(n/p) → j+1)      // iniciar comunicación de bordes
+Ireceive(A(n/p) ← j-1), Ireceive(A(1) ← j+1)
+for i = 2 to n/p-1: A(i) := smooth(i-1, i, i+1)   // el interior se calcula
+MPI_Wait()                                          // mientras viajan los mensajes
+```
+
+**Solapa comunicación con cómputo**: el costo de comunicación se esconde detrás del interior.
+
+## Ejercicio (PD03, Ej. 3): bloqueo en un DAG
+
+Con el código `ejercicio03.cpp` (5 procesos, todos los envíos `MPI_Ssend`): (3.1) ¿hay algún problema? (3.2) DAG y correctitud. (3.3) Corrija. (3.4) ¿Puede un DAG **correctamente construido** ocasionar un bloqueo?
+
+<Solucion>
+
+**Resolución propuesta** (verifícala con los escenarios «PD03 Ej.3» y «corregido» del simulador).
+
+- **3.1** Deadlock: P2 primero espera `Recv` de P3 (tag 2), pero P3 solo envía después de recibir el `resultado` de P2. P0 y P1 quedan colgados en su `Ssend` a P2, y P4 esperando a P2. Además P2 recibe en `a` dos veces (pisa el valor).
+- **3.2** Aristas: P0→P2, P1→P2, P2→P3, P2→P4 y **P3→P2**: esta última forma un **ciclo** P2⇄P3 ⇒ el grafo de comunicación **no es un DAG**.
+- **3.3** Mover el `Recv` de P3 al final de P2 (y usar otra variable): P2 recibe de P0 y P1, calcula, envía a P3 y P4, y recién entonces recibe de P3. El grafo vuelve a ser acíclico en el tiempo.
+- **3.4** Un DAG bien construido no tiene ciclos de dependencia, así que la **lógica** no puede bloquear; pero la **implementación** sí: si el orden de las llamadas bloqueantes no respeta un orden topológico (p. ej. un proceso recibe antes de enviar lo que otro necesita, o `Ssend`/mensajes grandes cruzados), aparece un ciclo de **espera** aunque el DAG de datos sea acíclico. Este ejercicio es el ejemplo: el `Recv` de P3 estaba primero.
+
+</Solucion>
+
+## Ejercicio (U3.5, Ej. 6): ping-pong
+
+¿Es necesario usar comunicación no bloqueada? ¿Cómo se mide la latencia y el ancho de banda?
+
+<Solucion>
+
+No: el patrón es alternado — cuando P0 envía, P1 ya está en su `Recv`, y viceversa; no hay espera circular (ni con `Send` ni con `Ssend`). Se itera 50 veces y el tiempo por mensaje es $\frac{t_{fin}-t_{ini}}{2\cdot50}$ (en µs con `*1e6`), excluyendo las primeras iteraciones (calentamiento). Con tamaños 8 B, 512 B, 32 kB y 2 MB: el tiempo de los mensajes chicos ≈ **latencia** $\alpha$; la pendiente de tiempo vs tamaño ≈ $\beta$ (1/ancho de banda). `Ssend` tiene más latencia que `Send` para mensajes chicos (no puede usar el buffer).
+
+</Solucion>
+
+<Quiz
+	client:visible
+	id="bloqueante"
+	preguntas={[
+		{ q: 'Anillo: todos hacen `MPI_Ssend` al derecho y luego `MPI_Recv` del izquierdo.', opts: ['funciona', 'deadlock', 'secuencial', 'depende del tamaño'], ok: 1 },
+		{ q: 'Mismo anillo con `MPI_Send` y mensajes de 4 bytes:', opts: ['deadlock seguro', 'funciona normalmente (eager/buffer)', 'error de compilación', 'secuencial'], ok: 1, why: 'No está garantizado por el estándar, pero con mensajes bajo el umbral eager el Send retorna.' },
+		{ q: '`MPI_Isend` + `MPI_Wait` equivale a…', opts: ['MPI_Ssend', 'MPI_Send', 'MPI_Bsend', 'MPI_Sendrecv'], ok: 1 },
+		{ q: '¿Qué conviene llamar primero para evitar bloqueo mutuo?', opts: ['Isend', 'Irecv', 'Wait', 'Barrier'], ok: 1 },
+		{ q: 'Si el maestro hace Recv→Ssend y el resto Ssend→Recv en un anillo…', opts: ['deadlock', 'no hay deadlock, pero la comunicación es secuencial', 'todo en paralelo', 'error'], ok: 1 },
+	]}
+/>
+
+<Fuente archivos={['U3.3 Paralelismo Distribuido- No bloqueado.pdf', 'session3/ejemplo01a–d', 'practica_pc3/2025II-Ej01pingpong.c', 'practica_3_ofi/ejercicio03.cpp', 'CS4052-PD03-S02.pdf (Ej. 3)', 'U3.5 Ejercicios de repaso.pdf (Ej. 6, 8)']} />

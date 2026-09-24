@@ -1,0 +1,121 @@
+---
+title: Método de Foster (PCAM)
+description: Particionar, Comunicar, Aglomerar, Mapear. Suma de 10^12 números y suavizado del PD01.
+---
+import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import Quiz from '../../../components/Quiz.tsx';
+import Solucion from '../../../components/Solucion.astro';
+import Fuente from '../../../components/Fuente.astro';
+
+Ian Foster (*Designing and Building Parallel Programs*, 1995). Dos abstracciones:
+
+- **Task** = programa + memoria local + puertos de entrada/salida.
+- **Channel** = cola de mensajes que conecta la salida de un task con la entrada de otro: define la **dependencia**.
+
+:::note[Definición]
+En el modelo task/channel el **envío es asíncrono** y el **recibo es síncrono** (bloquea). Propiedades deseables: performance, independencia (el resultado no depende de dónde corre), modularidad y determinismo.
+:::
+
+## Los 4 pasos
+
+<Steps>
+
+1. **Particionar** — dividir datos y tareas en muchas *primitive tasks*.
+   - *Descomposición del dominio*: divide la **data** (la más grande / más accedida) y luego asigna tareas.
+   - *Descomposición funcional*: divide la **tarea** y luego decide qué data usa cada pieza.
+   - Reglas: #tareas ≥ **un orden de magnitud** mayor que #procesos; tareas de tamaño parecido; #tareas crece con $n$.
+2. **Comunicar** — definir canales (es **overhead**: no existe en la versión secuencial). Local (pocos vecinos) o global. Buscar comunicación balanceada y concurrente.
+3. **Aglomerar** — agrupar tareas para bajar overhead (las que se comunican mucho, las que no pueden ser concurrentes, pares envío/recibo) y garantizar escalabilidad.
+4. **Mapear** — asignar tareas a procesos: maximizar utilización y minimizar comunicación. Balanceo **estático** (distribución fija) o **dinámico** (número variable de tareas por proceso).
+
+</Steps>
+
+:::tip[En el examen…]
+Escribe **los 4 pasos con nombre** y di explícitamente cuántas tareas y cuántos canales quedan después de cada uno. Es lo que puntúa (ver el ejemplo del modelo climático en [repaso U3.5](/examen/repaso-u3/)).
+:::
+
+:::caution[Error común]
+Confundir aglomeración con mapeo. **Aglomerar** = decidir el *tamaño* de las tareas (agrupar); **mapear** = decidir *en qué procesador* corre cada tarea.
+:::
+
+## Ejemplo resuelto: suma de $n=10^{12}$ números
+
+Datos: una suma = $10^{-9}$ s; envío/recibo $10^{-8}$ s/Byte; cada proceso puede sumar a lo más $10^9$ números.
+
+<Tabs>
+<TabItem label="Propuesta 1: lineal">
+
+- **P:** suma de a pares → $10^{12}-1$ tareas primitivas.
+- **C:** $10^{12}-2$ canales (topología lineal).
+- **A:** $10^5$ números por tarea → $10^7$ canales.
+- **M:** cada proceso suma $10^9$ números → **$10^3$ canales**.
+
+$$
+T_s=10^{12}\cdot10^{-9}=1000\text{ s}\qquad T_p=10^9\cdot10^{-9}+10^3\cdot10^{-9}+10^3\cdot8\cdot10^{-8}\approx1.00008\text{ s}
+$$
+
+</TabItem>
+<TabItem label="Propuesta 2: árbol">
+
+Misma P/C/A/M en cantidad final, pero **topología de árbol binario**: el camino crítico tiene $\log_2 10^3\approx10$ saltos en vez de $10^3$.
+
+$$
+T_p=10^9\cdot10^{-9}+10\cdot10^{-9}+10\cdot8\cdot10^{-8}\approx1.0000008\text{ s}
+$$
+
+</TabItem>
+</Tabs>
+
+**Conclusión:** el mapeo final no cambia, pero la **topología sí** afecta el tiempo; aquí la diferencia es mínima porque el problema es **compute bound** (domina el término de cómputo $10^9\cdot10^{-9}=1$ s).
+
+## Ejercicio (PD01 2026-II, Ej. 1): suavizado
+
+Aplique Foster al suavizado de un array de $n$ píxeles con $t$ iteraciones:
+$U_i^t=\dfrac{U_{i-1}^{t-1}+U_i^{t-1}+U_{i+1}^{t-1}}{3}$. Cada proceso puede manejar a lo más 4 MB; cada píxel es un `float`. (1.1) Pasos de Foster. (1.2) Fronteras del dominio y de subdominios. (1.3) $T_s$, $T_p$ con $10^{-9}$ s/op y $10^{-8}$ s/Byte.
+
+<Solucion titulo="Ver solución (1.1 Foster)">
+
+- **Partición:** descomposición de dominio; tarea primitiva = un valor $U_i^t$ ⇒ malla $n\times t$ (cada fila depende de la anterior).
+- **Comunicación:** cada $(i,t)$ necesita 3 valores de $t-1$: patrón **local tipo stencil 1D**, sin comunicación global.
+- **Aglomeración:** bloques contiguos de $s$ píxeles por proceso; solo se comunican los bordes (**halo**). Límite de memoria: $s_{max}=\dfrac{4\,\text{MB}}{4\,\text{B}}=2^{20}$ píxeles.
+- **Mapeo:** $p=\lceil n/s\rceil$ procesos en **topología lineal**: $P_k$ solo habla con $P_{k-1}$ y $P_{k+1}$.
+
+</Solucion>
+
+<Solucion titulo="Ver solución (1.2 fronteras)">
+
+- **Frontera del dominio** ($i=1$, $i=n$): celda fantasma replicada ($U_0=U_1$, $U_{n+1}=U_n$) o promedio de solo 2 valores.
+- **Frontera de subdominios:** **intercambio de halo** en **cada** iteración: enviar el píxel de borde al vecino y recibir el suyo en una celda auxiliar. Los procesos extremos solo intercambian con un lado.
+
+</Solucion>
+
+<Solucion titulo="Ver solución (1.3 T_s, T_p y métricas)">
+
+3 operaciones por píxel (2 sumas + 1 división):
+
+$$
+T_s=3\,n\,t\,t_c\qquad T_p=t\left[3\frac np t_c+8\,t_w\right]
+$$
+
+(cada proceso intercambia 1 float = 4 B con 2 vecinos por iteración). Métricas derivadas:
+
+$$
+S=\frac{3n\,t_c}{3\frac np t_c+8t_w}\qquad E=\frac{3n\,t_c}{3n\,t_c+8p\,t_w}\qquad T_o=pT_p-T_s=8\,p\,t\,t_w
+$$
+
+Isoeficiencia: $3ntt_c=K\cdot8ptt_w\Rightarrow n=\dfrac{8Kt_w}{3t_c}\,p=O(p)$ — **lineal, muy escalable**. Ejemplo $n=2^{22}$, $t=100$, $p=4$: $T_s=1.258$ s, $T_p=0.3146$ s, $S\approx3.9999$, $E\approx0.99997$.
+
+</Solucion>
+
+<Quiz
+	client:visible
+	id="foster"
+	preguntas={[
+		{ q: '¿En qué paso de Foster decides que cada proceso reciba un bloque de $n/p$ píxeles contiguos?', opts: ['Partición', 'Comunicación', 'Aglomeración', 'Mapeo'], ok: 2, why: 'Agrupar tareas primitivas en bloques = aglomeración (el mapeo decide a qué procesador va cada bloque).' },
+		{ q: '¿Cuántas tareas primitivas conviene tener respecto a los procesos?', opts: ['Igual número', 'Al menos un orden de magnitud más', 'La mitad', 'Exactamente $\\log p$'], ok: 1, why: 'Regla de un buen particionamiento: ≥ 10× más tareas que procesos.' },
+		{ q: 'En la suma de $10^{12}$ números, ¿por qué el árbol casi no mejora $T_p$?', opts: ['Porque tiene más canales', 'Porque el problema es compute bound', 'Porque el árbol es EREW', 'Porque β es grande'], ok: 1, why: 'El término dominante es el cómputo local de $10^9$ sumas (1 s).' },
+		{ q: 'En el modelo task/channel…', opts: ['envío y recibo son síncronos', 'envío asíncrono, recibo síncrono', 'envío síncrono, recibo asíncrono', 'ambos asíncronos'], ok: 1 },
+	]}
+/>
+
+<Fuente archivos={['estudio/01_Flynn_Foster.md §2–5', 'PD01-Ejercicio1-Resolucion.md', 'CS4052-PD01-S02.pdf', 'U1.2-Fundamentos-Foster_Flynn-apuntes.pdf']} />

@@ -1,0 +1,116 @@
+---
+title: Formulario (cheat sheet)
+description: Todas las fórmulas del parcial en una página imprimible.
+---
+import Fuente from '../../components/Fuente.astro';
+
+<p class="no-print">🖨️ Esta página está preparada para imprimir (<kbd>Ctrl</kbd>+<kbd>P</kbd>): se ocultan la barra lateral y la navegación.</p>
+
+## Speedup, eficiencia, costo
+
+$$
+S=\frac{T_s}{T_p}\le p \qquad E=\frac{S}{p}=\frac{T_s}{p\,T_p}\le 1 \qquad C_p(n)=T_p(n)\cdot p
+$$
+
+- **Costo óptimo:** $C_p(n)=\Theta(T_s(n))$.
+- **Granularidad:** $G=\dfrac{T_{comp}}{T_{comm}}$ (mayor $G$ ⇒ menos overhead relativo).
+- **Overhead:** $T_o=p\,T_p-T_s$; isoeficiencia: $T_s=K\,T_o$.
+
+## DAG / PRAM (work–span)
+
+$$
+T_p\ge\max\!\left(\frac{T_s}{p},\,T_\infty\right)\qquad W(n)=T_s^*(n)
+$$
+
+**Brent:** $\;T_p(n,p)\le\left\lfloor\dfrac{W(n)}{p}\right\rfloor+T_\infty(n)=O\!\left(\dfrac{W(n)}{p}+T_\infty(n)\right)$
+
+- Costo máximo $C_p=O(W+T_\infty p)$; $W$ y $C_p$ coinciden si $p=O(W/T_\infty)$.
+- Forma final esperada: $E=O\!\left(\dfrac{1}{1+p\,T_\infty(n)/W(n)}\right)$ ⇒ débil si $p\propto W/T_\infty$.
+
+## Amdahl (strong, $n$ fijo)
+
+$$
+T_p=f_s+\frac{f_p}{p}\qquad S=\frac{1}{f_s+f_p/p}\qquad E=\frac{1}{p\left(f_s+\frac{1-f_s}{p}\right)}\qquad S\xrightarrow{p\to\infty}\frac{1}{f_s}
+$$
+
+## Gustafson (weak, $n$ crece con $p$)
+
+$$
+T_p=f_s+f_p\qquad T_s=f_s+p\,f_p\qquad S=f_s+p\,f_p\qquad E=\frac{f_s+p\,f_p}{p}
+$$
+
+Generalizada: $S=\dfrac{f_s+f_p p^\alpha}{f_s+f_p p^{\alpha-1}}$ ($\alpha=0$ Amdahl, $\alpha=1$ Gustafson).
+
+## Comunicación ($\alpha$ latencia, $\beta$ costo por dato, $\alpha\gg\beta$)
+
+| | Lineal | Árbol binario |
+|---|---|---|
+| Broadcast | $O(p(\alpha+m\beta))$ | $O(\log p\,(\alpha+m\beta))$ |
+| Scatter / Gather | $(p-1)(\alpha+\beta\tfrac mp)=O(\alpha p+\beta m)$ | $\alpha\log p+\beta m(1-\tfrac1p)=O(\alpha\log p+\beta m)$ |
+| Punto a punto | $T=\alpha+x\beta$ | — |
+
+- $T_{comm}=f(p)(\alpha+x\beta)$; BPRAM: $T=\alpha+\beta b$.
+- Suma de array con $p$ procesos: lineal $O(p\alpha+(n+p)\beta+n/p)$; árbol $O(n/p+\alpha\log p+\tfrac np\beta)$.
+
+## PRAM
+
+$EREW\subset CREW\subset CRCW$ — CW: **común**, **arbitrario**, **combinado**, **prioritario**.
+
+| Modelo | Relaja | Costo / idea |
+|---|---|---|
+| APRAM | sync global | asíncrono, `wait(flag)` |
+| Phase PRAM | sync gratis | $T_{sync}=S\cdot T_{barrier}$ |
+| LPRAM | acceso uniforme | $T_{local}<T_{global}$ |
+| BPRAM | palabra a palabra | $\alpha+\beta b$ |
+| BSP | todo | $T=\sum w_s+g\sum h_s+SL$; reducción $O(\tfrac np+(g+L)\log p)$ |
+| LogP | asincronía real | $L,o,g,P$; reducción $O(\tfrac np+\log p\,(L+o+g))$ |
+
+## Casos PRAM clásicos
+
+| Algoritmo | $W(n)$ | $T_\infty(n)$ | Modelo |
+|---|---|---|---|
+| Global OR | $\Theta(n)$ | $\Theta(1)$ | CRCW (común) |
+| Máximo | $O(n^2)$ procs | $O(1)$ | CRCW |
+| Suma por reducción | $O(n)$ | $O(\log n)$ | EREW/CREW |
+| Prefix sum | $O(n)$ | $O(\log n)$ | CREW (como está escrito) |
+| Mergesort (merge secuencial) | $O(n\log n)$ | $O(n)$ | — |
+| Matmul (expansión + reducción) | $O(n^3)$ | $O(\log n)$ | — |
+| Matmul $P_{i,j}$ (2026-I) | $O(n^3)$ | $O(n)$ | EREW |
+
+## Recurrencias
+
+$$
+\begin{aligned}
+T(n)&=T(n/2)+O(1)&&\Rightarrow\Theta(\log n) & T(n)&=T(n/2)+O(\log n)&&\Rightarrow\Theta(\log^2 n)\\
+T(n)&=T(n/2)+O(n)&&\Rightarrow\Theta(n) & T(n)&=2T(n/2)+O(n)&&\Rightarrow\Theta(n\log n)\\
+T(n)&=T(n-1)+O(n)&&\Rightarrow\Theta(n^2) & T(n)&=aT(n/b)+f(n)&&\text{(maestro: compara } f \text{ con } n^{\log_b a})
+\end{aligned}
+$$
+
+## Particionamiento matriz-vector (examen)
+
+$$
+T_p^{filas}=\gamma\frac{n^2}{p}+\alpha\log p+\beta n\qquad T_p^{bloques}=\gamma\frac{n^2}{p}+2\alpha\log\sqrt p+\beta\frac{n}{\sqrt p}
+$$
+
+Filas: $n\propto p$ · Bloques: $n\propto\sqrt{p\log p}$ ⇒ bloques más escalable y de mayor granularidad.
+
+## N-Body / FLOPs (arquetipo D)
+
+$$
+V(n,p)\approx\frac{\gamma N^{2+x}}{\alpha N^{2+x}/p+\beta\log p}\quad(\gamma=500,\ \alpha=10^{-9},\ \beta=1,\ x=0.31)\qquad S\propto V
+$$
+
+Débil: $N^{2+x}\propto p\log p$. Fuerzas: $N(N-1)/2$ pares ⇒ $O(N^2)$; Barnes-Hut $O(n\log n/p)$.
+
+## Random
+
+LCG: $x_{i+1}=(a\,x_i+c)\bmod m$ ($a=16807$, $m=2^{31}-1$, $c=0$). Estrategias: centralizada, replicativa, distribuida. MRG32k3a: $1.8\times10^{19}$ streams, período $3.1\times10^{57}$. Montecarlo: $\pi=4n/N$.
+
+## MPI — lo mínimo
+
+`MPI_Init` · `MPI_Comm_rank` · `MPI_Comm_size` · `MPI_Send(buf,count,type,dest,tag,comm)` · `MPI_Recv(buf,count,type,src,tag,comm,&status)` · `MPI_Ssend` (síncrono) · `MPI_Bsend` · `MPI_Rsend` · `MPI_Isend/Irecv(...,&req)` + `MPI_Wait/Waitall/Test` · `MPI_Bcast(buf,count,type,root,comm)` · `MPI_Scatter/Gather(sbuf,scnt,stype,rbuf,rcnt,rtype,root,comm)` · `MPI_Reduce(sbuf,rbuf,count,type,op,root,comm)` · `MPI_Allreduce` (sin root) · `MPI_Type_contiguous(count,old,&new)` · `MPI_Type_vector(count,blocklen,stride,old,&new)` · `MPI_Type_create_struct(count,bl[],disp[],types[],&new)` → `MPI_Type_commit` → usar → `MPI_Type_free`.
+
+**Isend + Wait = Send · Irecv + Wait = Recv.** No toques el buffer entre la llamada `I*` y su `Wait`.
+
+<Fuente archivos={['estudio/00_Indice_y_Formulario.md', '03_Amdahl_Gustafson.md', '04_PRAM.md', '05_Particionamiento.md', '08_Solvers_Examenes_Previos.md', 'U3.1–U3.4 slides MPI']} />

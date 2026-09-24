@@ -1,0 +1,66 @@
+---
+title: FLOPs y el caso N-Body
+description: Speedup medido en FLOPs, eliminación de Gauss y el arquetipo D del examen.
+---
+import NBodyFlops from '../../../components/playgrounds/NBodyFlops.tsx';
+import Quiz from '../../../components/Quiz.tsx';
+import Solucion from '../../../components/Solucion.astro';
+import Fuente from '../../../components/Fuente.astro';
+
+- **FLOP**: operación de coma flotante (IEEE754; precisión simple 32 bits, máx. $\approx2^{128}\approx3\times10^{38}$). Se mide en **FLOP/s**.
+- Suma y multiplicación son rápidas; división, raíz, trigonométricas y logaritmos son **mucho más lentas** — evitarlas en HPC.
+- Un núcleo de 2–4 GHz con 2–4 ops FP/ciclo ⇒ **4–12 GFLOP/s**. La memoria se mide en **GB/s**: la diferencia define la *intensidad aritmética* (compute bound vs memory bound).
+
+## Eliminación de Gauss: $\approx n^3$ FLOPs
+
+| $n$ | FLOPs | Tiempo a 1 GFLOP/s |
+|---|---|---|
+| $10$ | $10^3$ | $10^{-6}$ s |
+| $10^2$ | $10^6$ | 0.001 s |
+| $10^3$ | $10^9$ | 1 s |
+| $10^4$ | $10^{12}$ | ~1000 s (≈17 min) |
+| $10^5$ | $10^{15}$ | ~$10^6$ s (≈278 h) |
+| $10^6$ | $10^{18}$ | ~32 años |
+
+Una matriz $10^6\times10^6$ de doubles ocupa **8 TB**. Paralelizar no es opcional.
+
+## Speedup ∝ FLOPs
+
+Como $T\propto 1/\text{FLOP/s}$, $\;S=\dfrac{T_s}{T_p}\propto V(n,p)$. Respuesta corta y directa (PD02 2026-I, 1.3).
+
+<NBodyFlops client:visible />
+
+:::tip[En el examen (arquetipo D)]
+1. **Puntos de cruce** en la gráfica T vs nodos = número **óptimo** de nodos (cómputo baja con $p$, comunicación sube). Para $N$ mayor, el óptimo se mueve **arriba y a la derecha** (más nodos).
+2. **Sustituye numéricamente** para ver qué término del denominador domina; no lo asumas.
+3. **Escalabilidad:** $E=O\!\left(\dfrac{1}{1+\frac{\beta\,p\log p}{\alpha N^{2+x}}}\right)$ ⇒ fuerte: $E\sim\dfrac{1}{p\log p}$, no escala; débil: $N^{2+x}\propto p\log p$.
+:::
+
+:::caution[Error común]
+Memorizar «no depende de N». 2025-I respondió eso (asumiendo que domina $\alpha N^{2+x}/p$ ⇒ $V\approx\gamma p/\alpha$); 2026-I respondió «depende ligeramente de N». Con $N=10^6$, $p=5000$ ambos términos son del mismo orden: juega con el playground.
+:::
+
+## Ejercicio (PD02 2025-I Ej. 2 / 2026-I Ej. 1)
+
+(1) ¿Qué representan los puntos de cruce en las gráficas tiempo vs nodos (64K y 512K cuerpos)? ¿Cómo sería para $N=10^6$? (2) FLOPs teóricos en un supercomputador de 5000 nodos; ¿depende de $N$? (3) Relación Speedup–FLOPs. (4) Escalabilidad fuerte y débil.
+
+<Solucion>
+
+1. El número **óptimo** de nodos por simulación (≈12 para 64K, ≈40 para 512K). Para $N=10^6$ el cruce se mueve arriba y a la derecha: óptimo con **más** procesadores; se puede proyectar con la fórmula de complejidad.
+2. $V\approx\gamma p/\alpha=500\cdot5000/10^{-9}=2.5\times10^{15}$ = **2.5 PFLOP/s**. 2025-I: «no depende de N»; 2026-I: «depende ligeramente de N».
+3. $S\propto$ FLOPs, porque $T_s\propto1/\text{FLOP}$.
+4. $E=O\!\left(\dfrac{1}{1+\frac{p\log p}{N^{2+x}}}\right)$: con $N$ constante $E=O\!\left(\dfrac{1}{p\log p}\right)$ ⇒ no escala fuerte. Escala débil si $N^{2+x}\propto p\log p$, i.e. $N\approx(p\log p)^{1/2.31}$.
+
+</Solucion>
+
+<Quiz
+	client:visible
+	id="flops"
+	preguntas={[
+		{ q: 'Gauss con $n=5\\times10^4$ a 1 GFLOP/s tarda aprox.', opts: ['125 s', '35 h', '17 min', '32 años'], ok: 1, why: '$(5\\times10^4)^3=1.25\\times10^{14}$ FLOP ⇒ $1.25\\times10^5$ s ≈ 35 h.' },
+		{ q: 'El punto de cruce de las curvas de N-Body representa…', opts: ['la latencia', 'el número óptimo de nodos', 'el máximo de FLOPs', 'el span'], ok: 1 },
+		{ q: 'Un algoritmo con muchas divisiones y raíces es…', opts: ['más rápido en FLOP/s', 'más lento: aritmética compleja', 'igual', 'memory bound siempre'], ok: 1 },
+	]}
+/>
+
+<Fuente archivos={['estudio/03_Amdahl_Gustafson.md §6', 'previos/2025-I-CS4052-PD02-sol.pdf (Ej. 2)', 'previos/2026-I-CS4052-PD02(sol).pdf (Ej. 1)', '08_Solvers (Arquetipo D)']} />
