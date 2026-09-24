@@ -108,7 +108,7 @@ export default function BrentScalability() {
 			: String.raw`E=\frac{1}{1+\dfrac{p\,${Tf.tex}}{${Wf.tex}}+\dfrac{p\,${comm === 'logp' ? '\\log p' : 'p'}}{${Wf.tex}}}`;
 
 	return (
-		<div className="pg">
+		<div className="pg not-content">
 			<h4>Calculadora Brent → S, E y escalabilidad</h4>
 			<p className="pg-sub">Elige W(n) y T∞(n) (o un ejercicio previo). Se asume T_s = W (costo óptimo) y la cota de Brent T_p = W/p + T∞ {commTex && '+ comunicación'}.</p>
 			<div className="pg-row">

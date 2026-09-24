@@ -152,9 +152,9 @@ function tick(prev: SimState, progs: Instr[][], eager: boolean): SimState {
 	s.finished = s.pc.every((pc, r) => pc >= progs[r].length);
 	if (!changed && !s.finished) {
 		s.deadlock = true;
-		s.log.push(`t=${s.t}: ⛔ ningún proceso puede avanzar → BLOQUEO MUTUO (deadlock)`);
+		s.log.push(`t=${s.t}: ningún proceso puede avanzar → BLOQUEO MUTUO (deadlock)`);
 	}
-	if (s.finished) s.log.push(`t=${s.t}: ✔ todos los procesos terminaron`);
+	if (s.finished) s.log.push(`t=${s.t}: todos los procesos terminaron`);
 	return s;
 }
 
@@ -527,7 +527,7 @@ export default function MpiSimulator({ initial = 0 }: { initial?: number }) {
 	const T = Math.max(st.t, 8);
 
 	return (
-		<div className="pg">
+		<div className="pg not-content">
 			<h4>Simulador de mensajes MPI</h4>
 			<p className="pg-sub">Simulación en JS (no ejecuta MPI real). Cada tic, cada proceso intenta avanzar una instrucción. Las insignias P0…P{p - 1} marcan la línea donde está cada proceso.</p>
 			<div className="pg-row">
@@ -553,12 +553,12 @@ export default function MpiSimulator({ initial = 0 }: { initial?: number }) {
 				<b>{sc.file}</b> · {sc.sizeNote}
 			</div>
 			<div className="pg-row">
-				<button onClick={() => { setSt(init(p)); setPlaying(false); }}>⏮ Reiniciar</button>
-				<button className="primary" onClick={() => setSt((s) => tick(fit(s), progs, eager))} disabled={st.deadlock || st.finished}>Tic ▶</button>
-				<button onClick={() => setPlaying(!playing)} disabled={st.deadlock || st.finished}>{playing ? '⏸ Pausa' : '⏵ Reproducir'}</button>
+				<button onClick={() => { setSt(init(p)); setPlaying(false); }}>Reiniciar</button>
+				<button className="primary" onClick={() => setSt((s) => tick(fit(s), progs, eager))} disabled={st.deadlock || st.finished}>Siguiente tic →</button>
+				<button onClick={() => setPlaying(!playing)} disabled={st.deadlock || st.finished}>{playing ? 'Pausa' : 'Reproducir'}</button>
 				<span style={{ color: 'var(--pg-muted)' }}>t = {st.t}</span>
-				{st.deadlock && <b style={{ color: 'var(--pg-bad)' }}>⛔ DEADLOCK</b>}
-				{st.finished && <b style={{ color: 'var(--pg-ok)' }}>✔ Terminado en {st.t} tics</b>}
+				{st.deadlock && <b style={{ color: 'var(--pg-bad)' }}>Deadlock: nadie puede avanzar</b>}
+				{st.finished && <b style={{ color: 'var(--pg-ok)' }}>Terminado en {st.t} tics</b>}
 			</div>
 
 			<div style={{ display: 'grid', gap: '1rem', margin: 0 }}>
@@ -601,7 +601,7 @@ export default function MpiSimulator({ initial = 0 }: { initial?: number }) {
 											/>
 											{c.s !== 'done' && (
 												<text x={36 + t * cellW + (cellW - 3) / 2} y={r * 24 + 17} fontSize={9} textAnchor="middle" style={{ fill: '#111' }}>
-													{c.s === 'block' ? '⏳' : c.txt.split(' ')[0].slice(0, 4)}
+													{c.s === 'block' ? '…' : c.txt.split(' ')[0].slice(0, 4)}
 												</text>
 											)}
 										</g>
@@ -615,7 +615,7 @@ export default function MpiSimulator({ initial = 0 }: { initial?: number }) {
 					</div>
 					<div className="legend">
 						<span><i style={{ background: 'var(--pg-c1)' }} />avanza (color del proceso)</span>
-						<span><i style={{ background: 'var(--pg-bad)' }} />bloqueado ⏳</span>
+						<span><i style={{ background: 'var(--pg-bad)' }} />bloqueado</span>
 						<span><i style={{ background: 'var(--pg-border)' }} />terminado</span>
 					</div>
 					<div style={{ maxHeight: 150, overflowY: 'auto', fontSize: '0.78rem', marginTop: 8, fontFamily: 'var(--__sl-font-mono, monospace)' }}>

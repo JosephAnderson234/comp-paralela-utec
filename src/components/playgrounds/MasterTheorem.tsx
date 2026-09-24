@@ -50,7 +50,7 @@ export default function MasterTheorem() {
 	const maxLv = Math.max(...levels);
 
 	return (
-		<div className="pg">
+		<div className="pg not-content">
 			<h4>Recurrencias Divide y Vencerás — Teorema maestro</h4>
 			<p className="pg-sub">
 				<Tex>{'T(n)=a\\,T(n/b)+f(n),\\quad f(n)=\\Theta(n^k\\log^j n)'}</Tex> — compara <Tex>{'n^{\\log_b a}'}</Tex> (hojas) con f(n) (raíz).

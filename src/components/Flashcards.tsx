@@ -42,15 +42,15 @@ export default function Flashcards({ cards }: { cards: Card[] }) {
 	};
 
 	return (
-		<div className="pg">
+		<div className="pg not-content">
 			<div className="pg-row" style={{ justifyContent: 'space-between' }}>
-				<h4>🗂️ Flashcards</h4>
+				<h4>Flashcards</h4>
 				<span style={{ color: 'var(--pg-muted)' }}>
 					dominadas {known}/{cards.length}
 				</span>
 			</div>
-			<div style={{ height: 6, background: 'var(--pg-border)', borderRadius: 3, overflow: 'hidden' }}>
-				<div style={{ width: `${(100 * known) / cards.length}%`, height: '100%', background: 'var(--pg-ok)' }} />
+			<div style={{ height: 4, background: 'var(--pg-tile)', borderRadius: 999, overflow: 'hidden' }}>
+				<div style={{ width: `${(100 * known) / cards.length}%`, height: '100%', background: 'var(--sl-color-accent)', borderRadius: 999, transition: 'width .5s cubic-bezier(.22,1,.36,1)' }} />
 			</div>
 			<div className="pg-row">
 				<select value={tema} onChange={(e) => { setTema(e.target.value); setI(0); setFlip(false); }}>
@@ -59,27 +59,27 @@ export default function Flashcards({ cards }: { cards: Card[] }) {
 				<label style={{ margin: 0 }}>
 					<input type="checkbox" checked={soloPend} onChange={(e) => { setSoloPend(e.target.checked); setI(0); }} /> solo pendientes
 				</label>
-				<button onClick={shuffle}>🔀 Barajar</button>
+				<button onClick={shuffle}>Barajar</button>
 				<button onClick={() => { setStatus({}); save(KEY, {}); }}>Reiniciar progreso</button>
 			</div>
 			{cur ? (
 				<>
 					<button className="flash-card" onClick={() => setFlip(!flip)} aria-label="voltear tarjeta">
 						<span className="side">{cur.t} · {flip ? 'respuesta' : 'pregunta'} · {(i % deck.length) + 1}/{deck.length}</span>
-						<span>
+						<span className="face" key={`${cur.f}-${flip}`}>
 							<Rich text={flip ? cur.b : cur.f} />
 						</span>
 						{!flip && <span className="side" style={{ marginTop: '0.75rem' }}>clic para voltear</span>}
 					</button>
 					<div className="pg-row" style={{ justifyContent: 'center' }}>
-						<button onClick={() => { setI((x) => (x - 1 + deck.length) % deck.length); setFlip(false); }}>◀</button>
-						<button onClick={() => mark('rep')} style={{ borderColor: 'var(--pg-warn)' }}>↻ Repasar</button>
-						<button onClick={() => mark('ok')} style={{ borderColor: 'var(--pg-ok)' }}>✔ La sé</button>
-						<button onClick={() => { setI((x) => x + 1); setFlip(false); }}>▶</button>
+						<button onClick={() => { setI((x) => (x - 1 + deck.length) % deck.length); setFlip(false); }}>← Anterior</button>
+						<button onClick={() => mark('rep')} style={{ borderColor: 'var(--pg-warn)' }}>Repasar</button>
+						<button onClick={() => mark('ok')} style={{ borderColor: 'var(--pg-ok)' }}>La sé</button>
+						<button onClick={() => { setI((x) => x + 1); setFlip(false); }}>Siguiente →</button>
 					</div>
 				</>
 			) : (
-				<div className="pg-note ok">🎉 No quedan tarjetas pendientes en este tema.</div>
+				<div className="pg-note ok">No quedan tarjetas pendientes en este tema.</div>
 			)}
 		</div>
 	);

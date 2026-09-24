@@ -45,7 +45,7 @@ export default function MatVecPartition() {
 		}));
 
 	return (
-		<div className="pg">
+		<div className="pg not-content">
 			<h4>Matriz × vector: filas vs columnas vs bloques</h4>
 			<p className="pg-sub">A de N×N (aquí N=8) repartida entre p procesos. Color = proceso dueño de la celda.</p>
 			<div className="pg-row">

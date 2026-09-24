@@ -52,7 +52,7 @@ function corr(a: number[], b: number[]) {
 export default function MonteCarloPi() {
 	const [tab, setTab] = useState<'mc' | 'int'>('mc');
 	return (
-		<div className="pg">
+		<div className="pg not-content">
 			<h4>π en paralelo</h4>
 			<div className="pg-row">
 				<div className="pg-seg">
@@ -202,7 +202,7 @@ MPI_Reduce(&local_sum, &global_sum, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);`
 			</div>
 			{lost > 0 ? (
 				<div className="pg-note bad">
-					⚠ n = 2^{iter} no es divisible por {size}: la división entera n/size deja fuera {lost} término(s) (los últimos i) y el error ya no baja como debería. Con p potencia de 2 no pasa.
+					n = 2^{iter} no es divisible por {size}: la división entera n/size deja fuera {lost} término(s) (los últimos i) y el error ya no baja como debería. Con p potencia de 2 no pasa.
 				</div>
 			) : (
 				<div className="pg-note ok">Reparto exacto: cada rank hace n/p iteraciones ⇒ S(n) = O(p), E(n) = O(1) (comentario del código).</div>

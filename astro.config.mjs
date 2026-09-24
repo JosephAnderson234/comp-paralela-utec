@@ -18,8 +18,9 @@ export default defineConfig({
 			title: 'CS4052 · Parcial',
 			description: 'Web de estudio interactiva: Computación Paralela y Distribuida (UTEC).',
 			locales: { root: { label: 'Español', lang: 'es' } },
-			customCss: ['katex/dist/katex.min.css', './src/styles/custom.css'],
+			customCss: ['@fontsource-variable/inter', '@fontsource-variable/jetbrains-mono', 'katex/dist/katex.min.css', './src/styles/custom.css'],
 			pagination: true,
+			tableOfContents: { minHeadingLevel: 2, maxHeadingLevel: 2 },
 			sidebar: [
 				{
 					label: 'Inicio',
@@ -33,42 +34,42 @@ export default defineConfig({
 					items: [
 						{ label: 'Taxonomía de Flynn', slug: 'fundamentos/flynn' },
 						{ label: 'Método de Foster (PCAM)', slug: 'fundamentos/foster' },
-						{ label: 'Modelo DAG', slug: 'fundamentos/dag', badge: { text: 'lab', variant: 'tip' } },
+						{ label: 'Modelo DAG', slug: 'fundamentos/dag' },
 					],
 				},
 				{
 					label: '2 · Performance',
 					items: [
 						{ label: 'Speedup, eficiencia, costo', slug: 'performance/metricas' },
-						{ label: 'Amdahl y Gustafson', slug: 'performance/amdahl-gustafson', badge: { text: 'lab', variant: 'tip' } },
-						{ label: 'Escalabilidad e isoeficiencia', slug: 'performance/escalabilidad', badge: { text: 'lab', variant: 'tip' } },
-						{ label: 'FLOPs y N-Body', slug: 'performance/flops', badge: { text: 'lab', variant: 'tip' } },
+						{ label: 'Amdahl y Gustafson', slug: 'performance/amdahl-gustafson' },
+						{ label: 'Escalabilidad e isoeficiencia', slug: 'performance/escalabilidad' },
+						{ label: 'FLOPs y N-Body', slug: 'performance/flops' },
 					],
 				},
 				{
 					label: '3 · PRAM',
 					items: [
 						{ label: 'Modelo PRAM y Brent', slug: 'pram/modelo' },
-						{ label: 'Casos: OR, máx., suma, prefix', slug: 'pram/casos', badge: { text: 'lab', variant: 'tip' } },
+						{ label: 'Casos: OR, máx., suma, prefix', slug: 'pram/casos' },
 						{ label: 'Extensiones: APRAM… BSP, LogP', slug: 'pram/extensiones' },
 					],
 				},
 				{
 					label: '4 · Diseño de algoritmos',
 					items: [
-						{ label: 'Particionamiento y Mandelbrot', slug: 'diseno/particionamiento', badge: { text: 'lab', variant: 'tip' } },
-						{ label: 'Random y Montecarlo', slug: 'diseno/random', badge: { text: 'lab', variant: 'tip' } },
-						{ label: 'N-Body, D&V, mergesort', slug: 'diseno/nbody-dyv', badge: { text: 'lab', variant: 'tip' } },
+						{ label: 'Particionamiento y Mandelbrot', slug: 'diseno/particionamiento' },
+						{ label: 'Random y Montecarlo', slug: 'diseno/random' },
+						{ label: 'N-Body, D&V, mergesort', slug: 'diseno/nbody-dyv' },
 					],
 				},
 				{
 					label: '5 · MPI (U3)',
 					items: [
 						{ label: 'MPI básico', slug: 'mpi/basicos' },
-						{ label: 'Colectivas', slug: 'mpi/colectivas', badge: { text: 'lab', variant: 'tip' } },
-						{ label: 'Bloqueante vs no bloqueante', slug: 'mpi/bloqueante', badge: { text: 'lab', variant: 'tip' } },
-						{ label: 'Tipos derivados', slug: 'mpi/tipos-derivados', badge: { text: 'lab', variant: 'tip' } },
-						{ label: 'Práctica: matriz × vector', slug: 'mpi/practica-matvec', badge: { text: 'lab', variant: 'tip' } },
+						{ label: 'Colectivas', slug: 'mpi/colectivas' },
+						{ label: 'Bloqueante vs no bloqueante', slug: 'mpi/bloqueante' },
+						{ label: 'Tipos derivados', slug: 'mpi/tipos-derivados' },
+						{ label: 'Práctica: matriz × vector', slug: 'mpi/practica-matvec' },
 					],
 				},
 				{

@@ -44,7 +44,7 @@ export default function AmdahlGustafson() {
 	const SG = speedup(fs, pSel, 1);
 
 	return (
-		<div className="pg">
+		<div className="pg not-content">
 			<h4>Amdahl vs Gustafson</h4>
 			<p className="pg-sub">Mueve la fracción secuencial y observa el techo de Amdahl frente al crecimiento lineal de Gustafson.</p>
 			<div className="pg-row">
@@ -126,7 +126,7 @@ export default function AmdahlGustafson() {
 				</div>
 			</div>
 			<div className="pg-note">
-				<Tex>{String.raw`\text{Amdahl: } S=\frac{1}{f_s+\frac{f_p}{p}}\;\xrightarrow{p\to\infty}\;\frac{1}{f_s} \qquad \text{Gustafson: } S=f_s+p\,f_p`}</Tex>
+				<Tex block>{String.raw`\text{Amdahl: } S=\frac{1}{f_s+\frac{f_p}{p}}\;\xrightarrow{p\to\infty}\;\frac{1}{f_s} \qquad \text{Gustafson: } S=f_s+p\,f_p`}</Tex>
 			</div>
 		</div>
 	);

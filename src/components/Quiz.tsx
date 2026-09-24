@@ -38,9 +38,9 @@ export default function Quiz({ id, titulo = 'Autoevaluación', preguntas }: Prop
 	const score = resp.filter((r, i) => r === preguntas[i].ok).length;
 
 	return (
-		<div className="pg quiz">
+		<div className="pg quiz not-content">
 			<div className="pg-row" style={{ justifyContent: 'space-between' }}>
-				<h4>🧠 {titulo}</h4>
+				<h4>{titulo}</h4>
 				<span style={{ color: 'var(--pg-muted)' }}>
 					{score}/{preguntas.length} correctas · {done} respondidas{' '}
 					<button onClick={reset} style={{ marginLeft: 8 }}>

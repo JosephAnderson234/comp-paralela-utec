@@ -366,7 +366,7 @@ export default function DagPlayground({ initial = 'ej18' }: { initial?: PresetKe
 	const lower = Math.max(a.work / p, a.span);
 
 	return (
-		<div className="pg">
+		<div className="pg not-content">
 			<h4>DAG: trabajo, span y camino crítico</h4>
 			<p className="pg-sub">
 				W = suma de costos de todos los nodos · T∞ = camino más costoso (en <b>tiempo</b>, no en número de nodos) · resaltado en naranja.
@@ -426,7 +426,7 @@ export default function DagPlayground({ initial = 'ej18' }: { initial?: PresetKe
 					</label>
 				</div>
 			)}
-			{a.cyclic && <div className="pg-note bad">⚠ El grafo tiene un ciclo: no es un DAG (no existe orden topológico).</div>}
+			{a.cyclic && <div className="pg-note bad">El grafo tiene un ciclo: no es un DAG (no existe orden topológico).</div>}
 
 			<div className="pg-scroll">
 				<svg viewBox={`0 0 640 ${H}`} style={{ minWidth: 480 }}>

@@ -16,7 +16,7 @@ export default function NBodyFlops() {
 	const ns = Array.from({ length: 41 }, (_, i) => 10 ** (3 + i * 0.1));
 
 	return (
-		<div className="pg">
+		<div className="pg not-content">
 			<h4>FLOPs teóricos del N-Body</h4>
 			<Tex block>{String.raw`V(n,p)\approx\frac{\gamma N^{2+x}}{\alpha N^{2+x}/p+\beta\log p},\quad \gamma=500,\ \alpha=10^{-9},\ \beta=1,\ x=0.31`}</Tex>
 			<div className="pg-row">

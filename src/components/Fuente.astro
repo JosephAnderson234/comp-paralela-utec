@@ -6,7 +6,7 @@ interface Props {
 const { archivos } = Astro.props;
 ---
 <p class="fuente">
-	📚 <strong>Fuente:</strong>
+	<strong>Fuente</strong> ·
 	{archivos.map((a, i) => (
 		<>
 			<code>{a}</code>{i < archivos.length - 1 ? ' · ' : ''}

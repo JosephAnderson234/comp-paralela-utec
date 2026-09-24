@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 export type Series = {
 	label: string;
@@ -22,8 +22,6 @@ type Props = {
 	fmtX?: (x: number) => string;
 	fmtY?: (y: number) => string;
 };
-
-const W = 640;
 
 export function fmt(v: number, digits = 3): string {
 	if (!isFinite(v)) return '∞';
@@ -60,12 +58,22 @@ export default function Chart({
 	yMax,
 	hlines = [],
 	vlines = [],
-	height = 300,
+	height = 260,
 	fmtX = (x) => fmt(x),
 	fmtY = (y) => fmt(y),
 }: Props) {
+	// el SVG usa su ancho real en píxeles: el texto de los ejes nunca se encoge
+	const box = useRef<HTMLDivElement>(null);
+	const [W, setW] = useState(640);
+	useEffect(() => {
+		const el = box.current;
+		if (!el) return;
+		const ro = new ResizeObserver(([e]) => setW(Math.max(260, Math.round(e.contentRect.width))));
+		ro.observe(el);
+		return () => ro.disconnect();
+	}, []);
 	const H = height;
-	const m = { l: 56, r: 16, t: 14, b: 44 };
+	const m = { l: 48, r: 14, t: 16, b: 40 };
 	const [hover, setHover] = useState<number | null>(null);
 
 	const { x0, x1, y0, y1 } = useMemo(() => {
@@ -97,7 +105,7 @@ export default function Chart({
 		return xLog ? 10 ** (Math.log10(x0) + t * (Math.log10(x1) - Math.log10(x0))) : x0 + t * (x1 - x0);
 	};
 
-	const xt = ticks(x0, x1, !!xLog);
+	const xt = ticks(x0, x1, !!xLog, W < 420 ? 3 : 5);
 	const yt = ticks(y0, y1, !!yLog);
 
 	const hoverPts =
@@ -117,9 +125,11 @@ export default function Chart({
 				});
 
 	return (
-		<div style={{ margin: 0 }}>
+		<div ref={box} style={{ margin: 0 }}>
 			<svg
 				viewBox={`0 0 ${W} ${H}`}
+				width={W}
+				height={H}
 				role="img"
 				aria-label={`${yLabel ?? ''} vs ${xLabel ?? ''}`}
 				onMouseMove={(e) => {
@@ -132,7 +142,7 @@ export default function Chart({
 			>
 				{yt.map((t) => (
 					<g key={'y' + t}>
-						<line x1={m.l} x2={W - m.r} y1={sy(t)} y2={sy(t)} stroke="var(--pg-border)" strokeWidth={1} />
+						<line x1={m.l} x2={W - m.r} y1={sy(t)} y2={sy(t)} stroke="var(--pg-border)" strokeWidth={1} strokeDasharray="2 4" />
 						<text x={m.l - 6} y={sy(t) + 4} textAnchor="end" fontSize={11}>
 							{fmtY(t)}
 						</text>
@@ -140,14 +150,14 @@ export default function Chart({
 				))}
 				{xt.map((t) => (
 					<g key={'x' + t}>
-						<line x1={sx(t)} x2={sx(t)} y1={m.t} y2={H - m.b} stroke="var(--pg-border)" strokeWidth={0.6} />
+						
 						<text x={sx(t)} y={H - m.b + 16} textAnchor="middle" fontSize={11}>
 							{fmtX(t)}
 						</text>
 					</g>
 				))}
-				<line x1={m.l} x2={m.l} y1={m.t} y2={H - m.b} stroke="var(--sl-color-gray-3)" />
-				<line x1={m.l} x2={W - m.r} y1={H - m.b} y2={H - m.b} stroke="var(--sl-color-gray-3)" />
+				
+				<line x1={m.l} x2={W - m.r} y1={H - m.b} y2={H - m.b} stroke="var(--sl-color-gray-4)" />
 				{xLabel && (
 					<text x={(m.l + W - m.r) / 2} y={H - 6} textAnchor="middle" fontSize={12}>
 						{xLabel}
@@ -179,8 +189,8 @@ export default function Chart({
 					const path = pts.map((d, i) => `${i ? 'L' : 'M'}${sx(d[0]).toFixed(1)},${sy(d[1]).toFixed(1)}`).join('');
 					return (
 						<g key={s.label}>
-							<path d={path} fill="none" stroke={s.color} strokeWidth={2.2} strokeDasharray={s.dashed ? '7 5' : undefined} />
-							{s.dots && pts.map((d, i) => <circle key={i} cx={sx(d[0])} cy={sy(d[1])} r={3.2} fill={s.color} />)}
+							<path d={path} fill="none" stroke={s.color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" strokeDasharray={s.dashed ? '6 6' : undefined} opacity={s.dashed ? 0.7 : 1} {...(s.dashed ? {} : { pathLength: 1, className: 'chart-line' })} />
+							{s.dots && pts.map((d, i) => <circle key={i} cx={sx(d[0])} cy={sy(d[1])} r={3} fill={s.color} stroke="var(--pg-surface)" strokeWidth={1.5} />)}
 						</g>
 					);
 				})}

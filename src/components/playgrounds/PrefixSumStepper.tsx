@@ -146,7 +146,7 @@ export default function PrefixSumStepper() {
 	};
 
 	return (
-		<div className="pg">
+		<div className="pg not-content">
 			<h4>Suma de prefijos paso a paso (up-sweep / down-sweep)</h4>
 			<p className="pg-sub">Algoritmo no recursivo del PRAM visto en clase. Cada nodo del árbol guarda B (up-sweep) y C (down-sweep, el prefijo).</p>
 			<div className="pg-row">
@@ -163,12 +163,12 @@ export default function PrefixSumStepper() {
 				</div>
 			</div>
 			<div className="pg-row">
-				<button onClick={() => setStep(0)}>⏮ Inicio</button>
-				<button onClick={() => setStep(Math.max(0, s - 1))} disabled={s === 0}>◀ Atrás</button>
+				<button onClick={() => setStep(0)}>Inicio</button>
+				<button onClick={() => setStep(Math.max(0, s - 1))} disabled={s === 0}>← Atrás</button>
 				<button className="primary" onClick={() => setStep(Math.min(steps.length, s + 1))} disabled={s === steps.length}>
-					Paso ▶
+					Siguiente paso →
 				</button>
-				<button onClick={() => setStep(steps.length)}>Fin ⏭</button>
+				<button onClick={() => setStep(steps.length)}>Fin</button>
 				<span style={{ color: 'var(--pg-muted)' }}>
 					paso {s}/{steps.length} · n = {n}, log n = {k}
 				</span>

@@ -184,7 +184,7 @@ export default function DerivedTypesViz() {
 	const RC = 'color-mix(in srgb, var(--pg-c4) 40%, var(--sl-color-bg))';
 
 	return (
-		<div className="pg">
+		<div className="pg not-content">
 			<h4>Tipos derivados MPI: ¿qué celdas se envían?</h4>
 			<p className="pg-sub">Matriz en memoria row-major. Naranja = elementos del mensaje (el número pequeño es su orden en el mensaje); verde = dónde aterrizan en el receptor.</p>
 			<div className="pg-row">
@@ -210,7 +210,7 @@ export default function DerivedTypesViz() {
 					<label className="pg-field"><span>displacements[]</span><input type="text" value={idxTxt.dp} onChange={(e) => { setIdxTxt({ ...idxTxt, dp: e.target.value }); const dp = e.target.value.split(',').map(Number); const bl = idxTxt.bl.split(',').map(Number); if (bl.length === dp.length && bl.every((x) => x >= 0) && dp.every((x) => x >= 0)) setCustom({ kind: 'indexed', blocklens: bl, displs: dp }); }} /></label>
 				</div>
 			)}
-			{overflow && <div className="pg-note bad">⚠ El tipo se sale de la matriz: MPI leería/escribiría memoria fuera del arreglo.</div>}
+			{overflow && <div className="pg-note bad">El tipo se sale de la matriz: MPI leería/escribiría memoria fuera del arreglo.</div>}
 
 			<div className="pg-grid-2">
 				<div>

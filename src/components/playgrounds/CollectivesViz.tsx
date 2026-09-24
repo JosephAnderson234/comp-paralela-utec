@@ -157,7 +157,7 @@ export default function CollectivesViz() {
 	};
 
 	return (
-		<div className="pg">
+		<div className="pg not-content">
 			<h4>Colectivas MPI: lineal vs árbol</h4>
 			<p className="pg-sub">Cada paso = mensajes simultáneos; costo del paso = α + β·(mensaje más grande). La raíz es P0.</p>
 			<div className="pg-row">
@@ -190,10 +190,10 @@ export default function CollectivesViz() {
 				</label>
 			</div>
 			<div className="pg-row">
-				<button onClick={() => setK(0)}>⏮</button>
-				<button onClick={() => setK(Math.max(0, kk - 1))} disabled={kk === 0}>◀</button>
-				<button className="primary" onClick={() => setK(Math.min(S.length, kk + 1))} disabled={kk === S.length}>Paso ▶</button>
-				<button onClick={() => setK(S.length)}>⏭</button>
+				<button onClick={() => setK(0)}>Inicio</button>
+				<button onClick={() => setK(Math.max(0, kk - 1))} disabled={kk === 0}>← Atrás</button>
+				<button className="primary" onClick={() => setK(Math.min(S.length, kk + 1))} disabled={kk === S.length}>Siguiente paso →</button>
+				<button onClick={() => setK(S.length)}>Fin</button>
 				<span style={{ color: 'var(--pg-muted)' }}>paso {kk}/{S.length}</span>
 			</div>
 

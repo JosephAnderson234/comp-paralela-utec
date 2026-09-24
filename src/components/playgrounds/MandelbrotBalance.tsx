@@ -93,7 +93,7 @@ export default function MandelbrotBalance() {
 		});
 
 	return (
-		<div className="pg">
+		<div className="pg not-content">
 			<h4>Mandelbrot: balance de carga estático vs work pool</h4>
 			<p className="pg-sub">Cada píxel itera z ← z² + c hasta |z| &gt; 2 o K_max. Costo de una fila = suma de iteraciones de sus píxeles. Color = proceso dueño, brillo = iteraciones.</p>
 			<div className="pg-row">
