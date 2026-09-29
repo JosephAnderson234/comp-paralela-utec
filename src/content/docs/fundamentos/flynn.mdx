@@ -2,6 +2,7 @@
 title: Taxonomía de Flynn
 description: SISD, SIMD, MISD, MIMD con quiz clasificador.
 ---
+import FlynnAnim from '../../../components/playgrounds/FlynnAnim.tsx';
 import Quiz from '../../../components/Quiz.tsx';
 import Fuente from '../../../components/Fuente.astro';
 
@@ -11,6 +12,8 @@ Flynn (1966) clasifica arquitecturas por **cuántos flujos de instrucciones** ×
 |---|---|---|
 | **1 flujo de instrucciones** | **SISD** — Von Neumann clásico (microcontroladores) | **SIMD** — GPUs, vectoriales; suma de vectores, filtros de imagen |
 | **Múltiples instrucciones** | **MISD** — sistemas tolerantes a fallos (navegación aérea) | **MIMD** — memoria compartida/distribuida, GPGPU, clusters MPI; N-Body paralelo |
+
+<FlynnAnim client:visible />
 
 :::note[Definición]
 **SIMD**: una instrucción se ejecuta sobre múltiples *data streams* simultáneamente. **MIMD**: múltiples tareas en múltiples procesos, cada uno con su propio flujo de instrucciones y de datos.

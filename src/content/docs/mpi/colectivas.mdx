@@ -4,6 +4,7 @@ description: Barrier, Bcast, Scatter, Gather, Allgather, Reduce, Allreduce con v
 ---
 import { Tabs, TabItem } from '@astrojs/starlight/components';
 import CollectivesViz from '../../../components/playgrounds/CollectivesViz.tsx';
+import PiReduceMeasured from '../../../components/playgrounds/PiReduceMeasured.tsx';
 import Quiz from '../../../components/Quiz.tsx';
 import Solucion from '../../../components/Solucion.astro';
 import Fuente from '../../../components/Fuente.astro';
@@ -84,6 +85,12 @@ Pruébalo en [Montecarlo π → Integración](/diseno/random/).
 </TabItem>
 </Tabs>
 
+## Medido: π con `MPI_Reduce` de np = 1 a 128
+
+El mismo `ejemplo03-PI-reduce.cpp` se midió con N = 10² … 10⁶ iteraciones. Es la mejor evidencia de por qué la escalabilidad depende de N.
+
+<PiReduceMeasured client:visible />
+
 ## Ejercicio (U3.2, Ej. 5): promedio
 
 Array de 1000 números aleatorios 0–100. Reparta con `MPI_Scatter`, cada proceso calcula su promedio, junte los promedios con `MPI_Gather` y el maestro calcula el promedio global. ¿Es correcto promediar los promedios? ¿Qué colectiva sería mejor?
@@ -105,4 +112,4 @@ Es correcto **solo si todos los trozos tienen el mismo tamaño** (1000 divisible
 	]}
 />
 
-<Fuente archivos={['U3.2 Paralelismo Distribuido-MPI.pdf', 'session2/*.cpp', 'session2/pi-reduce/ejemplo03-PI-reduce.cpp', '05_Particionamiento.md §2']} />
+<Fuente archivos={['U3.2 Paralelismo Distribuido-MPI.pdf', 'session2/*.cpp', 'session2/pi-reduce/ejemplo03-PI-reduce.cpp', 'session2/pi-reduce/ej03_res.txt, ej03.plt', '05_Particionamiento.md §2']} />

@@ -3,6 +3,8 @@ title: Método de Foster (PCAM)
 description: Particionar, Comunicar, Aglomerar, Mapear. Suma de 10^12 números y suavizado del PD01.
 ---
 import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
+import FosterPcam from '../../../components/playgrounds/FosterPcam.tsx';
+import HaloExchange from '../../../components/playgrounds/HaloExchange.tsx';
 import Quiz from '../../../components/Quiz.tsx';
 import Solucion from '../../../components/Solucion.astro';
 import Fuente from '../../../components/Fuente.astro';
@@ -29,6 +31,8 @@ En el modelo task/channel el **envío es asíncrono** y el **recibo es síncrono
 4. **Mapear** — asignar tareas a procesos: maximizar utilización y minimizar comunicación. Balanceo **estático** (distribución fija) o **dinámico** (número variable de tareas por proceso).
 
 </Steps>
+
+<FosterPcam client:visible />
 
 :::tip[En el examen…]
 Escribe **los 4 pasos con nombre** y di explícitamente cuántas tareas y cuántos canales quedan después de cada uno. Es lo que puntúa (ver el ejemplo del modelo climático en [repaso U3.5](/examen/repaso-u3/)).
@@ -72,6 +76,10 @@ $$
 
 Aplique Foster al suavizado de un array de $n$ píxeles con $t$ iteraciones:
 $U_i^t=\dfrac{U_{i-1}^{t-1}+U_i^{t-1}+U_{i+1}^{t-1}}{3}$. Cada proceso puede manejar a lo más 4 MB; cada píxel es un `float`. (1.1) Pasos de Foster. (1.2) Fronteras del dominio y de subdominios. (1.3) $T_s$, $T_p$ con $10^{-9}$ s/op y $10^{-8}$ s/Byte.
+
+Antes de ver la solución, mira el algoritmo funcionando: cada iteración intercambia los bordes entre vecinos (halo) y luego calcula localmente.
+
+<HaloExchange client:visible />
 
 <Solucion titulo="Ver solución (1.1 Foster)">
 

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import Tex from '../ui/Tex';
+import PlayerControls, { Packet, usePlayer } from '../ui/Player';
 
 // Algoritmo no recursivo de 04_PRAM §7.1 (Jájá): up-sweep B(h,j), down-sweep C(h,j)
 type Cell = { arr: 'A' | 'B' | 'C'; h: number; j: number };
@@ -60,7 +61,6 @@ const key = (c: Cell) => `${c.arr}${c.h},${c.j}`;
 export default function PrefixSumStepper() {
 	const [input, setInput] = useState('3 1 7 0 4 1 6 3');
 	const [opName, setOpName] = useState<keyof typeof OPS>('+');
-	const [step, setStep] = useState(0);
 
 	const A = useMemo(() => {
 		const v = input.split(/[\s,;]+/).filter(Boolean).map(Number).filter((x) => !isNaN(x));
@@ -71,7 +71,8 @@ export default function PrefixSumStepper() {
 	const n = A.length;
 	const k = Math.log2(n);
 	const steps = useMemo(() => buildSteps(n), [n]);
-	const s = Math.min(step, steps.length);
+	const pl = usePlayer(steps.length, 1400);
+	const s = pl.k;
 
 	// estado de memoria tras ejecutar los primeros s pasos
 	const mem = useMemo(() => {
@@ -114,6 +115,8 @@ export default function PrefixSumStepper() {
 		return (j - 0.5) * width;
 	};
 	const H = levelY(0) + 70;
+	const cellPos = (c: Cell): [number, number] =>
+		c.arr === 'A' ? [cellX(0, c.j), levelY(0) + 40] : c.arr === 'B' ? [cellX(c.h, c.j), levelY(c.h) - 7] : [cellX(c.h, c.j), levelY(c.h) + 13];
 
 	const cellBox = (h: number, j: number) => {
 		const bKey = key({ arr: 'B', h, j });
@@ -152,7 +155,7 @@ export default function PrefixSumStepper() {
 			<div className="pg-row">
 				<label className="pg-field" style={{ flex: '3 1 16rem' }}>
 					<span>Array A (se usa la mayor potencia de 2 ≤ 16)</span>
-					<input type="text" value={input} onChange={(e) => { setInput(e.target.value); setStep(0); }} />
+					<input type="text" value={input} onChange={(e) => { setInput(e.target.value); pl.reset(); }} />
 				</label>
 				<div className="pg-seg">
 					{Object.keys(OPS).map((o) => (
@@ -162,17 +165,7 @@ export default function PrefixSumStepper() {
 					))}
 				</div>
 			</div>
-			<div className="pg-row">
-				<button onClick={() => setStep(0)}>Inicio</button>
-				<button onClick={() => setStep(Math.max(0, s - 1))} disabled={s === 0}>← Atrás</button>
-				<button className="primary" onClick={() => setStep(Math.min(steps.length, s + 1))} disabled={s === steps.length}>
-					Siguiente paso →
-				</button>
-				<button onClick={() => setStep(steps.length)}>Fin</button>
-				<span style={{ color: 'var(--pg-muted)' }}>
-					paso {s}/{steps.length} · n = {n}, log n = {k}
-				</span>
-			</div>
+			<PlayerControls pl={pl} label={`n = ${n}, log n = ${k} · paso`} />
 			<div className="pg-note">{cur ? cur.title : 'Estado inicial: solo A está en memoria. Pulsa «Paso».'}</div>
 
 			<div className="pg-scroll">
@@ -191,6 +184,13 @@ export default function PrefixSumStepper() {
 						}),
 					)}
 					{Array.from({ length: k + 1 }, (_, h) => Array.from({ length: n / 2 ** h }, (_, i) => cellBox(h, i + 1)))}
+					{cur?.ops.flatMap((o) =>
+						o.reads.map((r, ri) => {
+							const [x1, y1] = cellPos(r), [x2, y2] = cellPos(o.write);
+							if (x1 === x2 && y1 === y2) return null;
+							return <Packet key={`${s}-${o.proc}-${ri}`} x1={x1} y1={y1} x2={x2} y2={y2} r={4} color={readCount.get(key(r))! > 1 ? 'var(--pg-c5)' : 'var(--pg-c2)'} dur={0.8} />;
+						}),
+					)}
 					{A.map((v, i) => {
 						const kk = key({ arr: 'A', h: 0, j: i + 1 });
 						const r = readCount.has(kk);

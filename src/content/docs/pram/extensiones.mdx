@@ -2,6 +2,7 @@
 title: Extensiones de PRAM (APRAM, BSP, LogP…)
 description: Qué supuesto relaja cada modelo y cómo cambia el costo de una reducción.
 ---
+import BspLogP from '../../../components/playgrounds/BspLogP.tsx';
 import Quiz from '../../../components/Quiz.tsx';
 import Solucion from '../../../components/Solucion.astro';
 import Fuente from '../../../components/Fuente.astro';
@@ -40,6 +41,8 @@ T_{LogP}=O\!\left(\frac np+\log p\,(L+o+g)\right)
 $$
 
 ($n/p$ cómputo local, $o\log p$ overhead, $L\log p$ latencia, $g\log p$ ancho de banda.)
+
+<BspLogP client:visible />
 
 :::tip[En el examen…]
 Si preguntan «¿qué modelo usarías?»: asíncrono con dependencias ⇒ **APRAM**; fases con barreras (`barrier()` en el PRAM del arquetipo C) ⇒ **Phase PRAM**; transferencia por bloques ⇒ **BPRAM**; todo junto ⇒ **BSP**.

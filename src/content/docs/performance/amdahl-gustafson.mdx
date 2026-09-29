@@ -4,6 +4,7 @@ description: Strong scaling vs weak scaling con playground interactivo.
 ---
 import { Tabs, TabItem } from '@astrojs/starlight/components';
 import AmdahlGustafson from '../../../components/playgrounds/AmdahlGustafson.tsx';
+import AmdahlRace from '../../../components/playgrounds/AmdahlRace.tsx';
 import Quiz from '../../../components/Quiz.tsx';
 import Solucion from '../../../components/Solucion.astro';
 import Fuente from '../../../components/Fuente.astro';
@@ -45,6 +46,8 @@ $\alpha=0$ ⇒ Amdahl, $E=\dfrac{1}{f_s p+(1-f_s)}$. $\alpha=1$ ⇒ $E=f_s p^{-1
 
 </TabItem>
 </Tabs>
+
+<AmdahlRace client:visible />
 
 <AmdahlGustafson client:visible />
 

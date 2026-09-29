@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { fmt } from '../ui/Chart';
 import Tex from '../ui/Tex';
+import PlayerControls, { Packet, usePlayer } from '../ui/Player';
 
 type OpName = 'Bcast' | 'Scatter' | 'Gather' | 'Reduce' | 'Allreduce';
 type Topo = 'lineal' | 'arbol';
@@ -113,14 +114,14 @@ export default function CollectivesViz() {
 	const [op, setOp] = useState<OpName>('Bcast');
 	const [topo, setTopo] = useState<Topo>('arbol');
 	const [p, setP] = useState(8);
-	const [k, setK] = useState(0);
 	const [logA, setLogA] = useState(-6); // α
 	const [logB, setLogB] = useState(-9); // β
 	const [logM, setLogM] = useState(6); // m
 
 	const alpha = 10 ** logA, beta = 10 ** logB, m = 10 ** logM;
 	const S = useMemo(() => steps(op, topo, p, m), [op, topo, p, m]);
-	const kk = Math.min(k, S.length);
+	const pl = usePlayer(S.length, 1300);
+	const kk = pl.k;
 
 	// Allreduce: en la fase de difusión el receptor reemplaza (no suma)
 	const bufs = useMemo(() => {
@@ -163,18 +164,18 @@ export default function CollectivesViz() {
 			<div className="pg-row">
 				<div className="pg-seg">
 					{(['Bcast', 'Scatter', 'Gather', 'Reduce', 'Allreduce'] as OpName[]).map((o) => (
-						<button key={o} className={op === o ? 'active' : ''} onClick={() => { setOp(o); setK(0); }}>MPI_{o}</button>
+						<button key={o} className={op === o ? 'active' : ''} onClick={() => { setOp(o); pl.reset(); }}>MPI_{o}</button>
 					))}
 				</div>
 				<div className="pg-seg">
-					<button className={topo === 'lineal' ? 'active' : ''} onClick={() => { setTopo('lineal'); setK(0); }}>Topología lineal</button>
-					<button className={topo === 'arbol' ? 'active' : ''} onClick={() => { setTopo('arbol'); setK(0); }}>Árbol binario</button>
+					<button className={topo === 'lineal' ? 'active' : ''} onClick={() => { setTopo('lineal'); pl.reset(); }}>Topología lineal</button>
+					<button className={topo === 'arbol' ? 'active' : ''} onClick={() => { setTopo('arbol'); pl.reset(); }}>Árbol binario</button>
 				</div>
 			</div>
 			<div className="pg-row">
 				<label className="pg-field">
 					<span>p = <b>{p}</b></span>
-					<input type="range" min={2} max={16} value={p} onChange={(e) => { setP(+e.target.value); setK(0); }} />
+					<input type="range" min={2} max={16} value={p} onChange={(e) => { setP(+e.target.value); pl.reset(); }} />
 				</label>
 				<label className="pg-field">
 					<span>α (latencia) = <b>1e{logA} s</b></span>
@@ -189,13 +190,7 @@ export default function CollectivesViz() {
 					<input type="range" min={0} max={9} value={logM} onChange={(e) => setLogM(+e.target.value)} />
 				</label>
 			</div>
-			<div className="pg-row">
-				<button onClick={() => setK(0)}>Inicio</button>
-				<button onClick={() => setK(Math.max(0, kk - 1))} disabled={kk === 0}>← Atrás</button>
-				<button className="primary" onClick={() => setK(Math.min(S.length, kk + 1))} disabled={kk === S.length}>Siguiente paso →</button>
-				<button onClick={() => setK(S.length)}>Fin</button>
-				<span style={{ color: 'var(--pg-muted)' }}>paso {kk}/{S.length}</span>
-			</div>
+			<PlayerControls pl={pl} />
 
 			<div className="pg-scroll">
 				<svg viewBox={`0 0 ${W} ${H}`} style={{ minWidth: 480 }}>
@@ -209,7 +204,9 @@ export default function CollectivesViz() {
 						const dx = x2 - x1, dy = y2 - y1, L = Math.hypot(dx, dy);
 						return (
 							<g key={i}>
-								<line x1={x1 + (dx / L) * 30} y1={y1 + (dy / L) * 22} x2={x2 - (dx / L) * 32} y2={y2 - (dy / L) * 24} stroke="var(--pg-c2)" strokeWidth={2.5} markerEnd="url(#carr)" />
+								<line x1={x1 + (dx / L) * 30} y1={y1 + (dy / L) * 22} x2={x2 - (dx / L) * 32} y2={y2 - (dy / L) * 24} stroke="var(--pg-c2)" strokeWidth={2.5} strokeOpacity={0.45} markerEnd="url(#carr)" />
+								<Packet key={`pk${kk}-${i}`} x1={x1 + (dx / L) * 30} y1={y1 + (dy / L) * 22} x2={x2 - (dx / L) * 32} y2={y2 - (dy / L) * 24} r={6}
+									color={msg.val ? 'var(--pg-c4)' : op === 'Bcast' ? 'var(--pg-c1)' : CHUNK_COLORS[(msg.chunks?.[0] ?? 0) % 8]} dur={0.8} />
 								<text x={(x1 + x2) / 2} y={(y1 + y2) / 2 - 4} fontSize={10} textAnchor="middle" style={{ fill: 'var(--pg-c2)' }}>
 									{msg.val ? 'valor' : `{${msg.chunks!.join(',')}}`}
 								</text>

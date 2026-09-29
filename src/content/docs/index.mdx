@@ -66,4 +66,20 @@ El cierre de **todo** ejercicio es el mismo: $W$ y $T_\infty$ por separado → B
 	<LinkCard title="Teorema maestro" href="/diseno/nbody-dyv/" description="a, b, f(n) → caso y resultado, árbol de recursión." />
 </CardGrid>
 
+### Animaciones (▶ play, pausa y velocidad)
+
+<CardGrid>
+	<LinkCard title="Flynn en movimiento" href="/fundamentos/flynn/" description="Flujos de instrucción y de datos viajando a las unidades de proceso." />
+	<LinkCard title="Foster P → C → A → M" href="/fundamentos/foster/#los-4-pasos" description="Malla con canales: franjas de filas vs bloques 2D y cuánto se comunica cada uno." />
+	<LinkCard title="Halo exchange (PD01)" href="/fundamentos/foster/#ejercicio-pd01-2026-ii-ej-1-suavizado" description="Suavizado 1D: intercambio de bordes y cómputo local, iteración por iteración." />
+	<LinkCard title="Carrera Amdahl / Gustafson" href="/performance/amdahl-gustafson/" description="1 procesador vs p: la parte secuencial no se encoge." />
+	<LinkCard title="Escrituras CRCW" href="/pram/modelo/#clasificación-por-acceso-a-memoria" description="Común, arbitrario, prioritario, combinado; OR y máximo en O(1)." />
+	<LinkCard title="Matmul: ¿EREW o CREW?" href="/pram/modelo/#ejercicio-pd02-2026-i-ej-3--arquetipo-f" description="Accesos de (i+j+k) mod n vs bucle ingenuo; expansión + reducción." />
+	<LinkCard title="BSP y LogP" href="/pram/extensiones/" description="Supersteps w + gh + L con desbalance; reducción con L, o, g." />
+	<LinkCard title="Mergesort paralelo" href="/diseno/nbody-dyv/#mergesort-paralelo" description="Árbol que divide y combina; span O(n) vs O(log² n)." />
+	<LinkCard title="Simulación N-Body" href="/diseno/nbody-dyv/" description="Cuerpos repartidos entre procesos y p óptimo cómputo vs comunicación." />
+	<LinkCard title="π medido (np 1–128)" href="/mpi/colectivas/#medido-π-con-mpi_reduce-de-np--1-a-128" description="Tiempos reales: speedup, eficiencia y FLOP/s según N." />
+	<LinkCard title="Struct y padding" href="/mpi/tipos-derivados/#por-qué-los-desplazamientos-no-son-la-suma-de-sizeof" description="Relleno, MPI_Get_address y create_struct generado." />
+</CardGrid>
+
 <Fuente archivos={['estudio/00_Indice_y_Formulario.md', 'estudio/08_Solvers_Examenes_Previos.md']} />

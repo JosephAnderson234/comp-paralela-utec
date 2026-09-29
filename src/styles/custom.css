@@ -951,3 +951,85 @@ details.solucion[open] .solucion-body {
 	font-variant-ligatures: none;
 	font-feature-settings: 'liga' 0, 'calt' 0;
 }
+
+/* ---------- Reproductor de animaciones y celdas animadas ---------- */
+.pg .pg-player {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+}
+.pg .pg-progress {
+	height: 4px;
+	border-radius: 99px;
+	background: var(--pg-surface-2);
+	overflow: hidden;
+}
+.pg .pg-progress i {
+	display: block;
+	height: 100%;
+	background: var(--sl-color-accent);
+	border-radius: 99px;
+	transition: width 0.35s var(--ease-out);
+}
+.pg svg .pg-anim {
+	transition:
+		fill 0.35s var(--ease-out),
+		stroke 0.35s var(--ease-out),
+		opacity 0.35s var(--ease-out),
+		transform 0.5s var(--ease-out),
+		x 0.5s var(--ease-out),
+		y 0.5s var(--ease-out),
+		width 0.5s var(--ease-out),
+		height 0.5s var(--ease-out);
+}
+.pg svg .pg-pulse {
+	animation: pg-pulse 0.9s var(--ease-out) both;
+	transform-box: fill-box;
+	transform-origin: center;
+}
+.pg svg .pg-blink {
+	animation: pg-blink 1s ease-in-out infinite;
+}
+.pg .pg-bar {
+	transition: width 0.5s var(--ease-out), height 0.5s var(--ease-out), background-color 0.3s;
+}
+.pg canvas {
+	display: block;
+	width: 100%;
+	border-radius: var(--pg-radius-sm);
+	background: var(--pg-surface-2);
+}
+.pg .pg-mem {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 2px;
+	font-family: var(--sl-font-mono);
+	font-size: 11px;
+}
+.pg .pg-mem > span {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	height: 30px;
+	border-radius: 5px;
+	border: 1px solid var(--pg-border);
+	transition: background-color 0.3s, border-color 0.3s;
+}
+@keyframes pg-pulse {
+	0% {
+		transform: scale(0.6);
+		opacity: 0;
+	}
+	60% {
+		transform: scale(1.12);
+		opacity: 1;
+	}
+	100% {
+		transform: scale(1);
+	}
+}
+@keyframes pg-blink {
+	50% {
+		opacity: 0.35;
+	}
+}

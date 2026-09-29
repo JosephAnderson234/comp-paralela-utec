@@ -3,6 +3,9 @@ title: N-Body, Divide y Vencerás, Mergesort y matrices
 description: Fuerzas O(N²), Barnes-Hut, D&V paralelo, mergesort, multiplicación de matrices y teorema maestro.
 ---
 import MasterTheorem from '../../../components/playgrounds/MasterTheorem.tsx';
+import NBodySim from '../../../components/playgrounds/NBodySim.tsx';
+import MergesortTree from '../../../components/playgrounds/MergesortTree.tsx';
+import MatMulParallel from '../../../components/playgrounds/MatMulParallel.tsx';
 import Quiz from '../../../components/Quiz.tsx';
 import Solucion from '../../../components/Solucion.astro';
 import Fuente from '../../../components/Fuente.astro';
@@ -18,6 +21,8 @@ $$
 - **Barnes-Hut:** un cluster lejano se aproxima como un solo cuerpo (quadtree/octree) ⇒ $O(n\log n/p)$.
 - **Compartida** (OpenMP/CUDA): sin comunicación, limitada por los núcleos de un nodo. **Distribuida** (MPI): paga comunicación pero escala el cluster.
 - $T_{total}=T_{cómputo}\downarrow+T_{comm}\uparrow$ ⇒ existe un **$p$ óptimo**; con más cuerpos se desplaza a más procesadores (ver [FLOPs](/performance/flops/)).
+
+<NBodySim client:visible />
 
 ## Divide y Vencerás
 
@@ -43,6 +48,8 @@ $$
 T_p=O\!\left(\frac{n\log n}{p}+n\right)\qquad S=O\!\left(\frac{n\log n}{\frac{n\log n}{p}+n}\right)\qquad E=O\!\left(\frac{1}{1+\frac{p}{\log n}}\right)
 $$
 
+<MergesortTree client:visible />
+
 :::caution[Error común]
 Sumar las dos ramas en el span: $T_\infty(n)=2T_\infty(n/2)+\dots$ ✗. Las ramas corren **en paralelo** ⇒ el span «ve» solo una: $T_\infty(n)=T_\infty(n/2)+\dots$ ✓. El trabajo sí suma ambas.
 :::
@@ -62,6 +69,8 @@ for 1≤i,j≤n pardo            C(i,j) ← C'(i,j,1)
 ```
 
 $W=O(n^3)$, $T_\infty=O(\log n)$, $T_p=O(n^3/p+\log n)$: una reducción binaria replicada $n^2$ veces. (Contrasta con el arquetipo F, acceso directo sin árbol, $T_\infty=O(n)$.)
+
+<MatMulParallel client:visible />
 
 ## Playground: teorema maestro
 

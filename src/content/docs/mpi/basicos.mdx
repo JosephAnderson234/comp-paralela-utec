@@ -2,7 +2,7 @@
 title: MPI básico
 description: Init, rank, size, Send/Recv, Status, tags, modos de envío, compilación.
 ---
-import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Steps, Tabs, TabItem } from '@astrojs/starlight/components';
 import Quiz from '../../../components/Quiz.tsx';
 import Solucion from '../../../components/Solucion.astro';
 import Fuente from '../../../components/Fuente.astro';
@@ -119,6 +119,70 @@ if (my_rank == 0) {
 </TabItem>
 </Tabs>
 
+## Medir tiempos: separar cómputo y comunicación
+
+Patrón de la práctica 3: una **barrera** antes de cada fase, para que todos arranquen juntos y el reloj mida la fase y no la espera por procesos atrasados.
+
+```cpp title="practica_3_ofi/ejercicio02_row.cpp" {2-3,9-10,18-19,24-25}
+// --- Comunicación: Bcast de v y Scatter de A por filas ---
+MPI_Barrier(MPI_COMM_WORLD);
+t_aux = MPI_Wtime();
+MPI_Bcast(v, N, MPI_LONG_LONG, 0, MPI_COMM_WORLD);
+MPI_Scatter(A, elem_proc, MPI_INT, local_A, elem_proc, MPI_INT, 0, MPI_COMM_WORLD);
+t_comm += MPI_Wtime() - t_aux;
+
+// --- Cómputo local: cada proceso calcula sus fil_proc filas ---
+MPI_Barrier(MPI_COMM_WORLD);
+t_aux = MPI_Wtime();
+for (i = 0; i < fil_proc; i++) {
+    local_x[i] = 0;
+    for (j = 0; j < N; j++) local_x[i] += local_A[i * N + j] * v[j];
+}
+t_comp = MPI_Wtime() - t_aux;
+
+// --- Comunicación: Gather de local_x hacia x en P0 ---
+MPI_Barrier(MPI_COMM_WORLD);
+t_aux = MPI_Wtime();
+MPI_Gather(local_x, fil_proc, MPI_LONG_LONG, x, fil_proc, MPI_LONG_LONG, 0, MPI_COMM_WORLD);
+t_comm += MPI_Wtime() - t_aux;
+
+// --- el tiempo que cuenta es el del proceso más lento ---
+MPI_Reduce(&t_comp, &total_comp, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+MPI_Reduce(&t_comm, &total_comm, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+```
+
+:::caution[Error común]
+Medir con `MPI_Wtime()` sin barrera: cada proceso mide cosas distintas (incluida la espera). Y para calcular $S=T(1)/T(p)$ y $E=S/p$ usa el tiempo **del proceso más lento** (`MPI_Reduce` con `MPI_MAX`), no el promedio.
+:::
+
+## Correr en un clúster (Slurm)
+
+En un clúster no se ejecuta `mpirun` en el nodo de login: se **compila** ahí y se **encola** un job que reserva procesos.
+
+<Steps>
+
+1. Compilar en el nodo de login, con los módulos del compilador y de MPI cargados: `module load gnu12/12.4.0 mpich/3.4.3-ucx` y luego `mpic++ -O2 -DN=600 -o row_N600 ejercicio02_row.cpp`. `-DN=...` fija el tamaño en tiempo de compilación.
+2. Escribir el script del job:
+   ```bash
+   #!/bin/bash
+   #SBATCH --job-name=pd03_ej2_3
+   #SBATCH --ntasks=10            # p máximo que se usará
+   #SBATCH --time=05:00:00        # si se queda corto, Slurm mata el job a la mitad
+   #SBATCH --partition=standard
+   #SBATCH --output=slurm_%j.out
+   module purge
+   module load gnu12/12.4.0 mpich/3.4.3-ucx
+   for p in 1 2 4 6 8 10; do mpirun -np $p ./row_N600; done
+   ```
+3. Encolar con `sbatch job.slurm` y revisar `slurm_<id>.out` / `.err`. Dentro de la reserva, `mpirun -np p` con $p\le$ `ntasks` usa un subconjunto de los procesos.
+
+</Steps>
+
+:::note[Lecciones de la práctica]
+- Los nodos de cómputo pueden no tener las cabeceras de desarrollo: compilar dentro del job falló con `fatal error: features.h: No such file or directory` ⇒ **compilar antes, en el login**.
+- Arrancar cada corrida de `mpirun` costó **~80 s**, mucho más que el cómputo con $N\le600$. Es el mismo fenómeno que en π y matriz × vector: con $N$ pequeño el overhead domina y $E$ cae.
+:::
+
 ## Ejercicio
 
 ¿Qué imprime `ejemplo02.cpp` con `mpirun -np 3`? ¿Por qué el `fprintf` después de `MPI_Abort` puede no aparecer?
@@ -140,4 +204,4 @@ Con `size > 2`, el rank 0 llama a `MPI_Abort(MPI_COMM_WORLD, -1)`, que **termina
 	]}
 />
 
-<Fuente archivos={['U3.1 Paralelismo Distribuido-MPI.pdf', 'ejemplo01.cpp', 'ejemplo02.cpp', 'ejemplo03.cpp', 'ejemplo04.cpp', 'mpi_getting_started.cpp']} />
+<Fuente archivos={['U3.1 Paralelismo Distribuido-MPI.pdf', 'ejemplo01.cpp', 'ejemplo02.cpp', 'ejemplo03.cpp', 'ejemplo04.cpp', 'mpi_getting_started.cpp', 'practica_3_ofi/ejercicio02_row.cpp', 'practica_3_ofi/ejercicio2_3_eficiencia/khipu_eficiencia.slurm', 'compile_eficiencia.sh']} />

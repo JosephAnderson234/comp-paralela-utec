@@ -2,6 +2,8 @@
 title: Modelo PRAM y Teorema de Brent
 description: RAM → PRAM, EREW/CREW/CRCW, paradigma work-time, Brent y costo óptimo.
 ---
+import CrcwWrite from '../../../components/playgrounds/CrcwWrite.tsx';
+import MatMulParallel from '../../../components/playgrounds/MatMulParallel.tsx';
 import Quiz from '../../../components/Quiz.tsx';
 import Solucion from '../../../components/Solucion.astro';
 import Fuente from '../../../components/Fuente.astro';
@@ -27,6 +29,8 @@ EREW\subset CREW\subset CRCW
 $$
 
 **Escritura concurrente (CW):** **común** (todos escriben el mismo dato) · **arbitrario** (gana uno cualquiera) · **combinado** (se acumula/reduce lo escrito) · **prioritario** (gana el de mayor prioridad).
+
+<CrcwWrite client:visible />
 
 :::tip[En el examen: ¿qué modelo es?]
 Mira **un paso** del pseudocódigo y pregúntate: ¿dos procesadores **leen** la misma celda? (CR) ¿dos **escriben** la misma celda? (CW). Si nadie comparte: **EREW**. En matmul con un proceso por celda $P_{i,j}$ que solo escribe $C[i,j]$ y cuyos índices `(i+j+k) mod n` no coinciden entre procesos en el mismo paso ⇒ **EREW** (PD02 2026-I).
@@ -75,6 +79,10 @@ for each process P(i,j) do
 ```
 
 Matrices $n\times n$, $t_c$ = tiempo de suma/multiplicación. (3.1) $T_p$. (3.2) $S$, $E$. (3.3) Escalabilidad. (3.4) ¿Qué modelo PRAM?
+
+Para la 3.4, reproduce los accesos paso a paso y compara con el bucle ingenuo:
+
+<MatMulParallel client:visible />
 
 <Solucion>
 

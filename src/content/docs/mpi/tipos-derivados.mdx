@@ -1,8 +1,9 @@
 ---
 title: Tipos derivados MPI
-description: count, contiguous, vector (fila/columna/submatriz), indexed, struct, Pack y Sendrecv.
+description: count, contiguous, vector (fila/columna/submatriz), indexed (diagonal), struct y padding, Pack y Sendrecv.
 ---
 import DerivedTypesViz from '../../../components/playgrounds/DerivedTypesViz.tsx';
+import StructLayout from '../../../components/playgrounds/StructLayout.tsx';
 import Quiz from '../../../components/Quiz.tsx';
 import Solucion from '../../../components/Solucion.astro';
 import Fuente from '../../../components/Fuente.astro';
@@ -65,6 +66,24 @@ for (i = 0; i < size; i++) {                          // p vueltas al anillo
 MPI_Type_free(&send_recv_type);
 ```
 
+### Por qué los desplazamientos no son la suma de `sizeof`
+
+El compilador alinea cada campo a un múltiplo de su tamaño e inserta **relleno** (padding). Con `class A2 { int a; double b; char c; }`, imprimir `&obj`, `&obj.a`, `&obj.b` y `&obj.c` muestra que `b` empieza en el byte 8, no en el 4. Por eso `ejemplo08` calcula los desplazamientos con `MPI_Get_address` + `MPI_Aint_diff`.
+
+<StructLayout client:visible />
+
+:::tip[En el examen…]
+Si piden los `array_of_displacements` de un struct, **no sumes `sizeof`**: di que se obtienen con `MPI_Get_address` relativo al primer campo. Si todos los campos son del mismo tipo (p. ej. `{int i; int j;}`), no hay relleno y basta `MPI_Type_contiguous`.
+:::
+
+## indexed: la diagonal de `miejemplo.cpp`
+
+`MPI_Type_indexed(count, blocklens[], displs[], …)` generaliza a `vector`: cada bloque tiene su propio largo y desplazamiento. En `miejemplo.cpp` se envía la **diagonal** de una matriz $6\times6$ con bloques de largo 1 en `i*M + i` = {0, 7, 14, 21, 28, 35}. Elige el preset «miejemplo — diagonal» en el visualizador de arriba.
+
+:::note
+Con desplazamientos equiespaciados, la diagonal también se describe como `MPI_Type_vector(N, 1, M+1, …)`. `indexed` es imprescindible cuando los bloques tienen **largos distintos** (triángulo superior: {4, 3, 2, 1}).
+:::
+
 ## Pack/Unpack y Sendrecv
 
 - **`MPI_Pack`/`MPI_Unpack`** (tipo `MPI_PACKED`): empaquetar variables en un buffer de bytes. Muy dinámico (estructura que cambia en ejecución, uso único), pero con costo de copia. Si la misma estructura se envía **en un bucle**, conviene `MPI_Type_create_struct`.
@@ -107,4 +126,4 @@ Cada proceso imprime $\sum r=\frac{p(p-1)}{2}$ y $10\cdot\frac{p(p-1)}{2}$. Como
 	]}
 />
 
-<Fuente archivos={['U3.4 Paralelismo Distribuido-tiposMPI.pdf', 'U3.4 Comunicacion-tiposMPI-codigo/ejemplo01–08', 'practica_3_ofi/ejercicio02_col.cpp']} />
+<Fuente archivos={['U3.4 Paralelismo Distribuido-tiposMPI.pdf', 'U3.4 Comunicacion-tiposMPI-codigo/ejemplo01–08', 'U3.4 Comunicacion-tiposMPI-codigo/miejemplo.cpp', 'U3.4 Comunicacion-tiposMPI-codigo/test.cpp', 'practica_3_ofi/ejercicio02_col.cpp']} />

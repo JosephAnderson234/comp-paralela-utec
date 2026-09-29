@@ -83,6 +83,15 @@ const PRESETS: Preset[] = [
 		note: 'P1 recibe sus 2 columnas como una matriz local N×col_proc contigua. El emisor hace p−1 Send secuenciales (no hay colectiva) ⇒ cuello de botella en P0.',
 	},
 	{
+		name: 'miejemplo — diagonal con MPI_Type_indexed',
+		file: 'U3.4/miejemplo.cpp',
+		rows: 6, cols: 6, value: 'j',
+		send: { i: 0, j: 0, type: { kind: 'indexed', blocklens: [1, 1, 1, 1, 1, 1], displs: [0, 7, 14, 21, 28, 35] }, count: 1 },
+		recv: { rows: 6, cols: 6, i: 0, j: 0, type: 'same', count: 1, init: '-0.9' },
+		code: 'void fill_diagonal_pos(int* v, int N, int M) { for (int i = 0; i < N; i++) v[i] = i*M + i; }\nint blocklengths[N] = {1, 1, 1, 1, 1, 1};\nint displacements[N];  fill_diagonal_pos(displacements, N, M);   // {0,7,14,21,28,35}\nMPI_Type_indexed(N, blocklengths, displacements, MPI_DOUBLE, &diagonal_matrix);\nMPI_Type_commit(&diagonal_matrix);\nMPI_Send(A, 1, diagonal_matrix, 1, 0, MPI_COMM_WORLD);\nMPI_Recv(subdominio, 1, diagonal_matrix, 0, 0, MPI_COMM_WORLD, &status);',
+		note: 'La diagonal de una N×M está en las posiciones i·M + i (salto M+1). Con bloques de largo 1 y stride constante también sirve MPI_Type_vector(N, 1, M+1, …); indexed es el caso general (desplazamientos arbitrarios). El resto de subdominio conserva −0.9.',
+	},
+	{
 		name: 'MPI_Type_indexed (ejemplo ilustrativo)',
 		file: 'U3.4 Paralelismo Distribuido-tiposMPI.pdf',
 		rows: 4, cols: 4, value: 'k',
