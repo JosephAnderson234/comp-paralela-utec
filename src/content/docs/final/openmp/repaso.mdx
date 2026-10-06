@@ -1,0 +1,88 @@
+---
+title: Repaso OpenMP — chuleta y flashcards
+description: Tabla de directivas y cláusulas, errores típicos, preguntas «¿qué imprime?» y tarjetas de repaso de OpenMP.
+tableOfContents: false
+---
+import Flashcards from '../../../../components/Flashcards.tsx';
+import Quiz from '../../../../components/Quiz.tsx';
+import Fuente from '../../../../components/Fuente.astro';
+
+## Chuleta de directivas
+
+| Directiva | ¿Qué hace? | ¿Barrera al final? | ¿Acepta cláusulas? |
+|---|---|---|---|
+| `parallel` | crea el equipo de hilos (fork) | **sí** (join) | `if`, `num_threads`, `private`, `firstprivate`, `shared`, `default`, `reduction`, `copyin` |
+| `for` | reparte iteraciones | sí, salvo `nowait` | `private`, `firstprivate`, `lastprivate`, `reduction`, `schedule`, `collapse`, `ordered`, `nowait` |
+| `sections` / `section` | reparte bloques distintos | sí, salvo `nowait` | `private`, `firstprivate`, `lastprivate`, `reduction`, `nowait` |
+| `single` | un hilo cualquiera | sí, salvo `nowait` | `private`, `firstprivate`, `copyprivate`, `nowait` |
+| `master` | solo el hilo 0 | **no** | ninguna |
+| `critical [(nombre)]` | uno a la vez | no | ninguna |
+| `atomic [read\|write\|update\|capture]` | una actualización indivisible | no | ninguna |
+| `barrier` | todos esperan | — | ninguna |
+| `ordered` | en orden secuencial dentro de un `for ordered` | — | ninguna |
+| `flush [(lista)]` | sincroniza la vista de memoria | — | ninguna |
+| `threadprivate(lista)` | global con copia persistente por hilo | — | ninguna |
+| `task` | unidad de trabajo diferible | no (usa `taskwait`/`taskgroup`) | `private`, `firstprivate`, `shared`, `default`, `if`, `untied`, `depend` |
+
+Según U4.1, las directivas que **no aceptan cláusulas** son: `master`, `critical`, `barrier`, `atomic`, `flush`, `ordered`, `threadprivate`.
+
+## Los 6 errores que más se repiten
+
+1. **Variable compartida que debía ser privada** (el `id` de Ejemp01, la `r` de Ejemp03_critical) ⇒ condición de carrera.
+2. **`private` sin inicializar**: la copia empieza con basura (usa `firstprivate` si necesitas el valor original).
+3. **`critical` dentro del bucle** cuando bastaba acumular en privado y proteger una vez al final (o usar `reduction`).
+4. **Inicializar la variable de `reduction` con `master`** sin barrera (lámina 24 de U4.2).
+5. **`nowait` entre bucles dependientes** con un `schedule` que no garantiza el mismo reparto (solo es seguro con `static` y las mismas iteraciones).
+6. **Dos `parallel` anidados por accidente** (Ejemp06): cada hilo externo repite todo el bucle.
+
+<Quiz
+	client:visible
+	id="omp-que-imprime"
+	titulo="¿Qué imprime? (4 hilos)"
+	preguntas={[
+		{ q: '`int i=1, j=2;` y `#pragma omp parallel firstprivate(i,j) { i=3; j=j+2; printf("%d %d ", i, j); }` y luego `printf("| %d %d", i, j);`', opts: ['3 4 ×4 | 3 4', '3 4 ×4 | 1 2', '3 ? ×4 | 1 2', '1 2 ×4 | 1 2'], ok: 1, why: 'Las copias empiezan en 1 y 2; adentro valen 3 y 4. Los originales no cambian.' },
+		{ q: '`#pragma omp parallel` + `#pragma omp single nowait { b[omp_get_thread_num()] = 10; }`, con b inicial en −1. Después…', opts: ['todos los b[0..3] valen 10', 'exactamente un b[k] vale 10 (k = el hilo que entró, no se sabe cuál)', 'b[0] = 10 siempre', 'ninguno cambia'], ok: 1, why: 'single lo ejecuta un hilo cualquiera; en la corrida real fue el hilo 3.' },
+		{ q: '16 iteraciones, `schedule(static)`, 4 hilos. ¿Qué iteraciones hace el hilo 1?', opts: ['1, 5, 9, 13', '4, 5, 6, 7', 'depende de la corrida', '0–3'], ok: 1, why: 'static sin chunk: bloques contiguos de N/T = 4.' },
+		{ q: '`int x=0;` `#pragma omp parallel for reduction(+:x)` sobre i = 1…10 con `x += i;`', opts: ['55', 'menos de 55 a veces', '0', '220'], ok: 0, why: 'reduction combina las copias sin carrera: 1+…+10 = 55.' },
+		{ q: '`#pragma omp for collapse(2) lastprivate(jl, kl)` con k=1..2, j=1..3; luego `printf("%d %d", kl, jl)`', opts: ['1 1', '2 3', '3 2', 'depende del hilo'], ok: 1, why: 'lastprivate toma la última iteración secuencial: k = 2, j = 3.' },
+		{ q: 'Tareas: `depend(out:x) x=2;` luego `depend(in:x) printf(x)`, con x = 1 al inicio.', opts: ['x = 1', 'x = 2', '1 o 2', 'nada'], ok: 1, why: 'La lectura (in) espera a la escritura (out) creada antes.' },
+	]}
+/>
+
+## Flashcards de OpenMP
+
+<Flashcards
+	client:visible
+	cards={[
+		{ t: 'OpenMP', f: 'OpenMP: ¿memoria compartida o distribuida?', b: '**Compartida** (UMA / ccNUMA): hilos dentro de una máquina o nodo. Entre nodos se usa MPI.' },
+		{ t: 'OpenMP', f: 'Modelo fork-join', b: 'El maestro crea un equipo al entrar a `parallel` (fork); al salir hay barrera implícita y solo sigue el maestro (join).' },
+		{ t: 'OpenMP', f: 'Tres componentes de OpenMP', b: 'Directivas de compilador (`#pragma omp`), librería (`omp.h`) y variables de entorno (`OMP_NUM_THREADS`, `OMP_SCHEDULE`).' },
+		{ t: 'OpenMP', f: '¿Qué pasa al compilar sin -fopenmp?', b: 'Los `#pragma` se ignoran y el programa corre secuencial. Por eso se usa `#ifdef _OPENMP`.' },
+		{ t: 'OpenMP', f: 'schedule(static) sin chunk', b: 'Bloques **contiguos** casi iguales, fijados antes de empezar. Sin costo de reparto.' },
+		{ t: 'OpenMP', f: 'schedule(dynamic, c)', b: 'Cada hilo libre **pide** el siguiente bloque de c iteraciones. Balancea costos irregulares; paga un costo por pedido.' },
+		{ t: 'OpenMP', f: 'schedule(guided, c)', b: 'Como dynamic, pero los bloques empiezan grandes y **se achican** hasta c.' },
+		{ t: 'OpenMP', f: 'schedule(runtime) y schedule(auto)', b: 'runtime: lo decide `OMP_SCHEDULE` al ejecutar. auto: lo decide el compilador/runtime.' },
+		{ t: 'OpenMP', f: '¿Qué quita nowait?', b: 'La **barrera implícita** al final de `for`, `sections` o `single`.' },
+		{ t: 'OpenMP', f: 'collapse(n)', b: 'Fusiona n bucles anidados en un solo espacio de iteraciones para repartirlo mejor.' },
+		{ t: 'OpenMP', f: 'sections vs for', b: '`sections`: tareas **distintas** (paralelismo funcional). `for`: mismas operaciones sobre datos distintos (paralelismo de datos).' },
+		{ t: 'OpenMP', f: 'single vs master', b: 'single: cualquier hilo, **con** barrera final (salvo nowait). master: solo el hilo 0, **sin** barrera, no acepta cláusulas.' },
+		{ t: 'OpenMP', f: 'critical vs atomic', b: 'critical: bloque arbitrario, uno a la vez (puede tener nombre). atomic: **una** actualización simple de memoria, más liviana (hardware).' },
+		{ t: 'OpenMP', f: 'Cláusulas de atomic', b: '`read` (v = x), `write` (x = expr), `update` (x++, x op= expr) y `capture` (v = x++, …).' },
+		{ t: 'OpenMP', f: 'ordered', b: 'El bloque `ordered` se ejecuta en el orden secuencial de las iteraciones; el for debe llevar la cláusula `ordered`. Máximo una región ordered por iteración.' },
+		{ t: 'OpenMP', f: 'flush', b: 'Fuerza que la vista de memoria del hilo coincida con la memoria. Implícito en barrier, entrada/salida de parallel y critical, y al final de for/sections/single.' },
+		{ t: 'OpenMP', f: 'private vs firstprivate', b: 'private: copia **sin inicializar**. firstprivate: copia inicializada con el valor original. En ambos el original no cambia.' },
+		{ t: 'OpenMP', f: 'lastprivate', b: 'Copia privada; al salir, el original toma el valor de la **última iteración (o sección) secuencial**.' },
+		{ t: 'OpenMP', f: 'threadprivate', b: 'Directiva para variables **globales**: cada hilo tiene su copia y la conserva entre regiones paralelas (con dynamic apagado).' },
+		{ t: 'OpenMP', f: 'copyin y copyprivate', b: 'copyin: copia el valor del maestro a las threadprivate de todos. copyprivate (con single): difunde el valor de un hilo a las privadas de los demás.' },
+		{ t: 'OpenMP', f: 'Valor inicial de las copias en reduction', b: '+ − | ^ || → 0; * && → 1; & → ~0; max → el menor representable; min → el mayor representable.' },
+		{ t: 'OpenMP', f: 'Variables por defecto en una región paralela', b: 'Declaradas antes → **shared**. Declaradas dentro → **private**. Índice de `omp for` → private.' },
+		{ t: 'OpenMP', f: 'task depend(in: x)', b: 'Espera a las tareas creadas antes con `out` o `inout` sobre x.' },
+		{ t: 'OpenMP', f: 'task depend(out: x)', b: 'Espera a las tareas creadas antes con `in`, `out` o `inout` sobre x.' },
+		{ t: 'OpenMP', f: 'taskwait vs taskgroup', b: 'taskwait: espera a las tareas hijas creadas hasta ahí. taskgroup: espera a todas las del bloque y sus descendientes.' },
+		{ t: 'OpenMP', f: 'taskyield', b: 'La tarea actual cede el hilo para que avance otra tarea (mejor concurrencia con tareas largas).' },
+		{ t: 'OpenMP', f: 'omp_set_nested / omp_set_dynamic', b: 'nested: permite regiones paralelas anidadas. dynamic: deja que el runtime ajuste el número de hilos.' },
+		{ t: 'OpenMP', f: 'Medido: cnt++ con 4 hilos y 10⁶ iteraciones', b: 'Sin protección: ≈ 250 000–360 000 (se pierden incrementos). critical ≈ 0.056 s; reduction ≈ 0.0002 s, ambos correctos.' },
+	]}
+/>
+
+<Fuente archivos={['U4.1–U4.3 Paralelismo compartido-OMP.pdf', 'semana_9/*.cpp', 'semana_9/sesionb/*']} />

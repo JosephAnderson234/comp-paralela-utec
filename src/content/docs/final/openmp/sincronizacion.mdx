@@ -1,0 +1,178 @@
+---
+title: Sincronización — critical, atomic, ordered, flush
+description: Condiciones de carrera y cómo evitarlas en OpenMP; critical con nombre, atomic (read/write/update/capture), ordered y flush.
+---
+import OmpRace from '../../../../components/playgrounds/OmpRace.tsx';
+import EnSimple from '../../../../components/EnSimple.astro';
+import Quiz from '../../../../components/Quiz.tsx';
+import Solucion from '../../../../components/Solucion.astro';
+import Fuente from '../../../../components/Fuente.astro';
+
+<EnSimple>
+Una **condición de carrera** es como dos personas actualizando el mismo saldo bancario: ambas leen 100, ambas suman 10 y ambas escriben 110. Debería ser 120: **se perdió un depósito**.
+
+- **critical** = un baño con llave: entra uno a la vez; los demás hacen fila.
+- **atomic** = lo mismo, pero para **una sola operación simple** (`x++`, `x += 5`), y el hardware lo hace mucho más rápido.
+- **reduction** = cada uno cuenta en **su propia hoja** y al final se suman las hojas: nadie hace fila.
+</EnSimple>
+
+## ¿Por qué `cnt++` falla?
+
+`cnt++` son **tres** pasos para la CPU: **leer** `cnt` a un registro, **sumar** 1, **escribir** el registro de vuelta. Si dos hilos intercalan esos pasos, uno pisa el resultado del otro.
+
+<OmpRace client:visible />
+
+Medido al ejecutarlo (4 hilos, 10⁶ incrementos, `g++ -fopenmp -O0`):
+
+| Versión | Resultado | Tiempo |
+|---|---|---|
+| sin protección | 250 087 · 359 273 · 250 328 (cambia en cada corrida) | — |
+| `atomic` | 1 000 000 ✓ | — |
+| `critical` | 1 000 000 ✓ | ≈ 0.056 s |
+| `reduction(+:cnt)` | 1 000 000 ✓ | ≈ 0.0002 s |
+
+## `critical`
+
+Solo **un hilo a la vez** ejecuta el bloque; los demás que lleguen esperan. No tiene barrera al final y no acepta cláusulas, pero sí un **nombre**: regiones `critical` con nombres distintos pueden ejecutarse a la vez (U4.2: dos colas independientes `xaxis` e `yaxis`).
+
+```cpp title="U4.2 — critical con nombre"
+#pragma omp parallel shared(x, y) private(ix_next, iy_next)
+{
+    #pragma omp critical (xaxis)
+    ix_next = dequeue(x);        // nadie más saca de la cola x a la vez
+    work(ix_next, x);
+    #pragma omp critical (yaxis)
+    iy_next = dequeue(y);        // la cola y tiene su propio candado
+    work(iy_next, y);
+}
+```
+
+### Patrón clave: acumular en privado, proteger solo al final
+
+```cpp title="Ejemp05_critical.cpp" {3,7,11-12}
+#pragma omp parallel private(cnt)
+{
+    int cnt = 0;                     // contador privado de cada hilo
+    #pragma omp for
+    for (int i = 0; i < n; i++)
+        if (b[i] == 0)
+            cnt++;                   // ¿#pragma omp critical aquí? No hace falta
+    #pragma omp critical
+    cnt_t += cnt;                    // una sola vez por hilo
+}
+```
+
+Salida real: `cnt_t: 512` (la mitad de los 1024 elementos de `b` son 0). Con `critical` **dentro** del `for` el resultado sería el mismo, pero los hilos harían fila en cada cero encontrado: el bucle quedaría casi secuencial.
+
+:::caution[Revisa `Ejemp03_critical.cpp` (sesionb)]
+El patrón es el mismo (máximo privado `pmax`, `critical` al final para `mx`), pero la variable `r` está declarada **fuera** de la región y no está en `private`: es **compartida**, y `r = work(i); pmax = (r > pmax ? r : pmax);` es una carrera (otro hilo puede cambiar `r` entre las dos líneas). Al ejecutarlo dio `max: 1048575`, que es correcto, pero no está garantizado. **Corrección:** `private(pmax, r)` o declarar `int r` dentro del bucle. *(Observación propia.)*
+:::
+
+## `atomic`
+
+Hace **atómica** una sola actualización de memoria: un *mini-critical* para la **línea siguiente**. Solo protege esa ubicación (`x`), así que distintos elementos de un arreglo pueden actualizarse en paralelo.
+
+| Cláusula | Forma | Ejemplo |
+|---|---|---|
+| `read` | `v = x;` | leer x sin que nadie la esté escribiendo |
+| `write` | `x = expr;` | escribir x de forma indivisible |
+| `update` (por defecto) | `x++`, `x--`, `x op= expr`, `x = x op expr` | `x[index[i]] += work1(i);` |
+| `capture` | `v = x++;`, `v = x op= expr;` | actualizar y quedarte con el valor viejo o nuevo |
+
+```cpp title="U4.2 — atomic update"
+#pragma omp parallel for shared(x, y, index, n)
+for (i = 0; i < n; i++) {
+    #pragma omp atomic update
+    x[index[i]] += work1(i);     // varios i pueden caer en el mismo index ⇒ protegido
+    y[i] += work2(i);            // NO es atómico (atomic solo afecta la línea siguiente)
+}
+```
+
+`y[i]` no necesita protección: cada `i` toca un elemento distinto. Si se usara `critical` en vez de `atomic`, **todas** las actualizaciones de `x` irían en fila, aunque cayeran en elementos distintos.
+
+### π con `atomic` (`Ejemp03_atomic_critical.c`)
+
+```cpp title="sesionb/Ejemp03_atomic_critical.c" {5,9-10}
+#pragma omp parallel
+{
+    int i, id = omp_get_thread_num(), nthrds = omp_get_num_threads();
+    double x, sum;                               // privadas (declaradas dentro)
+    for (i = id; i < num_steps; i += nthrds) {   // reparto cíclico manual
+        x = (i + 0.5) * step;
+        sum += 4.0 / (1.0 + x * x);
+    }
+    #pragma omp atomic                           // o: #pragma omp critical
+    pi += sum * step;
+}
+```
+
+Salida real (4 hilos): `pi: 3.141592653590`. Cada hilo suma su parte en `sum` y solo **una** vez por hilo actualiza `pi` de forma protegida.
+
+:::caution[Ojo con `sum`]
+`double sum;` **no está inicializada**: su valor inicial es basura. Funcionó en la prueba porque la memoria estaba en 0, pero es un error. Escribe `double sum = 0.0;`. *(Observación propia.)*
+:::
+
+## `ordered`
+
+Dentro de un `for` con la cláusula `ordered`, el bloque `#pragma omp ordered` se ejecuta **en el orden secuencial** de las iteraciones; el resto del cuerpo sigue en paralelo. Útil para **imprimir en orden**.
+
+```cpp title="U4.2 — salida ordenada"
+void work(int k) {
+    #pragma omp ordered
+    printf(" %d\n", k);                // sale 0, 5, 10, ..., 95 en orden
+}
+#pragma omp parallel for ordered schedule(dynamic)
+for (i = lb; i < ub; i += stride) work(i);
+```
+
+:::caution[Regla]
+Una iteración **no puede** ejecutar más de una región `ordered`. Dos `ordered` en el mismo cuerpo son inválidas si **todas** las iteraciones pasan por ambas; son válidas si cada iteración entra a una sola (por ejemplo, `if (i <= 10)` en una e `if (i > 10)` en la otra).
+:::
+
+## `flush` y el modelo de memoria
+
+Cada hilo puede tener una **vista temporal** de las variables (en registros o caché). `flush` obliga a que esa vista coincida con la memoria. Hay `flush` **implícito** en `barrier`, al entrar y salir de `parallel`, `critical` y `ordered`, y al final de `for`, `sections` y `single`.
+
+```cpp title="U4.3 — sin barrera, el valor leído depende del tiempo"
+int x = 2;
+#pragma omp parallel num_threads(2) shared(x)
+{
+    if (omp_get_thread_num() == 0) x = 5;
+    else printf("1: hilo %d: x = %d\n", omp_get_thread_num(), x);   // ¿2 o 5? No se sabe
+    #pragma omp barrier            // flush implícito: desde aquí todos ven x = 5
+    if (omp_get_thread_num() == 0) printf("2: hilo %d: x = %d\n", omp_get_thread_num(), x);
+    else                           printf("3: hilo %d: x = %d\n", omp_get_thread_num(), x);
+}
+```
+
+Print 1 puede mostrar 2 o 5. Print 2 y Print 3 muestran **5** gracias a la barrera.
+
+## Ejercicio
+
+Compara las tres versiones para el máximo de `work(i)`, `i = 0 … 2²⁰−1`: (a) `critical` dentro del `for`, (b) máximo privado + `critical` al final, (c) `reduction(max:mx)`. ¿Cuál es más rápida y por qué?
+
+<Solucion>
+
+(a) es la más lenta: cada iteración pide el candado, así que hay 2²⁰ entradas en fila. (b) entra a la región crítica solo **T** veces (una por hilo). (c) hace lo mismo que (b) pero automático: copia privada inicializada con el neutro de `max` (el menor valor representable) y combinación al final. (b) y (c) son similares y mucho más rápidas que (a); (c) es la más limpia:
+
+```cpp
+#pragma omp parallel for reduction(max:mx)
+for (int i = 0; i < n; i++) { int r = work(i); mx = (r > mx ? r : mx); }
+```
+
+</Solucion>
+
+<Quiz
+	client:visible
+	id="omp-sync"
+	preguntas={[
+		{ q: '`cnt++` sin protección con 4 hilos y 10⁶ iteraciones da…', opts: ['siempre 10⁶', 'un valor menor y distinto en cada corrida', '4·10⁶', 'error de compilación'], ok: 1 },
+		{ q: 'Diferencia principal entre atomic y critical:', opts: ['atomic protege un bloque arbitrario', 'atomic es para una sola actualización simple de memoria y es más liviano', 'critical no sirve para contadores', 'son iguales'], ok: 1 },
+		{ q: 'Dos `critical` con nombres distintos…', opts: ['nunca se ejecutan a la vez', 'pueden ejecutarse a la vez (candados distintos)', 'dan error', 'se convierten en atomic'], ok: 1 },
+		{ q: '`#pragma omp atomic` antes de `x[k] += a; y[i] += b;` protege…', opts: ['ambas líneas', 'solo `x[k] += a`', 'solo `y[i] += b`', 'ninguna'], ok: 1 },
+		{ q: 'Para imprimir en el orden de las iteraciones dentro de un parallel for se usa…', opts: ['critical', 'ordered (con la cláusula ordered en el for)', 'single', 'flush'], ok: 1 },
+		{ q: '¿Dónde hay flush implícito?', opts: ['en barrier y al entrar/salir de critical', 'solo en atomic', 'en ningún lado', 'solo al final del programa'], ok: 0 },
+	]}
+/>
+
+<Fuente archivos={['U4.1 Paralelismo compartido-OMP.pdf (láminas 23–28)', 'U4.2 Paralelismo compartido-OMP.pdf (critical, atomic, ordered)', 'U4.3 Paralelismo compartido-OMP.pdf (uso de memoria)', 'semana_9/Ejemp05_critical.cpp', 'semana_9/sesionb/Ejemp03_critical.cpp', 'semana_9/sesionb/Ejemp03_atomic_critical.c']} />

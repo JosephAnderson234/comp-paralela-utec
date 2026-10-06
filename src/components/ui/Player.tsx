@@ -75,9 +75,10 @@ export default function PlayerControls({ pl, label = 'paso' }: { pl: PlayerState
 }
 
 /** Paquete que viaja de (x1,y1) a (x2,y2); se reinicia al cambiar `k` (usar como key). */
-export function Packet({ x1, y1, x2, y2, color = 'var(--pg-c2)', dur = 0.7, r = 5, label }: { x1: number; y1: number; x2: number; y2: number; color?: string; dur?: number; r?: number; label?: string }) {
+export function Packet({ x1, y1, x2, y2, color = 'var(--pg-c2)', dur = 0.7, r = 5, label, vanish = false }: { x1: number; y1: number; x2: number; y2: number; color?: string; dur?: number; r?: number; label?: string; vanish?: boolean }) {
 	return (
 		<g className="pg-packet">
+			{vanish && <animate attributeName="opacity" values="1;1;0" keyTimes="0;0.8;1" dur={`${dur + 0.35}s`} fill="freeze" />}
 			<circle r={r} fill={color} cx={x1} cy={y1}>
 				<animate attributeName="cx" from={x1} to={x2} dur={`${dur}s`} fill="freeze" calcMode="spline" keySplines="0.3 0 0.2 1" keyTimes="0;1" />
 				<animate attributeName="cy" from={y1} to={y2} dur={`${dur}s`} fill="freeze" calcMode="spline" keySplines="0.3 0 0.2 1" keyTimes="0;1" />

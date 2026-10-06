@@ -1,13 +1,16 @@
 ---
 title: Computación Paralela y Distribuida
-description: Web de estudio interactiva para el parcial (UTEC, Prof. José Fiestas).
+description: Web de estudio interactiva para el parcial y el final (UTEC, Prof. José Fiestas).
 template: splash
 hero:
-  tagline: Parcial CS4052 · UTEC 2026-II. Teoría breve, laboratorios interactivos y exámenes previos resueltos, todo en un solo lugar.
+  tagline: CS4052 · UTEC 2026-II. Parcial (U1–U3) y final (U4 en adelante) con teoría breve, laboratorios interactivos y exámenes previos resueltos.
   actions:
-    - text: Empezar por Fundamentos
-      link: /fundamentos/flynn/
+    - text: Final · OpenMP (nuevo)
+      link: /final/
       icon: right-arrow
+    - text: Parcial · Fundamentos
+      link: /fundamentos/flynn/
+      variant: minimal
     - text: Solvers de examen
       link: /examen/arquetipos/
       variant: minimal
@@ -17,6 +20,13 @@ hero:
 ---
 import { CardGrid, LinkCard, Steps } from '@astrojs/starlight/components';
 import Fuente from '../../components/Fuente.astro';
+
+## Dos etapas
+
+<CardGrid>
+	<LinkCard title="Final · U4 en adelante (en construcción)" href="/final/" description="Semana 9: OpenMP — fork-join, for y schedule, sincronización, alcance de datos y tareas, con 6 playgrounds y el código de clase ejecutado." />
+	<LinkCard title="Parcial · U1–U3" href="/fundamentos/flynn/" description="Flynn, Foster, DAG, performance, PRAM, diseño de algoritmos y MPI, con exámenes previos resueltos." />
+</CardGrid>
 
 Todo el contenido sale de las notas, slides, exámenes previos y código de clase del Prof. José Fiestas. Cada página cita su fuente al pie.
 

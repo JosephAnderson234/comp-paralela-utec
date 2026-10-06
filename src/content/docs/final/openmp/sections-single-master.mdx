@@ -1,0 +1,146 @@
+---
+title: sections, single, master y barreras
+description: Repartir tareas distintas (sections), que lo haga uno solo (single, master) y cuándo esperan los hilos (barrier, barreras implícitas).
+---
+import OmpBarriers from '../../../../components/playgrounds/OmpBarriers.tsx';
+import EnSimple from '../../../../components/EnSimple.astro';
+import Quiz from '../../../../components/Quiz.tsx';
+import Solucion from '../../../../components/Solucion.astro';
+import Fuente from '../../../../components/Fuente.astro';
+
+<EnSimple>
+- **sections**: en la cocina, uno pica verduras y otro hace el arroz. Son **tareas distintas** en paralelo (no el mismo bucle repartido).
+- **single**: "que **alguien** (cualquiera) conteste el teléfono", y los demás esperan a que cuelgue.
+- **master**: "que lo haga **el jefe**" (hilo 0); los demás **no lo esperan**.
+- **barrier**: "nadie sale a recreo hasta que todos terminen".
+</EnSimple>
+
+## `sections`: tareas distintas en paralelo
+
+Cada `section` la ejecuta **un** hilo, una sola vez; secciones distintas pueden ir en hilos distintos. Es **paralelismo funcional** (distintas tareas), a diferencia de `for` (mismo trabajo sobre datos distintos). Hay **barrera implícita** al final, salvo `nowait`.
+
+```cpp title="Ejemp03_sections_omp.cpp" {1,4,6,13}
+#pragma omp parallel num_threads(4) shared(a, b, c, d) private(i, id)
+{
+    // ¿se puede usar nowait?
+    #pragma omp sections nowait
+    {
+        #pragma omp section
+        {
+            for (i = 0; i < N; i++) {
+                c[i] = a[i] + b[i];
+                printf("seccion 1. Hilo: %i it: %i \n ", omp_get_thread_num(), i);
+            }
+        }
+        #pragma omp section
+        {
+            for (i = 0; i < N; i++) {
+                d[i] = a[i] * b[i];
+                printf("seccion 2. Hilo: %i it: %i \n ", omp_get_thread_num(), i);
+            }
+        }
+    }
+}
+```
+
+Con 4 hilos, **solo 2 trabajan** (hay 2 secciones); los otros 2 no tienen nada que hacer. Cada sección completa la hace un único hilo (en una corrida: la sección 1 fue del hilo 1, de `it: 0` a `it: 19`).
+
+:::tip[¿nowait aquí?]
+Sí: después de `sections` no hay más trabajo dentro de la región, y el cierre de `parallel` ya tiene su propia barrera. Las dos secciones no dependen entre sí (`c` y `d` son arreglos distintos).
+:::
+
+:::caution[firstprivate en sections (U4.3)]
+Con `sections firstprivate(section_count)` y dos secciones que hacen `section_count++`: si las ejecutan hilos **distintos**, ambas imprimen 1; si el **mismo** hilo ejecuta las dos, imprime 1 y luego 2 (su copia privada se reutiliza).
+:::
+
+## `single` y `master`
+
+| | `single` | `master` |
+|---|---|---|
+| ¿Quién lo ejecuta? | **cualquier** hilo (el primero que llega) | solo el **hilo 0** |
+| ¿Los demás esperan al final? | **sí** (barrera implícita), salvo `nowait` | **no** |
+| ¿Acepta cláusulas? | `private`, `firstprivate`, `copyprivate`, `nowait` | ninguna |
+| Uso típico | E/S, inicializar algo compartido | reportes de avance |
+
+```cpp title="Ejemp04_single_omp.cpp" {3}
+#pragma omp parallel
+{
+    #pragma omp single nowait
+    {
+        a = 10;
+        id = omp_get_thread_num();
+        b[id] = a;
+        cout << "constructor Single ejecutado por el hilo " << id << endl;
+    }
+}
+```
+
+Salida real (4 hilos): `constructor Single ejecutado por el hilo 3` y luego solo `b[3] = 10`; el resto de `b` sigue en `-1`. En otra corrida puede ser otro hilo: **no se sabe cuál** entra a un `single`.
+
+## Barreras: explícita e implícitas
+
+`#pragma omp barrier`: cada hilo que llega **espera a todos** los del equipo. Además hay barreras **implícitas** (y con ellas un `flush`) al final de:
+
+- `parallel` (siempre, es el *join*),
+- `for`, `sections`, `single` (salvo `nowait`).
+
+**No** hay barrera al final de `master` ni de `critical`.
+
+<OmpBarriers client:visible />
+
+:::caution[Barrera dentro de una función (U4.2)]
+Una `barrier` se enlaza con la región `parallel` **más cercana** que la contiene en tiempo de ejecución, aunque esté escrita en otra función (en el ejemplo, la barrera de `sub3` pertenece a la región paralela abierta en `sub2`). Todos los hilos de ese equipo deben llegar a ella.
+:::
+
+### `Ejemp01_master.c`: single + reduction + master en un bucle
+
+```cpp title="sesionb/Ejemp01_master.c" {5,9,12,19}
+#pragma omp parallel num_threads(4)
+{
+    do {
+        #pragma omp for
+        for (i = 1; i < n-1; ++i) xold[i] = x[i];          // barrera al final
+        #pragma omp single
+        { toobig = 0; }                                    // uno reinicia; barrera al final
+        #pragma omp for private(y, error) reduction(+:toobig)
+        for (i = 1; i < n-1; ++i) {
+            y = x[i];
+            x[i] = average(xold[i-1], x[i], xold[i+1]);    // suavizado (como el PD01)
+            error = y - x[i];
+            if (error > tol || error < -tol) ++toobig;
+        }                                                  // barrera: toobig ya sumado
+        #pragma omp master
+        ++c;                                               // solo el hilo 0 cuenta vueltas
+    } while (toobig > 0);
+}
+```
+
+Salida real (n = 512, tol = 0.01): `iteration 12385, toobig=0`.
+
+- `single` reinicia `toobig` **una vez** y su barrera garantiza que nadie empieza a sumar antes.
+- `reduction(+:toobig)` cuenta en paralelo sin carrera.
+- `master` incrementa `c` sin barrera: solo el hilo 0 lo hace.
+
+## Ejercicio
+
+En `Ejemp01_master.c`, ¿qué pasaría si `toobig = 0` se hiciera con `master` en vez de `single`?
+
+<Solucion>
+
+`master` **no tiene barrera**: otros hilos podrían empezar el siguiente `for` con `reduction(+:toobig)` antes de que el hilo 0 ponga `toobig = 0`. La lámina de U4.2 sobre `reduction` muestra exactamente ese error: la inicialización tiene que quedar **antes** de la reducción, con una `barrier` después del `master`, usando `single` (que trae barrera) o inicializando antes de la región paralela.
+
+</Solucion>
+
+<Quiz
+	client:visible
+	id="omp-sections"
+	preguntas={[
+		{ q: '¿Qué constructor NO tiene barrera implícita al final?', opts: ['for', 'single', 'master', 'sections'], ok: 2 },
+		{ q: '3 secciones y 8 hilos: ¿cuántos hilos trabajan dentro de sections?', opts: ['8', 'como máximo 3', '1', '4'], ok: 1 },
+		{ q: '`single` lo ejecuta…', opts: ['siempre el hilo 0', 'cualquier hilo (el primero que llega)', 'todos', 'el último hilo'], ok: 1 },
+		{ q: 'Para que los demás no esperen al terminar un `single` se usa…', opts: ['master', 'nowait', 'barrier', 'flush'], ok: 1 },
+		{ q: 'sections es paralelismo…', opts: ['de datos', 'funcional (tareas distintas)', 'de instrucciones', 'distribuido'], ok: 1 },
+	]}
+/>
+
+<Fuente archivos={['U4.1 Paralelismo compartido-OMP.pdf (láminas 18–22, 25)', 'U4.2 Paralelismo compartido-OMP.pdf (master, barrier)', 'U4.3 Paralelismo compartido-OMP.pdf (sections, single)', 'semana_9/Ejemp03_sections_omp.cpp', 'semana_9/Ejemp04_single_omp.cpp', 'semana_9/sesionb/Ejemp01_master.c']} />

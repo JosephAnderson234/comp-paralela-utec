@@ -1033,3 +1033,26 @@ details.solucion[open] .solucion-body {
 		opacity: 0.35;
 	}
 }
+
+/* ---------- Recuadro "En simple" (lenguaje llano) ---------- */
+.en-simple {
+	margin: 1.25rem 0;
+	padding: 0.9rem 1.1rem;
+	border-radius: var(--pg-radius-sm);
+	border: 1px solid color-mix(in srgb, var(--pg-c6) 40%, var(--pg-border));
+	background: color-mix(in srgb, var(--pg-c6) 9%, var(--pg-surface));
+}
+.en-simple__t {
+	margin: 0 0 0.35rem !important;
+	font-weight: 700;
+	font-size: 0.85rem;
+	letter-spacing: 0.02em;
+	text-transform: uppercase;
+	color: var(--pg-c6);
+}
+.en-simple__b > :first-child {
+	margin-top: 0;
+}
+.en-simple__b > :last-child {
+	margin-bottom: 0;
+}

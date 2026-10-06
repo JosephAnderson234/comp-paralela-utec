@@ -1,0 +1,153 @@
+---
+title: Repartir bucles — omp for y schedule
+description: Constructor for, parallel for combinado, schedule static/dynamic/guided/runtime/auto, chunk, nowait y collapse.
+---
+import OmpSchedule from '../../../../components/playgrounds/OmpSchedule.tsx';
+import EnSimple from '../../../../components/EnSimple.astro';
+import Quiz from '../../../../components/Quiz.tsx';
+import Solucion from '../../../../components/Solucion.astro';
+import Fuente from '../../../../components/Fuente.astro';
+
+<EnSimple>
+Tienes 16 cajas que cargar y 4 personas. Puedes **asignar de antemano** 4 cajas a cada una (*static*), o dejar las cajas en una pila y que **cada quien tome otra cuando termina** la suya (*dynamic*). Lo primero no cuesta organizar, pero si algunas cajas pesan más, alguien termina mucho después. Lo segundo se adapta, pero cada "voy por otra" cuesta un poco.
+
+En una frase: **`#pragma omp for` reparte las vueltas de un bucle entre los hilos que ya existen; `schedule` decide cómo.**
+</EnSimple>
+
+## El constructor `for`
+
+`#pragma omp for` va **dentro** de una región `parallel` y reparte las iteraciones del bucle que le sigue. **No crea hilos**: usa el equipo existente. Es paralelismo de datos (cada hilo, un trozo del arreglo).
+
+```cpp
+#pragma omp parallel private(f, i)
+{
+    f = 7;
+    #pragma omp for
+    for (i = 0; i < 20; i++)
+        a[i] = b[i] + f * (i - 1);
+}
+```
+
+Atajo combinado (región + reparto en una línea): `#pragma omp parallel for`.
+
+Cláusulas de `for`: `private`, `firstprivate`, `lastprivate`, `reduction`, `schedule(kind[, chunk])`, `collapse(n)`, `ordered`, `nowait`.
+
+:::note[Requisito]
+Las iteraciones deben ser **independientes**: ninguna puede necesitar el resultado de otra (si `a[i]` depende de `a[i-1]`, repartirlas da resultados erróneos).
+:::
+
+## `schedule`: cómo se reparten
+
+| Tipo | Qué hace | Cuándo conviene |
+|---|---|---|
+| `static` | Bloques **contiguos casi iguales**, decididos antes de empezar | Iteraciones de costo parecido |
+| `static, c` | Bloques de `c` en **turno rotativo** (hilo 0, 1, …, 0, 1, …) | Costo que crece o varía de forma regular |
+| `dynamic, c` | Cada hilo libre **pide** el siguiente bloque de `c` (por defecto c = 1) | Costos irregulares o impredecibles |
+| `guided, c` | Como dynamic, pero los bloques empiezan grandes y se **achican** hasta `c` | Irregular, con menos pedidos que dynamic |
+| `runtime` | Lo decide la variable de entorno `OMP_SCHEDULE` al ejecutar | Probar sin recompilar |
+| `auto` | Lo decide el compilador / runtime | — |
+
+<OmpSchedule client:visible />
+
+:::tip[En el examen…]
+- **static** = sin costo de reparto, pero se desbalancea si las iteraciones cuestan distinto.
+- **dynamic** = se balancea solo, pero paga un costo **por cada pedido** (por eso `dynamic,1` con costos iguales puede ser **más lento** que `static`).
+- **guided** = término medio: pocos pedidos grandes al inicio, pequeños al final para balancear.
+
+Usa el playground: con costo «creciente», compara `static` (el último hilo carga lo pesado) con `static,1` o `dynamic`.
+:::
+
+### Lo que imprime `Ejemp02_omp_for.cpp`
+
+```cpp title="Ejemp02_omp_for.cpp" {5}
+#define N 1 << 4                         // 16 iteraciones
+#pragma omp parallel private(id)
+{
+    // particione N equitativamente entre hilos
+    #pragma omp for schedule(static) private(i)
+    for (i = 0; i < N; i++) {
+        id = omp_get_thread_num();
+        c[i] = a[i] + b[i];
+        printf(" %i \t %i\n", id, i);
+    }
+    #pragma omp for
+    for (i = 0; i < N; i++)
+        c[i] *= 2;
+}
+```
+
+Ejecutado con 4 hilos (las líneas salen desordenadas, pero el **reparto** siempre es el mismo):
+
+```text
+hilo  iteraciones
+ 0    0 1 2 3
+ 1    4 5 6 7
+ 2    8 9 10 11
+ 3    12 13 14 15
+```
+
+Cambia el pragma por `schedule(static, 3)`, `schedule(dynamic)` o `schedule(dynamic, 3)` (están comentados en el archivo) y compara con el playground.
+
+## `nowait` y `collapse`
+
+- **`nowait`**: quita la **barrera implícita** al final del `for`. Los hilos que terminan siguen con lo próximo sin esperar.
+- **`collapse(n)`**: junta `n` bucles anidados en uno solo con más iteraciones, para repartir mejor (útil si el bucle externo tiene pocas vueltas).
+
+```cpp title="U4.3 — nowait válido aun con dependencia entre bucles"
+#pragma omp parallel
+{
+    #pragma omp for schedule(static) nowait
+    for (i = 0; i < n; i++) c[i] = (a[i] + b[i]) / 2.0f;
+    #pragma omp for schedule(static) nowait
+    for (i = 0; i < n; i++) z[i] = sqrtf(c[i]);
+    #pragma omp for schedule(static) nowait
+    for (i = 1; i <= n; i++) y[i] = z[i-1] + a[i];
+}
+```
+
+:::caution[¿Por qué ahí sí se puede usar nowait?]
+`z[i]` necesita `c[i]`. Como los dos bucles usan **`static` con el mismo número de iteraciones**, el **mismo hilo** calcula `c[i]` y luego `z[i]`: no necesita esperar a nadie. Con `dynamic` esto **no** está garantizado y `nowait` daría resultados erróneos.
+:::
+
+```cpp title="U4.3 — collapse(2) + lastprivate"
+#pragma omp for collapse(2) lastprivate(jlast, klast)
+for (k = 1; k <= 2; k++)
+    for (j = 1; j <= 3; j++) { jlast = j; klast = k; }
+#pragma omp single
+printf("%d %d\n", klast, jlast);      // imprime: 2 3
+```
+
+Se forma un solo bucle de 2 × 3 = 6 iteraciones. `lastprivate` deja los valores de la **última iteración secuencial** (k = 2, j = 3).
+
+## Ejercicio
+
+En la lámina 21 de U4.1 aparece `#pragma omp parallel for … schedule(static, chunk)` seguido de un bloque con `#pragma omp section`. ¿Qué está mal y cómo se corrige?
+
+<Solucion>
+
+`parallel for` debe ir **directamente** antes de un bucle `for`, no de un bloque `{ }`, y `section` solo tiene sentido dentro de `sections`. Lo correcto es poner el `for` inmediatamente después:
+
+```cpp
+#pragma omp parallel for shared(a, b, c, chunk) private(i) schedule(static, chunk)
+for (i = 0; i < N; i++)
+    c[i] = a[i] + b[i];
+```
+
+(Respuesta propia: la lámina lo muestra así, sin marcarlo como error.)
+
+</Solucion>
+
+<Quiz
+	client:visible
+	id="omp-for"
+	preguntas={[
+		{ q: '`#pragma omp for` fuera de una región `parallel`…', opts: ['crea hilos nuevos', 'se ejecuta con un solo hilo (no hay equipo que repartir)', 'da error de compilación siempre', 'equivale a parallel for'], ok: 1 },
+		{ q: '16 iteraciones, 4 hilos, `schedule(static)`: el hilo 2 hace…', opts: ['2, 6, 10, 14', '8–11', 'las que alcance', '0–3'], ok: 1 },
+		{ q: 'Iteraciones de costo muy variable e impredecible. Mejor opción:', opts: ['static', 'dynamic (o guided)', 'collapse', 'ordered'], ok: 1 },
+		{ q: '`nowait` en un `for`…', opts: ['quita la barrera implícita final', 'evita crear hilos', 'hace el bucle atómico', 'ordena las iteraciones'], ok: 0 },
+		{ q: '`schedule(static, 2)` con 3 hilos y 12 iteraciones: el hilo 0 hace…', opts: ['0–3', '0,1, 6,7', '0,1,2,3', '0, 3, 6, 9'], ok: 1 },
+		{ q: '`collapse(2)` sirve para…', opts: ['fusionar dos bucles anidados en un espacio de iteraciones más grande', 'usar 2 hilos', 'repartir de a 2', 'ejecutar 2 veces'], ok: 0 },
+	]}
+/>
+
+<Fuente archivos={['U4.1 Paralelismo compartido-OMP.pdf (láminas 13–17, 21)', 'U4.3 Paralelismo compartido-OMP.pdf (nowait, collapse)', 'semana_9/Ejemp02_omp_for.cpp']} />

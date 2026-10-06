@@ -1,0 +1,48 @@
+---
+title: Etapa final — ruta de estudio
+description: Qué entra al final, qué contenido ya está en la web y qué falta agregar, semana por semana.
+---
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+import EnSimple from '../../../components/EnSimple.astro';
+import Fuente from '../../../components/Fuente.astro';
+
+<EnSimple>
+Esta sección crece semana a semana. Lo del **parcial** (U1–U3) sigue en su lugar del menú, porque el final se apoya en eso: MPI, speedup, eficiencia y escalabilidad se siguen usando. Aquí se agrega **solo lo nuevo**.
+</EnSimple>
+
+## Unidad 4: Comunicación y coordinación
+
+Objetivos que da el profesor en las láminas de U4:
+
+| # | Objetivo | Dónde estudiarlo |
+|---|---|---|
+| 1 | Paso de mensajes: MPI, punto a punto, colectivas | [MPI básico](/mpi/basicos/) · [Colectivas](/mpi/colectivas/) (del parcial) |
+| 2 | Blocking vs non-blocking | [Bloqueante vs no bloqueante](/mpi/bloqueante/) (del parcial) |
+| 3 | Tipos MPI | [Tipos derivados](/mpi/tipos-derivados/) (del parcial) |
+| 4 | **Memoria compartida: OpenMP, constructores y cláusulas** | **Nuevo** — páginas de abajo |
+| 5 | Programación híbrida | ⏳ aún no hay material: se agregará cuando llegue |
+
+## Avance por semana
+
+| Semana | Material | Estado |
+|---|---|---|
+| 9 | U4.1, U4.2, U4.3 Paralelismo compartido (OpenMP) + 12 programas de clase | ✅ agregado |
+| 10 en adelante | — | ⏳ pendiente |
+
+## OpenMP (semana 9)
+
+<CardGrid>
+	<LinkCard title="1 · Memoria compartida y fork-join" href="/final/openmp/introduccion/" description="Qué es OpenMP, OMP vs MPI, compilar, primera condición de carrera." />
+	<LinkCard title="2 · Repartir bucles: for y schedule" href="/final/openmp/for-schedule/" description="static, dynamic, guided, chunk, nowait, collapse." />
+	<LinkCard title="3 · sections, single, master, barreras" href="/final/openmp/sections-single-master/" description="Quién ejecuta qué y quién espera a quién." />
+	<LinkCard title="4 · Sincronización" href="/final/openmp/sincronizacion/" description="critical, atomic, ordered, flush; carreras medidas." />
+	<LinkCard title="5 · Alcance de datos y reduction" href="/final/openmp/datos/" description="shared, private, firstprivate, lastprivate, threadprivate." />
+	<LinkCard title="6 · Tareas e ICVs" href="/final/openmp/tareas-icv/" description="task, depend, taskwait, taskgroup, anidamiento." />
+	<LinkCard title="Repaso: chuleta, ¿qué imprime? y flashcards" href="/final/openmp/repaso/" description="Todo OpenMP en una página para la última vuelta." />
+</CardGrid>
+
+:::note[Sobre el código]
+Todos los programas de la semana 9 se compilaron con `g++ -fopenmp` y se ejecutaron con 4 hilos; las salidas que aparecen en estas páginas son reales. Donde un ejemplo de clase tiene un detalle que puede fallar (variables sin inicializar o compartidas por error), está marcado como *observación propia*.
+:::
+
+<Fuente archivos={['U4.1 Paralelismo compartido-OMP.pdf (objetivos)', 'U4.2 Paralelismo compartido-OMP.pdf (objetivos)', 'semana_9/']} />

@@ -1,0 +1,117 @@
+---
+title: OpenMP — memoria compartida y fork-join
+description: Qué es OpenMP, en qué máquinas corre, el modelo fork-join, OpenMP vs MPI y cómo compilar.
+---
+import { Steps } from '@astrojs/starlight/components';
+import OmpForkJoin from '../../../../components/playgrounds/OmpForkJoin.tsx';
+import EnSimple from '../../../../components/EnSimple.astro';
+import Quiz from '../../../../components/Quiz.tsx';
+import Solucion from '../../../../components/Solucion.astro';
+import Fuente from '../../../../components/Fuente.astro';
+
+<EnSimple>
+Con **MPI** cada proceso es una casa separada: para compartir algo hay que mandar una carta (un mensaje). Con **OpenMP** todos los trabajadores están en **la misma oficina** y miran **la misma pizarra** (la memoria compartida). No hay cartas, pero hay otro problema: si dos escriben a la vez en la misma parte de la pizarra, se pisan.
+
+En una frase: **OpenMP reparte el trabajo de un programa entre varios hilos que comparten la memoria, agregando unas pocas líneas `#pragma` al código secuencial.**
+</EnSimple>
+
+## ¿Qué es OpenMP?
+
+**OpenMP** (*Open Multi-Processing*) es una **API** para programar en paralelo con **memoria compartida**, en C/C++ y Fortran. Tiene tres piezas:
+
+| Pieza | Para qué | Ejemplo |
+|---|---|---|
+| **Directivas de compilador** (`#pragma omp …`) | Abrir regiones paralelas, repartir bucles, sincronizar | `#pragma omp parallel for` |
+| **Librería** (`omp.h`) | Preguntar o fijar número e id de hilos, medir tiempo | `omp_get_thread_num()`, `omp_get_wtime()` |
+| **Variables de entorno** | Controlar la ejecución sin recompilar | `OMP_NUM_THREADS=4`, `OMP_SCHEDULE` |
+
+Las directivas son "comentarios con significado": si compilas **sin** `-fopenmp`, el compilador las ignora y el programa corre secuencial. Por eso el código del curso protege las llamadas a la librería con `#ifdef _OPENMP`.
+
+- **Dónde corre:** una sola máquina con memoria compartida (**UMA** o **ccNUMA**): un socket/CPU o un nodo con varios sockets. **No** sirve entre nodos de un clúster (eso es memoria distribuida → MPI).
+- **Hilo (*thread*):** la unidad de ejecución más pequeña que el sistema operativo puede planificar. Tú decides cuántos.
+
+## Modelo fork-join
+
+<Steps>
+
+1. El programa arranca con un solo hilo: el **hilo maestro** (master, id 0).
+2. **FORK:** al encontrar `#pragma omp parallel`, el maestro crea un **equipo de hilos** que ejecutan el bloque.
+3. **JOIN:** al cerrar el bloque hay una **barrera implícita**: todos esperan al más lento, el equipo desaparece y solo sigue el maestro.
+
+</Steps>
+
+<OmpForkJoin client:visible />
+
+:::caution[Error común: la primera condición de carrera]
+En `Ejemp01_hello_omp.cpp`, si `id` es **compartida**, todos los hilos escriben en la misma variable y luego la leen: imprimen el número del **último** que escribió. La solución es `private(id)` (o declarar `int id` **dentro** del bloque, que la hace privada). Pruébalo en la pestaña «Ejemp01» de arriba.
+:::
+
+## OpenMP vs MPI
+
+| | **OpenMP** | **MPI** |
+|---|---|---|
+| Memoria | compartida (una máquina) | distribuida (muchos nodos) |
+| Unidad | hilos | procesos |
+| Comunicación | leer/escribir variables compartidas | mensajes (`Send`/`Recv`, colectivas) |
+| Esfuerzo para empezar | bajo: agregar `#pragma` a un código que ya funciona | alto: reescribir el programa |
+| Techo de rendimiento | limitado por los núcleos de **un** nodo | escala a todo el clúster |
+| Riesgo típico | condiciones de carrera | deadlocks |
+
+La lámina "OMP vs MPI" lo resume con una curva rendimiento vs esfuerzo: OpenMP sube rápido pero se aplana (se acaban los núcleos). MPI cuesta más al inicio ("el código no funciona" durante un tramo) pero llega más alto, y **OpenMP + MPI** (programación **híbrida**) llega todavía más arriba.
+
+:::tip[En el examen…]
+Si preguntan cuándo usar cada uno: **OpenMP** para paralelizar rápido dentro de un nodo; **MPI** cuando el problema no cabe o no escala en un nodo; **híbrido** en clústeres de nodos multinúcleo (MPI entre nodos, OpenMP dentro de cada nodo).
+:::
+
+## Compilar y ejecutar
+
+```bash
+g++ -fopenmp Ejemp01_hello_omp.cpp -o hello      # sin -fopenmp, los #pragma se ignoran
+OMP_NUM_THREADS=4 ./hello                        # o omp_set_num_threads(4) en el código
+```
+
+```cpp title="Ejemp01_hello_omp.cpp" {9,13}
+#include <iostream>
+#include <unistd.h>
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
+int main() {
+    int id = -1, x = 10;
+#pragma omp parallel shared(x) private(id)
+    {
+#ifdef _OPENMP
+        id = omp_get_thread_num();      // 0, 1, 2, ... en cada hilo
+#endif
+        sleep(1);                         // fuerza la carrera si id fuera shared
+        printf("Peekaboo desde el hilo = %d \n", id);
+    }
+}
+```
+
+Con 4 hilos imprime 4 líneas `Peekaboo desde el hilo = 0…3` **en un orden distinto cada vez**: los hilos no tienen orden garantizado.
+
+## Ejercicio
+
+¿Qué cambia si quitas `private(id)` y dejas el `sleep(1)`? ¿Y si además quitas el `sleep`?
+
+<Solucion>
+
+Sin `private(id)`, `id` es **compartida** (por defecto las variables declaradas fuera de la región son *shared*). Con el `sleep(1)`, todos los hilos escriben su número casi a la vez, duermen 1 s y luego leen: todos imprimen el valor del **último** que escribió (por ejemplo, cuatro veces `= 3`). Sin el `sleep` la carrera sigue existiendo, pero es más difícil de ver: a veces sale bien y a veces no. **Que funcione una vez no prueba que sea correcto.**
+
+</Solucion>
+
+<Quiz
+	client:visible
+	id="omp-intro"
+	preguntas={[
+		{ q: 'OpenMP sirve para paralelizar…', opts: ['entre nodos de un clúster', 'dentro de una máquina con memoria compartida', 'solo en GPU', 'solo en Fortran'], ok: 1 },
+		{ q: 'Al cerrar la llave de `#pragma omp parallel` ocurre…', opts: ['nada', 'un fork', 'una barrera implícita (join)', 'un MPI_Barrier'], ok: 2 },
+		{ q: 'Si compilas sin `-fopenmp`…', opts: ['no compila', 'los #pragma se ignoran y corre secuencial', 'usa 2 hilos', 'falla al ejecutar'], ok: 1 },
+		{ q: 'Una variable declarada antes de la región paralela es, por defecto…', opts: ['private', 'firstprivate', 'shared', 'threadprivate'], ok: 2 },
+		{ q: 'El hilo maestro tiene id…', opts: ['0', '1', '-1', 'el último'], ok: 0 },
+	]}
+/>
+
+<Fuente archivos={['U4.1 Paralelismo compartido-OMP.pdf (láminas 2–12)', 'semana_9/Ejemp01_hello_omp.cpp']} />

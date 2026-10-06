@@ -1,0 +1,189 @@
+---
+title: Alcance de datos — shared, private, firstprivate, lastprivate, threadprivate, reduction
+description: Qué copia de cada variable ve cada hilo, con las salidas reales de los ejemplos de la semana 9.
+---
+import OmpDataScope from '../../../../components/playgrounds/OmpDataScope.tsx';
+import EnSimple from '../../../../components/EnSimple.astro';
+import Quiz from '../../../../components/Quiz.tsx';
+import Solucion from '../../../../components/Solucion.astro';
+import Fuente from '../../../../components/Fuente.astro';
+
+<EnSimple>
+En OpenMP todo está en la misma memoria, así que **por defecto todo se comparte**. Las cláusulas de datos responden una sola pregunta: **¿cada hilo trabaja con la variable original o con su propia copia? Y si es copia, ¿con qué valor empieza y qué pasa al final?**
+
+- **shared**: una pizarra para todos.
+- **private**: cuaderno nuevo **en blanco** para cada uno; se bota al salir.
+- **firstprivate**: **fotocopia** del original para cada uno; se bota al salir.
+- **lastprivate**: como private, pero al salir el original se queda con lo del **último** de la fila secuencial.
+- **reduction**: cada uno cuenta en su hoja (que empieza en 0 para `+`) y al final **se juntan** las hojas.
+- **threadprivate**: un **casillero** por persona que se conserva de una región paralela a la siguiente.
+</EnSimple>
+
+## Reglas por defecto
+
+- Variables declaradas **antes** de la región paralela → **shared**.
+- Variables declaradas **dentro** del bloque → **private** de cada hilo.
+- El índice del bucle de un `#pragma omp for` → **private** automáticamente.
+- `default(shared | none)`: cambia el comportamiento por defecto. Con `default(none)` el compilador te obliga a declarar el alcance de cada variable (buena práctica para no olvidar ninguna).
+
+<OmpDataScope client:visible />
+
+## Tabla resumen
+
+| Cláusula | ¿Copia por hilo? | Valor inicial de la copia | ¿Y al salir? |
+|---|---|---|---|
+| `shared` | no, una sola | — | lo que haya quedado (¡cuidado con las carreras!) |
+| `private` | sí | **sin inicializar** | el original no cambia |
+| `firstprivate` | sí | el valor **original** | el original no cambia |
+| `lastprivate` | sí | sin inicializar | original = valor de la **última iteración/sección** secuencial |
+| `reduction(op: x)` | sí | el **neutro** de `op` | original = original op (todas las copias) |
+| `threadprivate` (directiva, para globales) | sí, **persistente** | se inicializa una vez | cada hilo conserva su valor en la siguiente región |
+| `copyin` | — | copia el valor del maestro a las `threadprivate` de todos | — |
+| `copyprivate` (con `single`) | — | difunde el valor del hilo del `single` a las privadas de los demás | — |
+
+Restricción de `private`: un elemento que es **parte** de otra variable (un elemento de arreglo o un campo de struct) no puede ir en la lista.
+
+## Salidas reales (4 hilos)
+
+### private / firstprivate (`Ejemp02_private.c`)
+
+```cpp title="sesionb/Ejemp02_private.c"
+i = 1; j = 2;
+//#pragma omp parallel private(i,j)
+#pragma omp parallel firstprivate(i,j)
+{
+    i = 3;
+    j = j + 2;
+    printf("parallel i: %i j: %i \n", i, j);
+}
+printf("i: %i j: %i \n", i, j);
+```
+
+```text
+parallel i: 3 j: 4      ← ×4 (cada copia de j empezó en 2)
+i: 1 j: 2               ← los originales no cambiaron
+```
+
+Con `private(i,j)` (la línea comentada), `j = j + 2` usa una `j` **sin inicializar**: el valor dentro es basura. Afuera igual se imprime `i: 1 j: 2`.
+
+### lastprivate (`Ejemp02_lastprivate.c`)
+
+```cpp title="sesionb/Ejemp02_lastprivate.c" {4}
+int i = 5;
+#pragma omp parallel
+{
+    #pragma omp for lastprivate(i)
+    for (i = 0; i < n-1; i++)
+        a[i] = b[i] + b[i+1];
+}
+a[i] = b[i];        /* i == n-1 aquí, como en la versión secuencial */
+```
+
+Con `n = 10` y `b[i] = 2i`: `a[0..8] = 2, 6, 10, …, 34` y `a[9] = b[9] = 18`. Sin `lastprivate`, después del bucle `i` valdría 5 (el original) y se escribiría `a[5]` en vez de `a[9]`.
+
+### threadprivate (`Ejemp02_threadprivate.c`)
+
+```cpp title="sesionb/Ejemp02_threadprivate.c" {3,8-9}
+int a = 0, b = 0, i, tid;
+float x;
+#pragma omp threadprivate(x)
+...
+omp_set_dynamic(0);                          // necesario para que x persista
+#pragma omp parallel private(b, tid)
+{ tid = omp_get_thread_num(); a = tid; b = tid; x = 1.1 * tid + 1.0; ... }
+#pragma omp parallel private(tid)
+{ tid = omp_get_thread_num(); printf("Thread %d:   a,b,x= %d %d %f\n", tid, a, b, x); }
+```
+
+```text
+1st Parallel Region:          (ordenado aquí; el orden de las líneas varía)
+Thread 0:   a,b,x= 0 0 1.000000
+Thread 1:   a,b,x= 1 1 2.100000
+Thread 2:   a,b,x= 2 2 3.200000
+Thread 3:   a,b,x= 3 3 4.300000
+2nd Parallel Region:
+Thread 0:   a,b,x= 3 0 1.000000      ← x se conservó por hilo
+Thread 1:   a,b,x= 3 0 2.100000
+Thread 2:   a,b,x= 3 0 3.200000
+Thread 3:   a,b,x= 3 0 4.300000
+```
+
+- `x` (threadprivate) **se conserva** en cada hilo entre regiones.
+- `b` era private en la región 1: la global nunca cambió → `0`.
+- `a` era **shared**: los 4 hilos la escribieron a la vez y quedó el valor del último (aquí `3`; la lámina muestra `1`). Es una carrera: **no** se puede predecir.
+
+## `reduction`
+
+Cada hilo recibe una copia privada inicializada con el **neutro del operador**; al final se combinan las copias con el operador y se aplican al original.
+
+| Operador | Valor inicial |
+|---|---|
+| `+`, `-`, `\|`, `^`, `\|\|` | 0 |
+| `*`, `&&` | 1 |
+| `&` | ~0 (todos los bits en 1) |
+| `max` | el menor valor representable del tipo |
+| `min` | el mayor valor representable del tipo |
+
+```cpp title="U4.1 — producto escalar"
+#pragma omp parallel for default(shared) private(i) schedule(static, chunk) reduction(+:result)
+for (i = 0; i < n; i++)
+    result += a[i] * b[i];
+```
+
+:::danger[Lo que hace realmente `Ejemp06_reduction.cpp`]
+```cpp
+#pragma omp parallel shared(result)                          // ① abre un equipo de 4
+#pragma omp parallel for schedule(dynamic) reduction(+:result) // ② ¡OTRA región parallel!
+for (i = 0; i < n; i++) result += a[i] * b[i];
+```
+Son **dos** `parallel` anidados. Como el paralelismo anidado está apagado por defecto, cada uno de los 4 hilos de ① abre su propio equipo de **1** hilo y ejecuta **el bucle completo**. Salida real: 129 líneas (4 × 32 + 1), siempre «del hilo 0», y el resultado final varió entre **64** y **128** en distintas corridas, porque las 4 reducciones escriben sobre la misma `result` compartida sin sincronizarse. Quitando la línea ① sale `Producto escalar= 64.000000` siempre (32 × 1 × 2). *(Observación propia, al ejecutar el programa.)*
+:::
+
+:::caution[Error de la lámina 24 de U4.2: inicializar mal la variable de reducción]
+```cpp
+#pragma omp parallel shared(a) private(i)
+{
+    #pragma omp master
+    a = 0;                           // sin barrera: puede ejecutarse DESPUÉS de que otros hilos sumen
+    #pragma omp for reduction(+:a)
+    for (i = 0; i < 10; i++) a += i;
+    #pragma omp single
+    printf("Sum is %d\n", a);
+}
+```
+Soluciones: `#pragma omp barrier` después de `a = 0`, usar `single` en vez de `master` (trae barrera), o inicializar `a` **antes** de la región paralela.
+:::
+
+## Ejercicio
+
+```cpp
+int x = 10;
+#pragma omp parallel num_threads(3) firstprivate(x)
+{ x += omp_get_thread_num(); printf("%d ", x); }
+printf("| %d\n", x);
+```
+
+¿Qué imprime? ¿Y si cambias `firstprivate` por `reduction(+:x)`?
+
+<Solucion>
+
+Con `firstprivate`: cada copia empieza en 10 ⇒ imprime `10`, `11` y `12` en algún orden, y luego `| 10` (el original no cambia).
+
+Con `reduction(+:x)`: cada copia empieza en **0** ⇒ imprime `0`, `1` y `2` en algún orden; al final x = 10 + (0 + 1 + 2) ⇒ `| 13`.
+
+</Solucion>
+
+<Quiz
+	client:visible
+	id="omp-datos"
+	preguntas={[
+		{ q: 'Una variable `private` al entrar a la región vale…', opts: ['el valor original', '0', 'lo que haya en memoria (sin inicializar)', '1'], ok: 2 },
+		{ q: '`firstprivate(x)` con x = 5: dentro, cada hilo empieza con…', opts: ['5', '0', 'basura', 'su id'], ok: 0 },
+		{ q: 'Después de un `for lastprivate(i)` de 0 a n−1, el original i vale…', opts: ['el que tenía antes', 'el de la última iteración secuencial', 'el del último hilo en terminar', '0'], ok: 1 },
+		{ q: 'Valor inicial de la copia privada en `reduction(*:p)`:', opts: ['0', '1', 'p', 'basura'], ok: 1 },
+		{ q: '`threadprivate` se usa para…', opts: ['variables locales de una función', 'mantener por hilo el valor de una variable global entre regiones paralelas', 'arreglos compartidos', 'reducciones'], ok: 1 },
+		{ q: 'El índice del bucle de `#pragma omp for` es…', opts: ['shared', 'private automáticamente', 'firstprivate', 'threadprivate'], ok: 1 },
+	]}
+/>
+
+<Fuente archivos={['U4.1 Paralelismo compartido-OMP.pdf (láminas 29–35)', 'U4.2 Paralelismo compartido-OMP.pdf (private, lastprivate, threadprivate, reduction)', 'semana_9/sesionb/Ejemp02_private.c', 'semana_9/sesionb/Ejemp02_lastprivate.c', 'semana_9/sesionb/Ejemp02_threadprivate.c', 'semana_9/Ejemp06_reduction.cpp']} />

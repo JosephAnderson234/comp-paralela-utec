@@ -1,0 +1,11 @@
+---
+/** Explicación en lenguaje llano (analogía + idea en una frase) antes de la versión técnica. */
+interface Props {
+	titulo?: string;
+}
+const { titulo = 'En simple' } = Astro.props;
+---
+<aside class="en-simple" aria-label={titulo}>
+	<p class="en-simple__t">💡 {titulo}</p>
+	<div class="en-simple__b"><slot /></div>
+</aside>

@@ -1,0 +1,162 @@
+---
+title: Tareas, dependencias e ICVs
+description: task, depend(in/out/inout), taskwait, taskgroup, taskyield; variables de control interno, paralelismo anidado y de grano grueso.
+---
+import OmpTasks from '../../../../components/playgrounds/OmpTasks.tsx';
+import EnSimple from '../../../../components/EnSimple.astro';
+import Quiz from '../../../../components/Quiz.tsx';
+import Solucion from '../../../../components/Solucion.astro';
+import Fuente from '../../../../components/Fuente.astro';
+
+<EnSimple>
+Un **task** es un *post-it* con una tarea pegado en un tablero: quien lo crea no tiene que hacerlo en ese momento; **cualquier hilo libre** lo despega y lo hace. Con `depend` escribes en el post-it "no empieces hasta que terminen los que **escriben** x". `taskwait` es "no sigo hasta que se terminen todos los post-its que pegué".
+
+Sirve para trabajo **irregular** (recorrer árboles, listas, recursión), donde un `for` no encaja.
+</EnSimple>
+
+## `task`
+
+```cpp
+#pragma omp task [untied] [default(shared|none)] [private(list)] [shared(list)]
+                 [firstprivate(list)] [if(expr)] [depend(tipo: lista)]
+    bloque
+```
+
+La tarea se ejecuta **de inmediato o se difiere**, según haya hilos libres. Patrón típico: un solo hilo crea las tareas (dentro de `single`) y el equipo entero las ejecuta.
+
+```cpp title="U4.3 — tres tareas sin dependencias"
+#pragma omp parallel num_threads(2)
+{
+    #pragma omp single
+    {
+        #pragma omp task
+        printf("t1 : impresion random desde el hilo : %d\n", omp_get_thread_num());
+        #pragma omp task
+        printf("t2 : impresion random desde el hilo : %d\n", omp_get_thread_num());
+        #pragma omp task
+        printf("t3 : impresion random desde el hilo : %d\n", omp_get_thread_num());
+    }
+}
+```
+
+El orden de `t1`, `t2`, `t3` y el hilo que ejecuta cada una **cambian** en cada corrida.
+
+## `depend`: ordenar tareas
+
+| Tipo | Significa | Espera a tareas anteriores que tengan la misma variable en… |
+|---|---|---|
+| `in` | la tarea **lee** la variable | `out` o `inout` |
+| `out` / `inout` | la tarea **escribe** (o lee y escribe) | `in`, `out` o `inout` |
+
+Es la misma idea de las dependencias del **DAG** (U1.3): lectura después de escritura, escritura después de lectura y escritura después de escritura. Dos **lecturas** no se ordenan entre sí.
+
+<OmpTasks client:visible />
+
+:::tip[En el examen: «¿qué imprime?»]
+1. Ordena las tareas **en el orden en que se crean** (orden del código).
+2. Para cada una, dibuja una flecha desde cada tarea **anterior** con la que choca (out–in, in–out, out–out).
+3. Lo que no está unido por flechas puede ocurrir en **cualquier orden** ⇒ hay varias salidas posibles.
+:::
+
+## `taskwait`, `taskgroup`, `taskyield`
+
+- **`taskwait`**: el hilo espera a que terminen las tareas **hijas** que creó hasta ese punto.
+- **`taskgroup { … }`**: espera a todas las tareas creadas dentro del bloque **y sus descendientes**. En el ejemplo de U4.3, `start_background_work()` se crea **fuera** del grupo, así que sigue corriendo libre mientras cada paso espera solo al recorrido del árbol (`compute_tree`). Con `taskwait` participarían todas las tareas hijas.
+- **`taskyield`**: la tarea actual **cede** el hilo para que corra otra tarea. Mejora la concurrencia cuando hay tareas largas que podrían acaparar un hilo.
+
+## Variables de control interno (ICVs)
+
+Cada región/tarea recibe una copia de las **ICVs**, que controlan el comportamiento del programa:
+
+| Función | Controla |
+|---|---|
+| `omp_set_num_threads(n)` | hilos de la **próxima** región paralela |
+| `omp_set_dynamic(0/1)` | si el runtime puede ajustar el número de hilos |
+| `omp_set_nested(0/1)` | permitir regiones paralelas **anidadas** |
+| `omp_set_max_active_levels(n)` | cuántos niveles anidados pueden estar activos |
+
+Consultas útiles: `omp_get_num_threads()`, `omp_get_thread_num()`, `omp_get_max_threads()`, `omp_get_max_active_levels()`, `omp_get_wtime()`.
+
+```cpp title="U4.3 — paralelismo anidado"
+omp_set_nested(1);
+omp_set_max_active_levels(8);
+omp_set_dynamic(0);
+omp_set_num_threads(2);
+#pragma omp parallel                 // nivel externo: 2 hilos
+{
+    omp_set_num_threads(3);
+    #pragma omp parallel             // cada uno abre un equipo de 3
+    {
+        omp_set_num_threads(4);
+        #pragma omp single
+        printf("Inner: ...");        // se imprime 2 veces (una por equipo interno)
+    }
+    #pragma omp barrier
+    #pragma omp single
+    printf("Outer: ...");            // se imprime 1 vez
+}
+```
+
+:::note[Conexión con Ejemp06]
+Sin `omp_set_nested(1)`, una región paralela dentro de otra corre con **un solo hilo**. Eso es lo que hace que `Ejemp06_reduction.cpp` repita el bucle completo en cada hilo externo (ver [Alcance de datos](/final/openmp/datos/#reduction)).
+:::
+
+## Grano grueso con `parallel` solo
+
+No siempre hace falta `for`: cada hilo puede calcular **qué parte** del arreglo le toca a partir de su id y del número de hilos. Es la misma idea de "n/p datos por proceso" de MPI, pero en memoria compartida.
+
+```cpp title="U4.3 — cada hilo elige su subdominio"
+#pragma omp parallel default(shared) private(iam, nt, ipoints, istart)
+{
+    iam = omp_get_thread_num();
+    nt = omp_get_num_threads();
+    ipoints = npoints / nt;              // tamaño del bloque
+    istart = iam * ipoints;              // inicio del bloque
+    if (iam == nt - 1)                   // el último hilo hace lo que sobra
+        ipoints = npoints - istart;
+    subdomain(x, istart, ipoints);
+}
+```
+
+## Ejercicio
+
+```cpp
+int x = 1;
+#pragma omp parallel
+#pragma omp single
+{
+    #pragma omp task shared(x) depend(out: x)
+    x = 2;
+    #pragma omp task shared(x) depend(in: x)
+    printf("x+1 = %d. ", x + 1);
+    #pragma omp task shared(x) depend(in: x)
+    printf("x+2 = %d\n", x + 2);
+}
+```
+
+¿Cuáles son las salidas posibles? ¿Puede salir `x+1 = 2`?
+
+<Solucion>
+
+Las dos tareas que imprimen dependen de la primera (in después de out), así que siempre ven `x = 2`. Entre ellas **no** hay dependencia (dos `in`), por lo que el orden es libre:
+
+- `x+1 = 3. x+2 = 4`
+- `x+2 = 4` y luego `x+1 = 3.`
+
+`x+1 = 2` **no** puede salir: requeriría leer x antes de que la primera tarea la cambie.
+
+</Solucion>
+
+<Quiz
+	client:visible
+	id="omp-tasks"
+	preguntas={[
+		{ q: 'Una tarea con `depend(in: x)` espera a tareas anteriores con…', opts: ['in sobre x', 'out o inout sobre x', 'cualquier variable', 'nada'], ok: 1 },
+		{ q: 'Orden de creación: `in: x` (printf) y luego `out: x` (x = 2), con x = 1 al inicio. Se imprime…', opts: ['1', '2', '1 o 2', 'nada'], ok: 0 },
+		{ q: '`taskwait` espera a…', opts: ['todos los hilos', 'las tareas hijas creadas hasta ese punto', 'solo la última tarea', 'las tareas de otros hilos'], ok: 1 },
+		{ q: 'Sin `omp_set_nested(1)`, un `parallel` dentro de otro `parallel` usa…', opts: ['el doble de hilos', '1 hilo por región interna', 'error', 'los mismos hilos repartidos'], ok: 1 },
+		{ q: '¿Por qué se suelen crear las tareas dentro de `single`?', opts: ['para que no se creen T copias de cada tarea', 'porque task no funciona sin single', 'para ordenarlas', 'para que corran en el maestro'], ok: 0 },
+	]}
+/>
+
+<Fuente archivos={['U4.3 Paralelismo compartido-OMP.pdf (ICVs, parallel, task, depend, taskgroup, taskyield)']} />
