@@ -1,0 +1,231 @@
+---
+title: Paralelismo híbrido MPI + OpenMP
+description: Por qué se combinan MPI y OpenMP, ventajas y desventajas, estructura de un programa híbrido, compilación, combinaciones procesos × hilos por nodo, scripts Slurm en Khipu y Perlmutter, y por qué el híbrido no siempre es más rápido.
+---
+import HybridConfig from '../../../../components/playgrounds/HybridConfig.tsx';
+import EnSimple from '../../../../components/EnSimple.astro';
+import Quiz from '../../../../components/Quiz.tsx';
+import Solucion from '../../../../components/Solucion.astro';
+import Fuente from '../../../../components/Fuente.astro';
+
+<EnSimple>
+Piensa en una empresa con varias **oficinas** en ciudades distintas.
+
+- Entre oficinas se comunican por **correo** (MPI): hay que empaquetar, enviar y esperar.
+- Dentro de una oficina, los empleados comparten **la misma pizarra** (OpenMP): no se mandan correos, solo leen y escriben.
+
+**Paralelismo híbrido** = un proceso MPI por oficina (nodo o socket) y, dentro de él, varios hilos OpenMP. Usas correo solo cuando hace falta salir de la oficina.
+</EnSimple>
+
+## Por qué hace falta (láminas 2–6)
+
+- **Ley de Moore:** la potencia de los supercomputadores sigue creciendo, pero ya no por relojes más rápidos sino por **más núcleos**. Un nodo actual tiene 2 sockets de 52 a 96 núcleos (Intel Xeon Max 9470, AMD EPYC 9004) y hasta 8 sockets en Sapphire Rapids.
+- **Cómputo vs. memoria:** los FLOPs crecieron mucho más rápido que el ancho de banda de la memoria y de la red. Mover datos es el cuello de botella.
+- **Energía:** la potencia dinámica de un chip CMOS crece como el **cubo** de la frecuencia: `P_dyn(f) ≈ α · f³`. Subir el reloj ya no compensa.
+
+La consecuencia (lámina 6) es usar **muchos núcleos lentos** en vez de pocos rápidos ("*the chickens and the ox*"), aprovechar la memoria **local** de cada nodo (híbrido) y lograr mucho paralelismo. Para el programador eso significa conocer mejor el hardware y escribir código más complejo.
+
+## Paradigmas de programación
+
+| Memoria compartida (OpenMP) | Memoria distribuida (MPI) |
+|---|---|
+| Los **hilos** leen y escriben en la RAM común | Los **procesos** envían y reciben mensajes |
+| Se sincronizan porque compiten por los datos | Solo usan sus variables locales |
+| Los hilos pertenecen a un proceso | Cada proceso tiene uno o más hilos |
+
+Según la lámina 7: MPI sigue predominando; el híbrido **MPI + OpenMP (+ CUDA)** se usa cada vez más en supercomputadores; y aparecen lenguajes PGAS (*Partitioned Global Address Space*: GASPI, Coarray Fortran, UPC, Chapel).
+
+## Paralelismo híbrido
+
+MPI se usa para la comunicación **entre procesos** y OpenMP **dentro** de cada proceso.
+
+| Ventajas | Desventajas |
+|---|---|
+| Mayor escalabilidad: aumenta la granularidad (menos procesos, más trabajo por proceso) | Código más complejo |
+| Mejor balance de carga (los hilos se reparten el trabajo del proceso) | Hay que hacer bien **las dos** cosas: MPI y OpenMP |
+| Mejor uso de memoria (menos copias de datos y de halos) | Efectos **NUMA**: un hilo que lee la memoria del otro socket es más lento |
+
+Algoritmos que se benefician (lámina 11):
+
+1. los que tienen **escalabilidad MPI limitada**;
+2. los que necesitan **balance de carga dinámico**;
+3. los que corren en hardware con **poca memoria** por núcleo y mucha comunicación MPI;
+4. las aplicaciones de **paralelismo masivo**.
+
+## Modos de operación (lámina 16)
+
+Para un nodo de 16 núcleos hay un espectro:
+
+| Modo | Procesos MPI | Hilos por proceso |
+|---|---|---|
+| MPI puro (*pure MPI node*) | 16 | 1 |
+| Híbrido | 4 | 4 |
+| SMP puro (*pure SMP node*) | 1 | 16 |
+
+En el híbrido, el **hilo maestro** de cada proceso es el que hace las llamadas MPI.
+
+<HybridConfig client:visible />
+
+## Estructura de un programa híbrido
+
+1. Se inicializa MPI.
+2. Se crean regiones paralelas OpenMP **dentro** de cada proceso.
+3. Se pueden llamar funciones MPI en las partes seriales y dentro de las regiones paralelas.
+4. Se finaliza MPI.
+
+```c title="U4.5 — peekaboo_mpi_omp.c"
+#include <stdio.h>
+#include "mpi.h"
+#include <omp.h>
+int main(int argc, char *argv[]) {
+    int numprocs, rank, namelen;
+    char processor_name[MPI_MAX_PROCESSOR_NAME];
+    int iam = 0, np = 1;
+    MPI_Init(&argc, &argv);
+    MPI_Comm_size(MPI_COMM_WORLD, &numprocs);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Get_processor_name(processor_name, &namelen);
+    #pragma omp parallel num_threads(4) default(shared) private(iam, np)
+    {
+        np  = omp_get_num_threads();
+        iam = omp_get_thread_num();
+        printf("Peekaboo desde el hilo %d de un total de %d y desde el proceso %d de un total de %d en %s\n",
+               iam, np, rank, numprocs, processor_name);
+    }
+    MPI_Finalize();
+}
+```
+
+Compilar y ejecutar: hay que pasar **las dos** cosas, el compilador de MPI y la bandera de OpenMP.
+
+```bash
+mpicc -fopenmp peekaboo_mpi_omp.c
+mpirun -np 2 ./a.out
+```
+
+Salida real con 2 procesos × 4 hilos en una sola máquina (el nombre del equipo se cambió por `mi-pc`):
+
+```
+Peekaboo desde el hilo 3 de un total de 4 y desde el proceso 0 de un total de 2 en mi-pc
+Peekaboo desde el hilo 1 de un total de 4 y desde el proceso 0 de un total de 2 en mi-pc
+Peekaboo desde el hilo 0 de un total de 4 y desde el proceso 0 de un total de 2 en mi-pc
+Peekaboo desde el hilo 1 de un total de 4 y desde el proceso 1 de un total de 2 en mi-pc
+Peekaboo desde el hilo 3 de un total de 4 y desde el proceso 1 de un total de 2 en mi-pc
+Peekaboo desde el hilo 2 de un total de 4 y desde el proceso 1 de un total de 2 en mi-pc
+Peekaboo desde el hilo 0 de un total de 4 y desde el proceso 1 de un total de 2 en mi-pc
+Peekaboo desde el hilo 2 de un total de 4 y desde el proceso 0 de un total de 2 en mi-pc
+```
+
+8 líneas (2 × 4) en **orden no determinista**: los dos procesos y sus hilos corren a la vez.
+
+:::tip[El número óptimo de hilos]
+Según la lámina 19, el mejor reparto procesos × hilos **depende de la arquitectura** y hay que encontrarlo midiendo.
+:::
+
+## Máquinas híbridas (lámina 20)
+
+Una máquina de 268 nodos con 8 núcleos cada uno puede usarse como:
+
+- 1 proceso MPI × 8 hilos OpenMP por nodo;
+- 2 procesos × 4 hilos;
+- 4 procesos × 2 hilos.
+
+Con 2 nodos, 1 proceso por nodo y 4 hilos, cada proceso imprime desde **su** nodo:
+
+```
+0 running on compute-2-25.local thread= 0 of 4
+...
+1 running on compute-3-14.local thread= 3 of 4
+```
+
+## En clústeres
+
+### Khipu: 4 procesos MPI × 8 hilos OpenMP
+
+```bash title="U4.5 — script Slurm híbrido en Khipu"
+#!/bin/bash
+# Un Job script para la ejecución de un código híbrido MPI-OpenMP
+#SBATCH --job-name=hibrido_mpi_openmp
+#SBATCH --output=hibrido_mpi_openmp.out
+#SBATCH --ntasks=4
+#SBATCH --cpus-per-task=8
+#SBATCH --partition=docencia
+
+module load mpich/4.0
+
+# OMP_NUM_THREADS = número de CPUs por tarea pedido a Slurm
+export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
+
+# No hace falta -np: mpirun lo toma de la configuración de Slurm
+mpirun ./hibrido
+
+module unload mpich/4.0
+```
+
+La clave: **`--ntasks`** = número de procesos MPI, **`--cpus-per-task`** = hilos por proceso, y `OMP_NUM_THREADS` se iguala a `$SLURM_CPUS_PER_TASK`.
+
+### Perlmutter (NERSC)
+
+Sistema heterogéneo (plataforma Cray) con 3072 CPUs (15.4 PFLOPs pico) y 1792 GPUs (69.5 PFLOPs pico). Cada AMD EPYC 7713 tiene 64 núcleos físicos y 128 hilos.
+
+```bash title="Un proceso MPI por núcleo físico"
+#SBATCH --nodes=2
+#SBATCH --ntasks-per-node=128
+srun check-mpi.gnu.pm
+```
+
+```bash title="Un proceso MPI por socket y un hilo OpenMP por núcleo físico"
+#SBATCH --nodes=2
+#SBATCH --ntasks-per-node=2
+#SBATCH --cpus-per-task=128
+export OMP_PROC_BIND=spread
+export OMP_PLACES=threads
+export OMP_NUM_THREADS=64
+srun check-hybrid.gnu.pm
+```
+
+`OMP_PROC_BIND=spread` reparte los hilos lo más lejos posible entre sí (por todo el socket) y `OMP_PLACES=threads` fija cada hilo a un hilo de hardware. Así los hilos no migran de núcleo y cada proceso usa la memoria de **su** socket (evita efectos NUMA).
+
+## ¿Por qué el híbrido no siempre es más eficiente? (lámina 26)
+
+- OpenMP escala con el paralelismo implícito, pero solo hasta el **límite de hardware** de un nodo.
+- Durante la comunicación MPI, **todos los hilos esperan** (*idle*) menos uno.
+- Crear muchos hilos tiene un **costo**.
+- Faltan librerías y compiladores optimizados para OpenMP.
+
+Ejemplo de la lámina 25 (ecuación de Poisson 3D en un IBM Blue Gene de 10 240 nodos × 4 núcleos): las versiones **nuevas** (optimizadas), tanto MPI puro como MPI + OMP, escalan mucho mejor que las viejas, y entre ellas la **híbrida nueva** es ligeramente mejor. La mejora viene sobre todo de **optimizar el código**, no solo de agregar OpenMP.
+
+La lámina también menciona códigos reales: SPHYNX y SPH-EXA (hidrodinámica SPH) y el problema de N cuerpos con OMP vs HPX, híbrido y MPI + CUDA.
+
+## Ejercicio
+
+Tienes 3 nodos de 16 núcleos y quieres 2 procesos MPI por nodo. Escribe las líneas `#SBATCH` y el `export` necesarios. ¿Cuántas líneas imprime el peekaboo si no fijas `num_threads(4)`?
+
+<Solucion>
+
+```bash
+#SBATCH --nodes=3
+#SBATCH --ntasks-per-node=2      # 6 procesos MPI en total
+#SBATCH --cpus-per-task=8        # 16 núcleos / 2 procesos
+export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
+mpirun ./hibrido
+```
+
+Sin `num_threads(4)`, cada proceso usa `OMP_NUM_THREADS = 8` hilos: 6 × 8 = **48 líneas**. Con `num_threads(4)` en el código, la cláusula gana sobre la variable de entorno: 6 × 4 = 24 líneas, y quedan 4 núcleos ociosos por proceso.
+
+</Solucion>
+
+<Quiz
+	client:visible
+	id="hibrido-mpi-omp"
+	preguntas={[
+		{ q: 'En un programa híbrido, MPI se usa para…', opts: ['repartir iteraciones dentro de un nodo', 'comunicar procesos (normalmente entre nodos o sockets)', 'crear hilos', 'reemplazar a OpenMP'], ok: 1 },
+		{ q: 'Un nodo de 8 núcleos con 2 procesos MPI debería usar…', opts: ['2 hilos por proceso', '4 hilos por proceso', '8 hilos por proceso', '16 hilos por proceso'], ok: 1 },
+		{ q: 'En Slurm, el número de hilos OpenMP por proceso se pide con…', opts: ['--ntasks', '--nodes', '--cpus-per-task', '--mem'], ok: 2 },
+		{ q: '¿Cómo se compila un programa híbrido?', opts: ['g++ -fopenmp', 'mpicc (sin más)', 'mpicc -fopenmp', 'nvcc'], ok: 2 },
+		{ q: 'Una desventaja del híbrido es…', opts: ['usa más memoria que MPI puro', 'durante la comunicación MPI los otros hilos quedan ociosos', 'no se puede usar en clústeres', 'no permite balance de carga'], ok: 1 },
+		{ q: 'La potencia dinámica de un CMOS crece con la frecuencia como…', opts: ['f', 'f²', 'f³', 'log f'], ok: 2 },
+	]}
+/>
+
+<Fuente archivos={['U4.5 Paralelismo-hibrido.pdf (láminas 2–26)']} />

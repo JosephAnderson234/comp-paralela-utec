@@ -46,6 +46,23 @@ export default defineConfig({
 								{ label: 'Repaso OpenMP', slug: 'final/openmp/repaso' },
 							],
 						},
+						{
+							label: '8 · OpenMP: memoria y locks',
+							badge: { text: 'sem 10', variant: 'note' },
+							items: [
+								{ label: '¿Puede fallar el assert? Modelo de memoria', slug: 'final/openmp-avanzado/modelo-memoria' },
+								{ label: 'critical, locks y filósofos', slug: 'final/openmp-avanzado/locks' },
+								{ label: 'Simulacro PC4', slug: 'final/openmp-avanzado/simulacro-pc4' },
+							],
+						},
+						{
+							label: '9 · Paralelismo híbrido',
+							badge: { text: 'sem 10', variant: 'note' },
+							items: [
+								{ label: 'MPI + OpenMP', slug: 'final/hibrido/mpi-openmp' },
+								{ label: 'Descomposición de dominio y halos', slug: 'final/hibrido/dominio-halos' },
+							],
+						},
 					],
 				},
 				{

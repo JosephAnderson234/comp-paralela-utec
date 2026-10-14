@@ -1,0 +1,131 @@
+---
+title: Descomposición de dominio y halos
+description: Regiones de halo, cómo crece su costo al dividir el dominio en 2D y 3D, por qué el híbrido ahorra memoria y comunicación, y el ejemplo de Poisson 3D con Jacobi.
+---
+import HaloRatio from '../../../../components/playgrounds/HaloRatio.tsx';
+import EnSimple from '../../../../components/EnSimple.astro';
+import Quiz from '../../../../components/Quiz.tsx';
+import Solucion from '../../../../components/Solucion.astro';
+import Fuente from '../../../../components/Fuente.astro';
+
+<EnSimple>
+Imagina un mapa grande partido en pedazos, uno por persona. Para pintar el borde de tu pedazo necesitas ver un poquito del pedazo del vecino, así que **copias** esa franja en tu hoja: eso es el **halo**.
+
+Si partes el mapa en **más** pedazos, cada uno pinta menos, pero hay **más bordes** que copiar y que actualizar por mensaje. Con hilos OpenMP dentro de un nodo, los hilos miran directo el mismo mapa: no copian franjas entre ellos.
+</EnSimple>
+
+## Regiones de halo
+
+Una **región de halo** es una copia **local** de datos que pertenecen a otro proceso y que hace falta para calcular (por ejemplo, las celdas vecinas en un *stencil*). Hay que actualizarlas **con frecuencia** (en cada iteración), con mensajes MPI.
+
+Esto ya apareció en el parcial: el [intercambio de halos en Foster (PCAM)](/fundamentos/foster/).
+
+Según la lámina 12, con **OpenMP** dentro del nodo se reduce el tamaño de los halos que hay que almacenar: los hilos comparten la memoria del proceso y no necesitan copias entre ellos. Menos halo significa **menos memoria** y **menos comunicación**.
+
+## Cuánto halo hay (lámina 13)
+
+Malla 2D de M×N celdas por proceso, con una celda de halo alrededor:
+
+| Procesos | Celdas por proceso | Celdas de halo por proceso |
+|---|---|---|
+| P | M × N | 2M + 2N |
+| 4P | (M/2) × (N/2) | M + N |
+
+Al pasar de P a 4P procesos:
+
+- cada proceso calcula **un cuarto** de las celdas;
+- pero su halo solo se reduce a **la mitad**.
+
+En general, si el número de procesos crece como O(P), el halo por proceso baja solo como O(√P). La proporción halo / trabajo **empeora** al dividir más fino.
+
+<HaloRatio client:visible />
+
+## En 3D (lámina 14)
+
+Un subdominio de n³ celdas con una capa de halo ocupa (n + 2)³:
+
+| Subdominio | Con halo | Celdas de halo | % halo |
+|---|---|---|---|
+| 10³ = 1000 | 12³ = 1728 | 728 | 42 % |
+| 20³ = 8000 | 22³ = 10 648 | 2648 | 25 % |
+| 40³ = 64 000 | 42³ = 74 088 | 10 088 | 14 % |
+
+```
+% halo = ((n+2)^3 - n^3) / (n+2)^3
+```
+
+Con subdominios **chicos** (muchos procesos MPI), casi la mitad de la memoria se va en copias.
+
+### Por qué el híbrido ayuda
+
+En un nodo de c núcleos con un dominio de L×L celdas:
+
+- **MPI puro:** c procesos, cada uno con un bloque de (L/√c)×(L/√c) y un halo de 4L/√c ⇒ halo total en el nodo ≈ **4L·√c**.
+- **Híbrido** (1 proceso × c hilos): un solo bloque L×L ⇒ halo ≈ **4L**.
+
+El híbrido guarda y comunica √c veces menos halo (con c = 16, 4 veces menos).
+
+La lámina 15 lo muestra en un caso real: la descomposición de dominio del código **Smilei** (simulación de plasmas *Particle-in-Cell*, Derouillat et al. 2017), donde los dominios MPI cambian de forma para seguir la carga de partículas.
+
+## Ejemplo: ecuación de Poisson 3D con Jacobi (láminas 24–25)
+
+Se resuelve la ecuación de Poisson en el cubo [0,1]³ con valor 0 en el borde:
+
+```
+∂²u/∂x² + ∂²u/∂y² + ∂²u/∂z² = f(x, y, z)
+```
+
+La malla es regular (h = hx = hy = hz). El método de **Jacobi** calcula cada celda de la iteración n+1 con sus 6 vecinas de la iteración n:
+
+```
+u[i][j][k] (n+1) = 1/6 · ( u[i+1][j][k] + u[i-1][j][k]
+                         + u[i][j+1][k] + u[i][j-1][k]
+                         + u[i][j][k+1] + u[i][j][k-1]
+                         - h² · f[i][j][k] )          (todo en la iteración n)
+```
+
+Es un *stencil* de 7 puntos: cada celda necesita sus vecinas, así que en los bordes de cada subdominio hacen falta **halos** y en cada iteración se intercambian con MPI. La forma típica de paralelizarlo en híbrido:
+
+```c
+for (iter = 0; iter < max_iter; iter++) {
+    intercambiar_halos(u);                 /* MPI, entre procesos (solo el hilo maestro) */
+    #pragma omp parallel for collapse(2)   /* OpenMP, dentro del proceso */
+    for (i = 1; i <= nx; i++)
+        for (j = 1; j <= ny; j++)
+            for (k = 1; k <= nz; k++)
+                u_new[i][j][k] = (u[i+1][j][k] + u[i-1][j][k] + u[i][j+1][k]
+                                + u[i][j-1][k] + u[i][j][k+1] + u[i][j][k-1]
+                                - h*h*f[i][j][k]) / 6.0;
+    intercambiar(u, u_new);
+}
+```
+
+(Esquema propio para ilustrar; no es código de clase.)
+
+En el IBM Blue Gene (10 240 nodos × 4 núcleos), las versiones optimizadas ("new") de MPI y de MPI + OMP escalan casi linealmente, y la híbrida nueva queda un poco por encima.
+
+## Ejercicio
+
+Cada proceso tiene un subdominio 3D de 30³ celdas con 1 capa de halo. ¿Qué porcentaje de su memoria es halo? Si se usan 8 veces más procesos (cada uno con 15³), ¿cuánto queda?
+
+<Solucion>
+
+- 30³ = 27 000 y 32³ = 32 768 ⇒ halo = 5768 ⇒ 5768 / 32 768 ≈ **17.6 %**.
+- 15³ = 3375 y 17³ = 4913 ⇒ halo = 1538 ⇒ 1538 / 4913 ≈ **31.3 %**.
+
+Con 8 veces más procesos, el trabajo por proceso cae 8 veces, pero el halo por proceso solo ≈ 3.75 veces (5768 → 1538): la fracción de halo casi se duplica.
+
+</Solucion>
+
+<Quiz
+	client:visible
+	id="hibrido-halos"
+	preguntas={[
+		{ q: 'Al pasar de P a 4P procesos en 2D, el halo por proceso…', opts: ['se divide entre 4', 'se divide entre 2', 'no cambia', 'se duplica'], ok: 1 },
+		{ q: 'Un cubo de 10³ con una capa de halo tiene aproximadamente…', opts: ['10 % de halo', '25 % de halo', '42 % de halo', '73 % de halo'], ok: 2 },
+		{ q: '¿Por qué el híbrido reduce la memoria de halos?', opts: ['porque comprime los datos', 'porque los hilos de un proceso comparten memoria y no necesitan copias entre ellos', 'porque usa menos nodos', 'porque no usa MPI'], ok: 1 },
+		{ q: 'El método de Jacobi para Poisson 3D usa…', opts: ['solo la celda propia', 'las 6 vecinas de la iteración anterior', 'todas las celdas del dominio', 'las vecinas de la misma iteración'], ok: 1 },
+	]}
+/>
+
+<Fuente archivos={['U4.5 Paralelismo-hibrido.pdf (láminas 12–15, 24–25)']} />

@@ -82,6 +82,20 @@ Según U4.1, las directivas que **no aceptan cláusulas** son: `master`, `critic
 		{ t: 'OpenMP', f: 'taskyield', b: 'La tarea actual cede el hilo para que avance otra tarea (mejor concurrencia con tareas largas).' },
 		{ t: 'OpenMP', f: 'omp_set_nested / omp_set_dynamic', b: 'nested: permite regiones paralelas anidadas. dynamic: deja que el runtime ajuste el número de hilos.' },
 		{ t: 'OpenMP', f: 'Medido: cnt++ con 4 hilos y 10⁶ iteraciones', b: 'Sin protección: ≈ 250 000–360 000 (se pierden incrementos). critical ≈ 0.056 s; reduction ≈ 0.0002 s, ambos correctos.' },
+		{ t: 'Locks y memoria', f: '¿Cuántos intercalados tienen 2 hilos de k instrucciones?', b: 'C(2k, k) = (2k)! / (k!)², que crece casi como 4^k. Para k = 2 son 6.' },
+		{ t: 'Locks y memoria', f: '¿Por qué falla el assert(b >= a) de clase con -O2?', b: 'Hay un **data race** (x e y sin sincronizar) y el compilador puede reordenar: lee x antes que y. Con `critical` deja de fallar.' },
+		{ t: 'Locks y memoria', f: 'Data race (condición de carrera)', b: 'Dos hilos acceden a la misma posición, **al menos uno escribe**, y los accesos no están sincronizados.' },
+		{ t: 'Locks y memoria', f: 'Happens-before', b: 'Orden garantizado entre operaciones de hilos distintos. En OpenMP lo crean barrier, critical, atomic, task depend, reduction y flush.' },
+		{ t: 'Locks y memoria', f: 'Las 4 funciones de locks de OpenMP', b: '`omp_init_lock`, `omp_set_lock` (espera y toma), `omp_unset_lock` (libera), `omp_destroy_lock`.' },
+		{ t: 'Locks y memoria', f: '¿Cuándo usar un arreglo de locks en vez de critical?', b: 'Cuando hay muchas posiciones independientes (p. ej. bins de un histograma): solo esperan los hilos que van a la **misma** posición.' },
+		{ t: 'Locks y memoria', f: '¿Cómo se evita el deadlock de los filósofos?', b: 'Rompiendo la espera circular: todos toman primero el tenedor de **menor número** (orden global de locks).' },
+		{ t: 'Locks y memoria', f: '`reduction(+:H[:B])`', b: 'Reducción de sección de arreglo: cada hilo tiene su copia de H[0..B−1] y al final se suman elemento a elemento (necesita un puntero).' },
+		{ t: 'Locks y memoria', f: '¿Por qué `rand()` no sirve en paralelo?', b: 'Usa un estado global (no es thread-safe). Se usa `rand_r(&seed)` con una semilla privada distinta por hilo.' },
+		{ t: 'Híbrido', f: 'Paralelismo híbrido', b: 'MPI entre procesos (nodos o sockets) y OpenMP dentro de cada proceso.' },
+		{ t: 'Híbrido', f: 'Compilar y ejecutar un programa híbrido', b: '`mpicc -fopenmp prog.c` y `mpirun -np P ./a.out`; los hilos se fijan con `num_threads` u `OMP_NUM_THREADS`.' },
+		{ t: 'Híbrido', f: 'Slurm híbrido: procesos e hilos', b: '`--ntasks` = procesos MPI, `--cpus-per-task` = hilos por proceso, y `export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK`.' },
+		{ t: 'Híbrido', f: '¿Por qué el híbrido no siempre es más rápido?', b: 'Durante la comunicación MPI los demás hilos esperan; crear hilos cuesta; OpenMP está limitado al nodo; efectos NUMA.' },
+		{ t: 'Híbrido', f: 'Halo al pasar de P a 4P procesos (2D)', b: 'Las celdas por proceso se dividen entre 4, pero el halo solo entre 2: el halo por proceso baja como O(√P).' },
 	]}
 />
 

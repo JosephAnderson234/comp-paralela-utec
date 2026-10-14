@@ -1,0 +1,221 @@
+---
+title: ¿Puede fallar el assert? Modelo de memoria
+description: Intercalados entre hilos, demostración por contradicción, reordenamientos del compilador y del procesador, y el modelo de memoria (program order, consistencia, data race, happens-before).
+---
+import AssertInterleavings from '../../../../components/playgrounds/AssertInterleavings.tsx';
+import EnSimple from '../../../../components/EnSimple.astro';
+import Quiz from '../../../../components/Quiz.tsx';
+import Solucion from '../../../../components/Solucion.astro';
+import Fuente from '../../../../components/Fuente.astro';
+
+<EnSimple>
+Imagina dos cocineros con **una sola pizarra**. Uno escribe "hay pan" y después "hay queso". El otro lee la pizarra. Si lee en orden, nunca debería ver "hay queso" sin "hay pan".
+
+Pero ahora cada cocinero tiene **su libreta** (la caché), y un asistente (el compilador) que **cambia el orden** de lo que hace si así termina más rápido. Para un cocinero solo, eso no cambia nada. Con dos cocineros mirando la misma pizarra, **sí**: el segundo puede ver el queso antes que el pan.
+
+Esa es la idea de esta página: en paralelo, el orden en que escribes el código **no es** el orden en que otros hilos ven los cambios, salvo que sincronices.
+</EnSimple>
+
+## El problema de la lámina
+
+```cpp title="teoria/ejemplo01_assert.cpp"
+class C {
+    int x = 0;
+    int y = 0;
+public:
+    void f() {
+        x = 1;   // A
+        y = 1;   // B
+    }
+    void g() {
+        int a = y;   // C
+        int b = x;   // D
+        assert(b >= a);
+    }
+};
+
+int main() {
+    int i = 1;
+    while (true) {
+        C c;
+        #pragma omp parallel
+        {
+            #pragma omp sections
+            {
+                #pragma omp section
+                c.f();            // un hilo
+                #pragma omp section
+                c.g();            // otro hilo
+            }
+        }
+        if (++i % 1000 == 0) cout << i << endl;
+    }
+}
+```
+
+`f()` y `g()` corren **a la vez** en hilos distintos. Dentro de cada hilo, A va antes que B y C antes que D. Entre hilos, cualquier mezcla es posible.
+
+## Cuántos intercalados hay
+
+Con 2 hilos de k instrucciones cada uno, un intercalado es una lista de 2k posiciones donde eliges **cuáles k** son del hilo 1 (el orden interno ya está fijo):
+
+```
+número de intercalados = C(2k, k) = (2k)! / (k!)^2  ≈  4^k / sqrt(pi·k)
+```
+
+Para k = 2: C(4, 2) = **6**: ABCD, ACBD, ACDB, CABD, CADB, CDAB. Crece casi como 4^k: por eso no se puede probar un programa paralelo "probando todos los casos".
+
+## Demostración por contradicción (lámina 4)
+
+Supón que el assert falla: b < a, o sea **a = 1 y b = 0**.
+
+1. a = 1 ⇒ `a = y` leyó después de `y = 1`: **B antes que C**.
+2. b = 0 ⇒ `b = x` leyó antes de `x = 1`: **D antes que A**.
+3. Orden del programa en cada hilo: **A antes que B** y **C antes que D**.
+4. Juntando: A → B → C → D → A. Es un **ciclo**: A tendría que ir antes que sí misma. Contradicción.
+
+Conclusión de la lámina: si cada hilo ejecuta **en el orden del código**, el assert nunca falla.
+
+<AssertInterleavings client:visible />
+
+## Pero lo ejecutamos, y sí falla
+
+Compilamos el código de clase tal cual y lo dejamos correr 3 segundos, 10 veces:
+
+| Compilación | Corridas donde falló el assert |
+|---|---|
+| `g++ -fopenmp -O0` | 0 / 10 |
+| `g++ -fopenmp -O2` | **10 / 10** (`Assertion 'b >= a' failed`, en menos de 1000 iteraciones) |
+
+¿Por qué? Mirando el ensamblador que genera `-O2`:
+
+```asm title="g() compilado con -O2 (x86-64)"
+movl  (%rax), %ecx       ; lee x   ← esto es D
+cmpl  %ecx, 4(%rax)      ; lee y y compara  ← esto es C
+jle   ...                ; si y <= x, todo bien
+call  __assert_fail
+```
+
+El compilador **leyó `x` antes que `y`**: hizo D antes que C. En un programa secuencial da lo mismo (nadie más toca x ni y), así que es una optimización válida. Y en `f()` juntó `x = 1` e `y = 1` en una sola escritura de 8 bytes. Con el orden **D, (A+B), C** se obtiene b = 0 y a = 1: el assert falla.
+
+:::caution[La demostración no está mal, el supuesto sí]
+La demostración asume que cada hilo ejecuta en el orden del código fuente (*program order*). Eso **no está garantizado** cuando hay una condición de carrera: dos hilos tocan `x` e `y` sin sincronización. En C++ eso es un *data race* y el comportamiento es indefinido; el compilador puede reordenar libremente.
+:::
+
+## Lo que hace el compilador (láminas 5–7)
+
+Las tres versiones de `f()` son equivalentes **en secuencial**:
+
+```cpp
+void f() { x = 1; y = x + 1; z = x + 1; }   // original
+void f() { x = 1; z = x + 1; y = x + 1; }   // reordenada
+void f() { x = 1; z = 2;     y = 2;     }   // constantes propagadas
+```
+
+Si otro hilo ejecuta `g() { x = 5; }` justo después de `x = 1`:
+
+- en la segunda versión puede salir x = 1, z = 2, **y = 6**;
+- en la tercera, `y` **nunca** puede valer 6 (ya no lee x).
+
+Mismo programa secuencial, resultados paralelos distintos.
+
+El segundo ejemplo es una espera activa:
+
+```cpp
+int x = 0;
+void wait()   { x = 1; while (x == 1); }   // espera a que otro hilo cambie x
+void arrive() { x = 2; }
+```
+
+Con `-O3` el compilador ve que en `wait()` nadie cambia `x` dentro del bucle, **saca la lectura** del bucle (ya sabe que x == 1) y lo convierte en un bucle infinito (`jmp` a sí mismo). Aunque otro hilo llame a `arrive()`, `wait()` nunca termina.
+
+Resumen de la lámina 7: los compiladores modernos garantizan un orden **local** (por hilo), no **global**, y con eso consiguen mejoras de 3 a 10×:
+
+- eliminan o mueven sentencias completas;
+- el **procesador** también reordena accesos a memoria (pipeline: varias instrucciones a la vez);
+- cada núcleo tiene su **caché**: una escritura puede tardar en ser visible para otros hilos.
+
+## Arquitectura de memoria compartida
+
+```
+  hilo 0              hilo 1
+ [registros]         [registros]
+     ↕                   ↕
+ [caché L1/L2]       [caché L1/L2]
+        ↘             ↙
+          [ memoria RAM ]
+```
+
+Un valor puede estar en un **registro** de un hilo (como `x` en el bucle de `wait()`), en su **caché** o en la RAM. Lo que un hilo escribe no aparece de inmediato en la vista del otro.
+
+## Modelo de memoria
+
+Un modelo de memoria (por ejemplo, el de [C++](https://en.cppreference.com/w/cpp/language/memory_model)) define qué resultados son válidos:
+
+| Concepto | Qué significa |
+|---|---|
+| **Orden del programa** (*program order*) | Dentro de **un** hilo hay un orden lógico entre las operaciones. |
+| **Consistencia de memoria** | Qué valores puede ver un hilo cuando otros escriben a la vez. |
+| **Condición de carrera** (*data race*) | Dos hilos acceden a la misma posición, **al menos uno escribe**, y los accesos no están ordenados ni sincronizados. |
+| **Happens-before** | Relación de orden entre operaciones de hilos distintos. Si una escritura *happens-before* una lectura, la lectura debe ver ese valor (o uno posterior). Se crea con sincronización. |
+
+OpenMP crea relaciones *happens-before* con: **`barrier`, `critical`, `atomic`, `task depend`, `reduction`, `flush`**.
+
+### El arreglo: sincronizar
+
+```cpp title="teoria/ejemplo01_assert_critical.cpp"
+#pragma omp parallel
+{
+    #pragma omp critical
+    c.f();
+    #pragma omp critical
+    c.g();
+}
+```
+
+Con `critical`, `f()` y `g()` ya no se mezclan: cada una corre **entera** antes o después de la otra, y hay `flush` al entrar y salir. Se ejecutó 5 segundos con `-O2` y el assert **no falló** (llegó a la iteración 16 000).
+
+:::note[Detalle de esta versión]
+Aquí ya no hay `sections`: **todos** los hilos del equipo ejecutan `c.f()` y luego `c.g()`, en fila. El assert queda correcto, pero el trabajo es redundante. *(Observación propia.)*
+:::
+
+## Ejercicio
+
+En el bucle de `wait()`, ¿qué dos formas de OpenMP evitan que el compilador deje `x` en un registro?
+
+<Solucion>
+
+Cualquier construcción que fuerce un `flush` de `x` en cada vuelta:
+
+```cpp
+void wait() {
+    x = 1;
+    int v;
+    do {
+        #pragma omp atomic read
+        v = x;                    // lectura atómica: siempre va a memoria
+    } while (v == 1);
+}
+void arrive() {
+    #pragma omp atomic write
+    x = 2;
+}
+```
+
+O bien `#pragma omp flush(x)` antes de leer `x` en cada iteración (y después de escribir en `arrive`). En C++ moderno lo equivalente es `std::atomic<int> x`.
+
+</Solucion>
+
+<Quiz
+	client:visible
+	id="omp-modelo-memoria"
+	preguntas={[
+		{ q: 'Dos hilos con 3 instrucciones cada uno. ¿Cuántos intercalados respetan el orden de cada hilo?', opts: ['6', '9', '20', '720'], ok: 2, why: 'C(6,3) = 20.' },
+		{ q: 'En el ejemplo del assert, ¿qué supuesto usa la demostración por contradicción?', opts: ['que hay un solo núcleo', 'que cada hilo ejecuta en el orden del código (program order)', 'que x e y son atomic', 'que se compila con -O3'], ok: 1 },
+		{ q: '¿Por qué falla el assert con -O2?', opts: ['por un bug de OpenMP', 'el compilador reordena las lecturas de g() porque no hay sincronización (data race)', 'porque sections no funciona', 'porque x e y no se inicializan'], ok: 1 },
+		{ q: 'Un data race requiere…', opts: ['dos lecturas simultáneas', 'dos accesos a la misma posición, al menos una escritura, sin sincronización', 'un deadlock', 'dos regiones critical'], ok: 1 },
+		{ q: '¿Cuál NO crea una relación happens-before en OpenMP?', opts: ['barrier', 'critical', 'una variable shared sin protección', 'reduction'], ok: 2 },
+	]}
+/>
+
+<Fuente archivos={['U4.4 Paralelismo compartido-OMP.pdf (láminas 2–10)', 'semana_10/teoria/ejemplo01_assert.cpp', 'semana_10/teoria/ejemplo01_assert_critical.cpp']} />

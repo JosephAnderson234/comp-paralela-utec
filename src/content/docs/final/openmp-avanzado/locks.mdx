@@ -1,0 +1,213 @@
+---
+title: critical, locks y el problema de los filósofos
+description: Repaso de critical (con nombre), la API de locks de OpenMP, comparación medida critical vs atomic vs lock, histograma con locks por bin y deadlock en los filósofos.
+---
+import HistogramLocks from '../../../../components/playgrounds/HistogramLocks.tsx';
+import Philosophers from '../../../../components/playgrounds/Philosophers.tsx';
+import EnSimple from '../../../../components/EnSimple.astro';
+import Quiz from '../../../../components/Quiz.tsx';
+import Solucion from '../../../../components/Solucion.astro';
+import Fuente from '../../../../components/Fuente.astro';
+
+<EnSimple>
+- **critical** es **un solo baño con llave** para todo el edificio: aunque quieras otro baño, haces la misma fila.
+- **critical con nombre** son baños distintos, cada uno con su llave.
+- Un **lock** es una llave que **tú** creas, guardas en una variable y puedes tener **muchas** (por ejemplo, una por casillero). Tú decides cuándo la tomas y cuándo la sueltas.
+
+El riesgo de tener muchas llaves: que cada persona tenga una y espere la del otro para siempre. Eso es un **deadlock** (interbloqueo), y es lo que pasa con los filósofos.
+</EnSimple>
+
+## Repaso: critical
+
+```cpp title="teoria/ejemplo02_suma_prod_critical.cpp" {3,9-12}
+#pragma omp parallel num_threads(4) default(shared)
+{
+    int psum = 0, pprod = 1;            // privadas: declaradas dentro
+    #pragma omp for schedule(static)
+    for (int i = 0; i < ARR_SIZE; i++) {
+        psum += a[i];
+        pprod *= a[i];
+    }
+    #pragma omp critical
+    sum += psum;                        // una vez por hilo
+    #pragma omp critical
+    prod *= pprod;
+}
+```
+
+Salida real (`a[i] = 1`, 2²⁰ elementos): `sum: 1048576, prod: 1`, en ≈ 0.0005 s.
+
+Las dos regiones `critical` **sin nombre** usan el **mismo** candado: mientras un hilo suma en `sum`, nadie puede multiplicar en `prod`, aunque son variables distintas. Con nombres, son candados independientes:
+
+```cpp title="U4.4 — secciones críticas con nombre"
+#pragma omp critical (section1)
+{ for (int j = 0; j < BIG_NUMBER; j++) sum += psum; }
+
+#pragma omp critical (section2)
+{ for (int j = 0; j < BIG_NUMBER; j++) prod *= pprod; }   // puede correr a la vez que section1
+```
+
+## Locks en OpenMP
+
+Un lock es un objeto `omp_lock_t` que **solo un hilo** puede tener a la vez. Tiene 4 operaciones:
+
+| Función | Qué hace |
+|---|---|
+| `omp_init_lock(&l)` | Crea el lock (libre). Antes de usarlo. |
+| `omp_set_lock(&l)` | **Espera** hasta que el lock esté libre y lo toma. |
+| `omp_unset_lock(&l)` | Lo libera. |
+| `omp_destroy_lock(&l)` | Lo elimina (lo contrario de `init`). |
+
+Ventaja frente a `critical`: el lock es una **variable**, así que puedes tener un **arreglo** de locks y elegir cuál tomar **en tiempo de ejecución** (`lock[key]`). Un `critical` con nombre se fija al escribir el código.
+
+## critical vs atomic vs lock, medido
+
+Los tres programas de `teoria/` hacen lo mismo: 8 hilos, cada uno suma 1 a `x` 100 000 veces. Resultado esperado: 800 000.
+
+```cpp title="teoria/ejemplo03_lock.cpp"
+omp_lock_t writelock;
+omp_init_lock(&writelock);
+#pragma omp parallel shared(x)
+{
+    for (int i = 0; i < 100000; i++) {
+        omp_set_lock(&writelock);
+        x = x + 1;
+        omp_unset_lock(&writelock);
+    }
+}
+omp_destroy_lock(&writelock);
+```
+
+Ejecutado 3 veces cada uno (`g++ -O2 -fopenmp`, 8 hilos):
+
+| Versión | `x` | Tiempo (3 corridas) |
+|---|---|---|
+| `#pragma omp atomic` | 800 000 ✓ | 0.019 · 0.020 · 0.013 s |
+| `#pragma omp critical` | 800 000 ✓ | 0.066 · 0.056 · 0.079 s |
+| `omp_set_lock` / `omp_unset_lock` | 800 000 ✓ | 0.057 · 0.120 · 0.119 s |
+
+Los tres son correctos. `atomic` es el más rápido (≈ 4× menos que critical) porque usa una instrucción atómica del procesador. `critical` y lock hacen lo mismo por dentro (un candado), y el lock explícito además paga la llamada a función.
+
+:::tip[Regla práctica]
+Para **una** variable y una operación simple: `atomic`. Para un bloque: `critical`. Para **muchas** posiciones independientes (cada una con su candado): **arreglo de locks**. Y si puedes acumular en privado y combinar al final: `reduction`, que le gana a todos.
+:::
+
+## Histograma: el caso donde los locks brillan
+
+```cpp title="U4.4 — histograma con carrera"
+#pragma omp parallel for private(key)
+for (int i = 0; i < INP_SIZE; i++) {
+    key = inp[i];
+    hist[key]++;          // dos hilos con el mismo key ⇒ se pierde un incremento
+}
+```
+
+La lámina propone dos arreglos:
+
+1. **`critical`** alrededor de `hist[key]++`. Funciona, pero **no es eficiente**: hay 2²⁰ bins y un solo candado. Dos hilos que van a bins distintos igual hacen fila.
+2. **Un lock por bin** (`omp_lock_t lock[HIST_SIZE]`): solo chocan los hilos que van al **mismo** bin.
+
+¿Se podría usar `critical` **con nombre**? No para esto: el nombre se escribe en el código, no puede depender de `key`. Tendrías que escribir 2²⁰ regiones distintas.
+
+<HistogramLocks client:visible />
+
+:::caution[Error en la lámina 21]
+En el código de la lámina, los locks se indexan con `i` (la posición del dato) en vez de `key` (el bin):
+
+```cpp
+omp_set_lock(&(lock[i]));     // ✗ i va hasta INP_SIZE = 2^26, pero hay HIST_SIZE = 2^20 locks
+hist[key]++;
+omp_unset_lock(&(lock[i]));
+```
+
+Tiene **dos** problemas: se sale del arreglo de locks (`i` llega a 2²⁶) y no protege nada, porque dos hilos con el mismo `key` toman locks distintos. Lo correcto es `lock[key]`. *(Observación propia.)*
+:::
+
+## Los filósofos comensales
+
+N filósofos en una mesa redonda con **N tenedores**, uno entre cada par. Para comer, cada uno necesita **los dos** tenedores que tiene al lado. Algoritmo de la lámina:
+
+1. piensa hasta que el tenedor izquierdo esté libre, y lo toma;
+2. piensa hasta que el derecho esté libre, y lo toma;
+3. come;
+4. suelta el izquierdo y el derecho; repite.
+
+```cpp title="teoria/ejemplo04_filosofos.cpp" {11-12}
+const int N = 5;
+omp_lock_t forks[N];
+...
+#pragma omp parallel num_threads(N) private(id, left, right)
+{
+    id = omp_get_thread_num();
+    left = id;
+    right = (id + 1) % N;
+    for (int i = 0; i < 30; ++i) {
+        think(id);
+        omp_set_lock(&forks[left]);      // primero el izquierdo
+        omp_set_lock(&forks[right]);     // luego el derecho
+        eat(id);
+        omp_unset_lock(&forks[left]);
+        omp_unset_lock(&forks[right]);
+    }
+}
+```
+
+La lámina pregunta: *"Hay un problema de concurrencia en el código, ¿cómo lo solucionaría?"*
+
+<Philosophers client:visible />
+
+### El problema: deadlock
+
+Si los 5 toman su tenedor izquierdo **a la vez**, cada uno espera el derecho, que tiene su vecino. Nadie suelta nada: el programa se cuelga.
+
+Lo ejecutamos 200 veces (con un límite de 2 s por corrida):
+
+| Versión | Corridas colgadas |
+|---|---|
+| código de clase (con `cout` en `think` y `eat`) | 4 / 200 |
+| mismo código sin los `cout` | **144 / 200** |
+| con la solución de abajo | **0 / 200** |
+
+Los `cout` hacen que los hilos se desfasen, y eso **esconde** el error casi siempre. Es lo típico de los errores de concurrencia: el programa "funciona" al probarlo y falla en otro momento.
+
+### La solución: orden global de los locks
+
+Para que haya deadlock tiene que existir una **espera circular** (F0 espera a F1, que espera a F2… que espera a F0). Se rompe si todos toman los tenedores **en el mismo orden global**: primero el de **menor número**.
+
+```cpp
+int a = std::min(left, right), b = std::max(left, right);
+omp_set_lock(&forks[a]);
+omp_set_lock(&forks[b]);
+eat(id);
+omp_unset_lock(&forks[a]);
+omp_unset_lock(&forks[b]);
+```
+
+Para F0…F3 no cambia nada (izquierdo < derecho). Solo **F4** cambia: pide el tenedor **0** antes que el 4. Si F0 ya tiene el 0, F4 espera **sin tener ninguno**, así que F3 puede tomar el 4 y comer: el círculo no se cierra.
+
+Otras soluciones válidas: que **un** filósofo tome primero el derecho, o dejar sentarse a lo más N − 1 a la vez.
+
+## Ejercicio
+
+En el histograma con un lock por bin, ¿qué pasa con el rendimiento si todos los datos caen en el **mismo** bin?
+
+<Solucion>
+
+Todos los hilos piden **el mismo** lock en cada iteración, así que hacen fila igual que con `critical`: el bucle queda secuencial, y además paga el costo de `omp_set_lock`/`omp_unset_lock`. Los locks por bin solo ayudan cuando los datos se **reparten** entre muchos bins. Si hay pocos bins o los datos están muy concentrados, conviene un histograma **local por hilo** y fusionar al final (ver el [simulacro de la PC4](/final/openmp-avanzado/simulacro-pc4/)).
+
+</Solucion>
+
+<Quiz
+	client:visible
+	id="omp-locks"
+	preguntas={[
+		{ q: '¿Qué hace `omp_set_lock(&l)` si otro hilo ya tiene `l`?', opts: ['falla y sigue', 'espera hasta que lo liberen y luego lo toma', 'lo libera', 'lanza una excepción'], ok: 1 },
+		{ q: 'Dos `#pragma omp critical` sin nombre en partes distintas del código…', opts: ['usan candados independientes', 'comparten el mismo candado', 'son inválidos', 'se convierten en atomic'], ok: 1 },
+		{ q: '¿Por qué un arreglo de locks es mejor que critical para el histograma?', opts: ['porque es más corto', 'porque solo esperan los hilos que van al mismo bin', 'porque no necesita init', 'porque evita el deadlock'], ok: 1 },
+		{ q: 'En el código de los filósofos de clase, el deadlock ocurre cuando…', opts: ['un filósofo come dos veces', 'todos toman el tenedor izquierdo a la vez y esperan el derecho', 'N es par', 'se usa omp_unset_lock'], ok: 1 },
+		{ q: 'Tomar siempre primero el tenedor de menor número evita el deadlock porque…', opts: ['hace los locks más rápidos', 'rompe la espera circular', 'reduce el número de hilos', 'usa atomic'], ok: 1 },
+		{ q: 'Con 8 hilos y 10⁵ incrementos cada uno, la versión más rápida medida fue…', opts: ['lock', 'critical', 'atomic', 'las tres igual'], ok: 2 },
+	]}
+/>
+
+<Fuente archivos={['U4.4 Paralelismo compartido-OMP.pdf (láminas 12–21)', 'semana_10/teoria/ejemplo02_suma_prod_critical.cpp', 'semana_10/teoria/ejemplo03_atomic.cpp', 'semana_10/teoria/ejemplo03_critical.cpp', 'semana_10/teoria/ejemplo03_lock.cpp', 'semana_10/teoria/ejemplo04_filosofos.cpp']} />

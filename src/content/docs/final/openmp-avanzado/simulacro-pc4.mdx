@@ -1,0 +1,246 @@
+---
+title: Simulacro PC4 — histograma y Monte Carlo
+description: Los dos ejercicios del simulacro de la PC4 resueltos y medidos — histograma con critical, atomic y reduction de arreglos; y Monte Carlo del palo roto con rand_r, atomic vs reduction, speedup y GFLOP/s.
+---
+import BrokenStick from '../../../../components/playgrounds/BrokenStick.tsx';
+import EnSimple from '../../../../components/EnSimple.astro';
+import Quiz from '../../../../components/Quiz.tsx';
+import Solucion from '../../../../components/Solucion.astro';
+import Fuente from '../../../../components/Fuente.astro';
+
+<EnSimple>
+Los dos ejercicios tienen la misma estructura: un bucle grande donde cada vuelta es independiente, **salvo** porque todas suman en los mismos contadores. La pregunta siempre es: **¿cómo junto los contadores sin que los hilos se pisen ni hagan fila?**
+
+- **critical / atomic** en cada vuelta: correcto, pero los hilos compiten por el mismo dato.
+- **contador privado + combinar al final** (a mano o con `reduction`): correcto y casi sin competencia. Es la respuesta que hay que dar.
+</EnSimple>
+
+:::note[Sobre este simulacro]
+El enunciado no está en el material; los ejercicios se deducen del código de la sesión (`sesiona/sim_pc4/`). Todos los programas se compilaron con `g++ -O2 -fopenmp` y se ejecutaron en un procesador de 8 núcleos / 12 hilos. Los tiempos son reales, pero van a cambiar en tu máquina.
+:::
+
+## Ejercicio 1 — Histograma
+
+**Tarea:** contar cuántos de N valores enteros (en `[0, B−1]`) caen en cada bin, en paralelo.
+
+```cpp title="sim_pc4/ejercicio01_sec.cpp — bucle secuencial"
+for (long long i = 0; i < N; ++i) {
+    uint32_t bin = data[i];
+    hist[bin] += 1;
+}
+```
+
+El problema al paralelizar: dos hilos con el mismo `bin` hacen `hist[bin] += 1` a la vez y se pierde una cuenta (ver el [histograma con locks](/final/openmp-avanzado/locks/#histograma-el-caso-donde-los-locks-brillan)). Las tres versiones del simulacro usan la misma idea: **histograma local por hilo**, y cambian solo cómo se **fusiona**.
+
+```cpp title="sim_pc4/ejercicio01_critical.cpp" {3,6-7}
+#pragma omp parallel
+{
+    std::vector<long long> local(B, 0);         // privado: declarado dentro
+    #pragma omp for schedule(static)
+    for (long long i = 0; i < N; ++i)
+        local[data[i]] += 1;                     // sin sincronización
+    #pragma omp critical                         // UNA vez por hilo
+    {
+        for (int b = 0; b < B; ++b)
+            hist[b] += local[b];
+    }
+}
+```
+
+```cpp title="sim_pc4/ejercicio01_atomic.cpp — fusión"
+for (int b = 0; b < B; ++b) {
+    if (local[b] != 0) {
+        #pragma omp atomic update
+        hist[b] += local[b];                     // un atomic por bin y por hilo
+    }
+}
+```
+
+```cpp title="sim_pc4/ejercicio01_reduction.cpp"
+long long* H = hist.data();
+#pragma omp parallel for schedule(static) reduction(+:H[:B])
+for (long long i = 0; i < N; ++i)
+    H[D[i]] += 1;                                // copia privada de H[0..B-1] por hilo
+```
+
+`reduction(+:H[:B])` es una **reducción de sección de arreglo** (OpenMP 4.5 o más): cada hilo recibe una copia de `H[0..B−1]` inicializada en 0 y al final OpenMP las suma elemento por elemento. Es exactamente la versión "local + fusión", escrita en una línea. Necesita un **puntero** (`hist.data()`): no acepta un `std::vector` directamente.
+
+### Resultados medidos (N = 2·10⁷, B = 256)
+
+| Versión | 1 hilo | 2 hilos | 4 hilos | 8 hilos |
+|---|---|---|---|---|
+| secuencial | 0.0098 s | | | |
+| local + `critical` | 0.0118 s | 0.0060 s | 0.0041 s | 0.0138 s |
+| local + `atomic` | 0.0092 s | 0.0061 s | 0.0041 s | 0.0078 s |
+| `reduction(+:H[:B])` | 0.0111 s | 0.0049 s | 0.0040 s | 0.0079 s |
+
+Las tres dan `total = 20000000` ✓.
+
+Cómo leerlo:
+
+- Las tres versiones rinden **casi igual**: la fusión se hace **una vez por hilo** (B = 256 sumas), un trabajo mínimo frente a los 2·10⁷ del bucle.
+- El speedup máximo es ≈ 2.4× (0.0098 / 0.0040) con 4 hilos, **no** 4×. El bucle hace una suma por dato leído: está limitado por el **ancho de banda de memoria**, no por la CPU.
+- Con 8 hilos empeora: el trabajo total dura milisegundos y crear y sincronizar 8 hilos ya pesa. Con `critical`, además, 8 hilos hacen fila para fusionar.
+- Con B = 65 536 bins (4 hilos): critical 0.0082 s, atomic 0.0070 s, reduction 0.0065 s. Ahora la fusión es más grande y `critical`, que la serializa entera, es el más lento.
+
+:::caution[Lo que NO hay que hacer]
+`#pragma omp critical` o `#pragma omp atomic` **dentro** del bucle de los N datos. Es correcto, pero son 2·10⁷ operaciones sincronizadas en vez de 256 por hilo.
+:::
+
+## Ejercicio 2 — Monte Carlo: el palo roto
+
+**Tarea:** se rompe un palo de largo 1 en dos puntos al azar. Estimar:
+
+- P(los 3 trozos forman un triángulo);
+- P(el triángulo es obtuso).
+
+Para cada intento: `u, v` uniformes; `x = min(u,v)`, `y = max(u,v)`; lados `a = x`, `b = y − x`, `c = 1 − y`.
+
+- **Forma triángulo** si el lado mayor es **< 0.5** (desigualdad triangular: cada lado menor que la suma de los otros dos, y la suma total es 1).
+- **Es obtuso** si `2·max(a², b², c²) > a² + b² + c²`, o sea, el cuadrado del lado mayor supera la suma de los otros dos (teorema de Pitágoras).
+
+<BrokenStick client:visible />
+
+Valores teóricos: P(triángulo) = 1/4 y P(obtuso) = 9/4 − 3·ln 2 ≈ 0.1706. Condicionado a formar triángulo: ≈ 0.6822.
+
+### El generador aleatorio: `rand()` vs `rand_r`
+
+```cpp title="sim_pc4/ejercicio02_sec2.cpp (secuencial)"
+srand(seed);
+for (uint64_t i = 0; i < N; ++i) {
+    double u = (double)rand() / RAND_MAX;
+    double v = (double)rand() / RAND_MAX;
+    ...
+}
+```
+
+`rand()` guarda su estado en una variable **global**. Si varios hilos lo llaman a la vez, o compiten por ese estado (lento) o lo corrompen (los números dejan de ser independientes). Por eso la versión paralela usa **`rand_r(&seed)`**, que guarda el estado en una variable **privada** de cada hilo:
+
+```cpp title="sim_pc4/ejercicio02_par2_reduction.cpp" {4,6,8-9,14,18}
+#pragma omp parallel
+{
+    int tid = omp_get_thread_num();
+    unsigned int seed = base_seed ^ (1664525u * (unsigned)(tid + 1) + 1013904223u);   // semilla distinta por hilo
+
+    #pragma omp for schedule(static) reduction(+:tri_cnt, obt_cnt)
+    for (std::int64_t i = 0; i < (std::int64_t)N; ++i) {
+        double u = (double)rand_r(&seed) / (RAND_MAX + 1.0);
+        double v = (double)rand_r(&seed) / (RAND_MAX + 1.0);
+        double x = (u < v ? u : v), y = (u < v ? v : u);
+        double a = x, b = y - x, c = 1.0 - y;
+        double smax = std::max(a, std::max(b, c));
+        if (smax < 0.5) {
+            ++tri_cnt;
+            double q1 = a*a, q2 = b*b, q3 = c*c;
+            double S = q1 + q2 + q3;
+            double qmax = std::max(q1, std::max(q2, q3));
+            if (qmax + qmax > S) ++obt_cnt;
+        }
+    }
+}
+```
+
+La semilla se calcula con `tid` para que cada hilo genere **otra** secuencia. Si todos usaran la misma semilla, los 8 hilos generarían los mismos números: estarías haciendo N/8 intentos distintos repetidos 8 veces.
+
+La versión `par2_atomic` es igual, pero sin `reduction` y con `#pragma omp atomic` antes de `++tri_cnt` y de `++obt_cnt`.
+
+### Resultados medidos (N = 10⁸, semilla 42)
+
+| Versión | 1 hilo | 2 hilos | 4 hilos | 8 hilos | Speedup con 8 |
+|---|---|---|---|---|---|
+| secuencial con `rand()` | 2.84 s | | | | |
+| `par` (`rand_r` + reduction) | 1.69 s | 0.87 s | 0.52 s | 0.26 s | 6.4× |
+| `par2_atomic` | 1.67 s | 1.07 s | 0.92 s | 0.87 s | **1.9×** |
+| `par2_reduction` | 1.60 s | 0.79 s | 0.44 s | **0.24 s** | **6.7×** |
+
+(El speedup se mide contra la misma versión con 1 hilo.)
+
+Estimaciones obtenidas: P(triángulo) ≈ 0.2500, P(obtuso) ≈ 0.1706, P(obtuso | triángulo) ≈ 0.6823, iguales a la teoría hasta la 4.ª cifra.
+
+Qué hay que ver en la tabla:
+
+1. **`atomic` no escala**: ≈ 1/4 de los intentos hacen `++tri_cnt` atómico y ≈ 17 % además `++obt_cnt`. Son ~4·10⁷ operaciones atómicas sobre **los mismos dos contadores**: la línea de caché que los contiene salta de núcleo en núcleo. Con 8 hilos solo se gana 1.9×.
+2. **`reduction` escala casi lineal**: cada hilo cuenta en su copia privada y se combinan solo 2 × 8 valores al final.
+3. **El secuencial con `rand()` es más lento que el paralelo con 1 hilo** (2.84 s vs 1.60 s): `rand()` es más costoso que `rand_r`. Si calculas el speedup contra 2.84 s, sale 11.9× con 8 hilos, un número **inflado**. Compara siempre contra la mejor versión secuencial o contra la misma versión con 1 hilo, y di cuál usaste.
+4. `par2_atomic` y `par2_reduction` dan **exactamente** las mismas probabilidades con el mismo número de hilos (por ejemplo, 0.250037 con 2 hilos): usan las mismas semillas y `schedule(static)`, así que cada hilo procesa los mismos intentos. Buena forma de validar.
+
+### FLOPs y GFLOP/s
+
+El código cuenta **8 FLOPs por intento** (solo la geometría; el generador aleatorio no se cuenta):
+
+```
+FLOPs  = 8 · N
+GFLOP/s = 8 · N / (tiempo · 10^9)
+```
+
+Con N = 10⁸ y 8 hilos (reduction): 8·10⁸ / (0.24 · 10⁹) ≈ **3.3 GFLOP/s**. Con 1 hilo: ≈ 0.50 GFLOP/s.
+
+:::caution[El código secuencial no compila tal cual]
+`ejercicio02_sec.cpp` y `ejercicio02_sec2.cpp` usan `std::max({a, b, c})` (con llaves), que está en `<algorithm>`, pero no lo incluyen. Con g++ da `no matching function for call to 'max(<brace-enclosed initializer list>)'`. Se arregla con `#include <algorithm>`. Las versiones paralelas sí compilan porque usan `std::max(a, std::max(b, c))` o `<bits/stdc++.h>`. *(Observación propia.)*
+:::
+
+## Preguntas tipo PC4
+
+**1.** En el histograma, ¿por qué la versión `critical` del simulacro no es lenta, si `critical` es "lento"?
+
+<Solucion>
+
+Porque el `critical` está **fuera** del bucle de N datos: cada hilo entra **una sola vez** a fusionar su histograma local. Con T hilos son T entradas, no N. Lo lento es poner `critical` dentro del bucle.
+
+</Solucion>
+
+**2.** Escribe la versión del Monte Carlo con `atomic` y explica por qué escala peor que la de `reduction`.
+
+<Solucion>
+
+```cpp
+#pragma omp for schedule(static)
+for (int64_t i = 0; i < N; ++i) {
+    ...
+    if (smax < 0.5) {
+        #pragma omp atomic
+        ++tri_cnt;
+        ...
+        if (qmax + qmax > S) {
+            #pragma omp atomic
+            ++obt_cnt;
+        }
+    }
+}
+```
+
+Cada `atomic` es una operación indivisible sobre una variable **compartida**. Con N = 10⁸ hay unas 4·10⁷ de ellas sobre los mismos dos contadores, y todos los núcleos se disputan esa línea de caché. Con `reduction`, cada hilo usa su copia privada (en su propia caché) y solo hay 2·T combinaciones al final. Medido: 1.9× contra 6.7× con 8 hilos.
+
+</Solucion>
+
+**3.** ¿Qué pasa si en la versión paralela se usa `rand()` en vez de `rand_r`?
+
+<Solucion>
+
+`rand()` no es seguro para hilos (*thread-safe*): todos comparten un estado global. Según la implementación, o se protege con un candado interno (los hilos hacen fila y se pierde el speedup) o hay una condición de carrera sobre el estado (secuencias repetidas o correlacionadas, y la estimación pierde calidad). Hay que usar un generador con estado **privado por hilo** (`rand_r(&seed)`, o `std::mt19937` declarado dentro de la región paralela) con una semilla distinta por hilo.
+
+</Solucion>
+
+**4.** Con N = 10⁸, 8 hilos y 0.24 s, ¿cuántos GFLOP/s se obtienen si cada intento cuesta 8 FLOPs? ¿Y la eficiencia, si con 1 hilo tardó 1.60 s?
+
+<Solucion>
+
+GFLOP/s = 8 · 10⁸ / (0.24 · 10⁹) ≈ 3.33.
+
+S = 1.60 / 0.24 ≈ 6.67 y E = S / p = 6.67 / 8 ≈ 0.83 (83 %).
+
+</Solucion>
+
+<Quiz
+	client:visible
+	id="sim-pc4"
+	preguntas={[
+		{ q: '`reduction(+:H[:B])` en el histograma significa…', opts: ['un solo contador H', 'cada hilo tiene su copia de H[0..B−1] y al final se suman elemento a elemento', 'que H se protege con critical', 'que H es firstprivate'], ok: 1 },
+		{ q: 'En el Monte Carlo con 8 hilos, ¿cuál escaló mejor?', opts: ['atomic', 'reduction', 'critical', 'las tres igual'], ok: 1 },
+		{ q: '¿Por qué cada hilo usa una semilla distinta en rand_r?', opts: ['para que sea más rápido', 'para que cada hilo genere una secuencia distinta y no repita los mismos intentos', 'porque rand_r lo exige', 'para usar atomic'], ok: 1 },
+		{ q: 'El trozo mayor mide 0.55. ¿Se forma triángulo?', opts: ['sí', 'no, el lado mayor debe ser < 0.5', 'solo si es obtuso', 'depende de u'], ok: 1 },
+		{ q: 'El histograma con 4 hilos solo acelera ≈ 2.4×. La causa principal es…', opts: ['el critical', 'que el bucle está limitado por ancho de banda de memoria', 'el generador aleatorio', 'que B es muy grande'], ok: 1 },
+	]}
+/>
+
+<Fuente archivos={['semana_10/sesiona/sim_pc4/ejercicio01_sec.cpp', 'ejercicio01_critical.cpp', 'ejercicio01_atomic.cpp', 'ejercicio01_reduction.cpp', 'ejercicio02_sec.cpp', 'ejercicio02_sec2.cpp', 'ejercicio02_par.cpp', 'ejercicio02_par2_atomic.cpp', 'ejercicio02_par2_reduction.cpp']} />

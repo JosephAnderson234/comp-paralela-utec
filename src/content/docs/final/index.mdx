@@ -20,14 +20,15 @@ Objetivos que da el profesor en las láminas de U4:
 | 2 | Blocking vs non-blocking | [Bloqueante vs no bloqueante](/mpi/bloqueante/) (del parcial) |
 | 3 | Tipos MPI | [Tipos derivados](/mpi/tipos-derivados/) (del parcial) |
 | 4 | **Memoria compartida: OpenMP, constructores y cláusulas** | **Nuevo** — páginas de abajo |
-| 5 | Programación híbrida | ⏳ aún no hay material: se agregará cuando llegue |
+| 5 | **Programación híbrida** | **Nuevo** — [MPI + OpenMP](/final/hibrido/mpi-openmp/) · [Dominio y halos](/final/hibrido/dominio-halos/) |
 
 ## Avance por semana
 
 | Semana | Material | Estado |
 |---|---|---|
 | 9 | U4.1, U4.2, U4.3 Paralelismo compartido (OpenMP) + 12 programas de clase | ✅ agregado |
-| 10 en adelante | — | ⏳ pendiente |
+| 10 | U4.4 OpenMP (modelo de memoria, locks), U4.5 Paralelismo híbrido + 7 programas de teoría + simulacro PC4 (9 programas) | ✅ agregado |
+| 11 en adelante | — | ⏳ pendiente |
 
 ## OpenMP (semana 9)
 
@@ -42,7 +43,22 @@ Objetivos que da el profesor en las láminas de U4:
 </CardGrid>
 
 :::note[Sobre el código]
-Todos los programas de la semana 9 se compilaron con `g++ -fopenmp` y se ejecutaron con 4 hilos; las salidas que aparecen en estas páginas son reales. Donde un ejemplo de clase tiene un detalle que puede fallar (variables sin inicializar o compartidas por error), está marcado como *observación propia*.
+Todos los programas de las semanas 9 y 10 se compilaron con `g++ -fopenmp` (los híbridos con `mpicc -fopenmp`) y se ejecutaron; las salidas que aparecen en estas páginas son reales. Donde un ejemplo de clase tiene un detalle que puede fallar (variables sin inicializar o compartidas por error), está marcado como *observación propia*.
 :::
 
-<Fuente archivos={['U4.1 Paralelismo compartido-OMP.pdf (objetivos)', 'U4.2 Paralelismo compartido-OMP.pdf (objetivos)', 'semana_9/']} />
+## OpenMP: memoria y locks (semana 10)
+
+<CardGrid>
+	<LinkCard title="¿Puede fallar el assert? Modelo de memoria" href="/final/openmp-avanzado/modelo-memoria/" description="Intercalados, reordenamiento del compilador (lo probamos: falla con -O2), data race, happens-before." />
+	<LinkCard title="critical, locks y filósofos" href="/final/openmp-avanzado/locks/" description="omp_lock_t, critical vs atomic vs lock medidos, histograma con un lock por bin, deadlock." />
+	<LinkCard title="Simulacro PC4" href="/final/openmp-avanzado/simulacro-pc4/" description="Histograma (critical, atomic, reduction de arreglos) y Monte Carlo del palo roto, resueltos y medidos." />
+</CardGrid>
+
+## Paralelismo híbrido (semana 10)
+
+<CardGrid>
+	<LinkCard title="MPI + OpenMP" href="/final/hibrido/mpi-openmp/" description="Por qué combinar, ventajas y desventajas, peekaboo, procesos × hilos por nodo, Slurm en Khipu." />
+	<LinkCard title="Descomposición de dominio y halos" href="/final/hibrido/dominio-halos/" description="Cuánto halo hay en 2D y 3D, por qué el híbrido ahorra memoria, Poisson 3D con Jacobi." />
+</CardGrid>
+
+<Fuente archivos={['U4.1 Paralelismo compartido-OMP.pdf (objetivos)', 'U4.2 Paralelismo compartido-OMP.pdf (objetivos)', 'semana_9/', 'U4.4 Paralelismo compartido-OMP.pdf', 'U4.5 Paralelismo-hibrido.pdf', 'semana_10/']} />
