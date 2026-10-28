@@ -1,0 +1,137 @@
+---
+title: "Ordenamiento: bases y ranking"
+description: "Complejidad de los ordenamientos secuenciales (con la tabla de la lámina corregida), comparar-intercambiar entre procesos, p < n con comparar-dividir, y el ordenamiento por ranking en PRAM."
+---
+import U5Fig from '../../../../components/U5Fig.astro';
+import EnSimple from '../../../../components/EnSimple.astro';
+import Quiz from '../../../../components/Quiz.tsx';
+import Solucion from '../../../../components/Solucion.astro';
+import Fuente from '../../../../components/Fuente.astro';
+
+<EnSimple>
+Ordenar en paralelo es como ordenar un mazo de cartas entre varias personas. Cada persona ordena su montón (cómputo local), pero después hay que **juntar** los montones y eso obliga a pasarse cartas (comunicación).
+
+La operación básica es "**tú y yo comparamos y nos quedamos uno con la menor y otro con la mayor**". Todos los algoritmos de esta unidad (bitónico, odd-even, quicksort paralelo) son formas de organizar muchas de esas comparaciones **a la vez**.
+</EnSimple>
+
+## Secuencial: el piso es O(n log n) (láminas 3–5)
+
+Cualquier algoritmo que ordena **comparando pares** necesita Ω(n log n) comparaciones en el peor caso. Hay algoritmos O(n) en casos especiales: bubble sort con una entrada ya ordenada, o los que **no comparan**, como counting sort o radix sort (*conocimiento general*).
+
+Además del orden importan la **constante** c en O(c·n log n), el **espacio extra** y la **estabilidad**: un ordenamiento es estable si los elementos iguales mantienen su orden original.
+
+:::caution[La tabla de la lámina 5 tiene filas corridas]
+En la lámina, las etiquetas de heapsort, mergesort y quicksort quedaron desplazadas una fila respecto a sus valores. Además, selection sort aparece como estable. La versión correcta (conocimiento estándar de algoritmos):
+
+| Algoritmo | Promedio | Mejor | Peor | Estable | Espacio extra |
+|---|---|---|---|---|---|
+| Bubble sort | O(n²) | O(n) | O(n²) | sí | O(1) |
+| Selection sort | O(n²) | O(n²) | O(n²) | **no** (versión en arreglo) | O(1) |
+| Insertion sort | O(n²) | O(n) | O(n²) | sí | O(1) |
+| Heapsort | O(n log n) | O(n log n) | O(n log n) | **no** | O(1) |
+| Mergesort | O(n log n) | O(n log n) | **O(n log n)** | **sí** | O(n) |
+| Quicksort | O(n log n) | O(n log n) | **O(n²)** | **no** | O(log n) de pila |
+
+Si te preguntan qué algoritmo tiene peor caso O(n²) entre los O(n log n) promedio, es **quicksort** (no mergesort, como parece en la lámina).
+:::
+
+## Paralelo con p = n: la meta es O(log n) (lámina 6)
+
+Con n procesadores, un algoritmo **óptimo en costo** cumpliría p·T<sub>p</sub> = n·log n, o sea **T<sub>p</sub> = O(log n)**. Existe (redes AKS, el merge óptimo de Cole), pero las constantes son enormes. En la práctica se usan algoritmos con **O(log² n)**: bitónico, odd-even mergesort y quicksort paralelo.
+
+## La operación básica: comparar-intercambiar (láminas 7–8)
+
+<U5Fig fig="cmpx">
+**Cómo leerlo:** en el **caso 1** solo P2 compara y devuelve el menor, así que son 2 mensajes uno detrás del otro y P1 espera. En el **caso 2** los dos se envían su valor **a la vez** y cada uno calcula: P1 se queda con el mínimo y P2 con el máximo. Se calcula el doble, pero tarda la mitad en comunicación. Es el patrón que se usa en las redes de ordenamiento.
+</U5Fig>
+
+En MPI el caso 2 es un `MPI_Sendrecv`:
+
+```cpp
+MPI_Sendrecv(&mio, 1, MPI_INT, socio, 0, &otro, 1, MPI_INT, socio, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+mio = (rank < socio) ? std::min(mio, otro) : std::max(mio, otro);
+```
+
+### Con p < n: comparar-dividir (láminas 9–11)
+
+Cada proceso tiene un **bloque** de n/p elementos ya ordenado localmente, en tiempo O((n/p) log(n/p)). En lugar de intercambiar 1 valor, los dos socios intercambian **bloques completos**, los mezclan (O(n/p)), y el de rango menor se queda con la mitad **pequeña** y el otro con la **grande**. Por eso el tiempo total tiene esta forma:
+
+**T<sub>par</sub> = O( (n/p)·log(n/p) ) + T<sub>comm</sub>**
+
+Cada comparar-dividir cuesta t<sub>s</sub> + (n/p)·t<sub>w</sub> en comunicación y O(n/p) en mezcla.
+
+## Ordenamiento por ranking (láminas 12–15)
+
+**Idea:** la posición final de un elemento es "**cuántos elementos son menores o iguales que él**". Si cada elemento conoce su rango, se escribe directo en su lugar. Supongamos que no hay elementos repetidos.
+
+### Algoritmo 1: n² procesadores (PRAM)
+
+```
+forall (i, j) pardo:   B[i, j] := (A[i] ≥ A[j])      // 1 paso, n² procesadores
+forall i pardo:        M[i] := Σ_j B[i, j]            // suma en árbol: O(log n)
+```
+
+**Ejemplo propio:** A = [5, 2, 8, 1].
+
+| i | A[i] | B[i, ·] (≥ 5, 2, 8, 1) | M[i] = rango |
+|---|---|---|---|
+| 1 | 5 | 1 1 0 1 | 3 |
+| 2 | 2 | 0 1 0 1 | 2 |
+| 3 | 8 | 1 1 1 1 | 4 |
+| 4 | 1 | 0 0 0 1 | 1 |
+
+Se escribe A[i] en la posición M[i] y queda [1, 2, 5, 8].
+
+- **Span T = O(log n):** las comparaciones son 1 paso y la suma de n bits es una reducción en árbol.
+- **Trabajo W = O(n²):** muchísimo más que n log n. Es "rápido pero poco eficiente" (lámina 12). No es óptimo en costo: la eficiencia respecto al secuencial es (n log n)/(n² log n) → 0.
+- Lectura **concurrente**: cada A[i] lo leen n procesadores a la vez, así que el modelo es **CREW**.
+
+### Algoritmo 2: p procesos en una malla √p × √p (láminas 13–15)
+
+Cada proceso (i, j) tiene n/p elementos. Pasos: (1) *gossip* por columna (todos los de una columna juntan sus datos), (2) *broadcast* por fila, (3) cada proceso ordena lo recibido y calcula el rango de sus elementos en ese trozo, (4) se **reducen** (suman) los rangos por fila. El costo:
+
+**T<sub>p</sub>(n, p) = O( log p · (α + β·n/p) + T<sub>compr</sub>·(n/p)·log(n/p) )**
+
+Aquí **α** es la latencia por mensaje y **β** el tiempo por elemento enviado.
+
+<Solucion titulo="Ejemplo de la lámina 15: p = 1024, α = 10⁻⁵ s, β = 10⁻⁸ s, T_compr = 10⁻⁸ s, n/p = 32">
+**Comunicación:** log₂ p = 10, así que 10 · (10⁻⁵ + 32·10⁻⁸) = 10 · 1.032·10⁻⁵ ≈ **1.03·10⁻⁴ s**.
+
+**Cómputo:** (n/p)·log₂(n/p)·T<sub>compr</sub> = 32 · 5 · 10⁻⁸ = **1.6·10⁻⁶ s**.
+
+La comunicación es ≈ **65 veces** el cómputo: con bloques tan pequeños (32 elementos) domina la **latencia α**.
+
+*Nota:* la lámina da k₁·0.0000357 + k₂·0.0000011 s. Esos números salen al usar ln 32 ≈ 3.47 en **los dos** términos (3.47 · 1.032·10⁻⁵ = 3.57·10⁻⁵ y 32 · 3.47 · 10⁻⁸ = 1.1·10⁻⁶). Con log p en el término de comunicación sale 1.03·10⁻⁴. La conclusión es la misma en los dos casos: **domina la comunicación**.
+</Solucion>
+
+## Práctica
+
+**1.** Con el algoritmo 1 y n = 1024, ¿cuántos procesadores hacen falta, cuál es el span y cuál el trabajo? Compáralo con un mergesort secuencial.
+
+<Solucion>
+p = n² = **1 048 576** procesadores. Span ≈ 1 + log₂ 1024 = **11 pasos**. Trabajo ≈ n² + n·log n ≈ 1 048 576 + 10 240 ≈ **1.06·10⁶ operaciones**.
+
+Un mergesort secuencial hace ≈ n·log₂ n = **10 240** comparaciones. El ranking hace ≈ 100 veces más trabajo para ganar velocidad.
+
+Por Brent, con solo p = 1024 procesadores reales: T ≈ W/p + T∞ ≈ 1034 + 11 ≈ **1045 pasos**. Le gana al secuencial (10 240), pero un algoritmo óptimo en costo tardaría ≈ 10 240/1024 ≈ **10 pasos**. El speedup es ≈ 10 con 1024 procesadores, es decir, E ≈ 1 %.
+</Solucion>
+
+**2.** En un comparar-dividir con bloques de n/p = 4: P0 tiene [1, 6, 9, 12] y P1 tiene [3, 4, 10, 15]. ¿Con qué se queda cada uno?
+
+<Solucion>
+Al mezclar se obtiene [1, 3, 4, 6, 9, 10, 12, 15]. **P0** (el menor) se queda con la mitad baja **[1, 3, 4, 6]** y **P1** con la alta **[9, 10, 12, 15]**. Cada uno sigue ordenado localmente.
+</Solucion>
+
+<Quiz
+	client:visible
+	id="u5-sort-bases"
+	preguntas={[
+		{ q: '¿Cuál tiene peor caso O(n²)?', opts: ['mergesort', 'heapsort', 'quicksort', 'ninguno de los O(n log n) promedio'], ok: 2 },
+		{ q: '¿Cuál es estable?', opts: ['heapsort', 'quicksort', 'mergesort', 'selection sort (en arreglo)'], ok: 2 },
+		{ q: 'En el comparar-intercambiar "caso 2", ¿qué ventaja tiene sobre el caso 1?', opts: ['menos cálculo', 'los dos mensajes van a la vez (menos tiempo de comunicación)', 'no necesita MPI', 'es estable'], ok: 1 },
+		{ q: 'El ranking con n² procesadores tiene…', opts: ['T = O(1), W = O(n)', 'T = O(log n), W = O(n²)', 'T = O(n), W = O(n log n)', 'T = O(log² n), W = O(n log n)'], ok: 1 },
+		{ q: 'En el ejemplo de la lámina 15 (n/p = 32), ¿qué domina?', opts: ['el cómputo local', 'la comunicación (latencia α)', 'son iguales', 'la memoria'], ok: 1 },
+	]}
+/>
+
+<Fuente archivos={['U5.2 Algoritmos-ordenamiento.pdf (láminas 3–15)']} />

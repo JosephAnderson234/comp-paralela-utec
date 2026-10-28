@@ -1,0 +1,165 @@
+---
+title: Quicksort paralelo y Hyksort
+description: "Quicksort secuencial, la versión PRAM + comunicación con suma de prefijos (n = p), la recurrencia T(p) = T(p/2) + log p, el caso n > p, Hyksort, y un quicksort con OpenMP tasks medido."
+---
+import U5Fig from '../../../../components/U5Fig.astro';
+import EnSimple from '../../../../components/EnSimple.astro';
+import Quiz from '../../../../components/Quiz.tsx';
+import Solucion from '../../../../components/Solucion.astro';
+import Fuente from '../../../../components/Fuente.astro';
+
+<EnSimple>
+Quicksort: eliges un **pivote** y separas en "menores que él" y "mayores que él". Luego repites con cada lado.
+
+En paralelo, cada procesador tiene un número. Todos miran el pivote y levantan la mano si su número es menor o igual. Con una **suma de prefijos** (la misma del PRAM del parcial), cada uno sabe "soy el 3.º que levantó la mano" y por tanto **a qué posición mudarse**. Después, la mitad izquierda de los procesadores y la derecha siguen **por separado**, cada una con su propio pivote.
+</EnSimple>
+
+## Quicksort secuencial (láminas 16–17)
+
+```
+QS(d[], p):
+    if p == 1: return
+    k = selecciona_pivote(d, v)         // reordena: d[0..k-1] < v = d[k] < d[k+1..p-1]
+    QS(d[0 .. k-1],   k)
+    QS(d[k+1 .. p-1], p-k-1)
+```
+
+- Caso promedio O(n log n). Peor caso **O(n²)**, cuando el pivote siempre queda en un extremo (por ejemplo, el primer elemento con la entrada ya ordenada).
+- Es *divide y vencerás* (repasa [N-Body y D&V](/diseno/nbody-dyv/)): las dos llamadas recursivas son **independientes**, así que en paralelo se pueden lanzar como dos tareas.
+
+## Quicksort PRAM + comunicación, n = p (láminas 19–20)
+
+Cada proceso i tiene **un** elemento d. Con un pivote al azar:
+
+```
+QS(d, i, p):
+    if p == 1: return
+    j  := random(0, p-1);   v := d_j            // pivote
+    Broadcast v
+    flag := (d ≤ v)
+    j  := Σ_{k=0..i} flag_k                     // suma de prefijos (inclusiva)
+    p' := j_{p-1}                               // cuántos son ≤ v
+    Broadcast p'
+    if flag: send d to j - 1                    // los ≤ v se compactan a la izquierda
+    else:    send d to p' + i - j               // los > v a la derecha, en orden
+    receive d
+    if i < p': QS(d, i, p')                     // partición izquierda
+    else:      QS(d, i - p', p - p')            // partición derecha
+```
+
+<U5Fig fig="qspar">
+**Cómo leerlo (ejemplo propio con 8 procesos):** el pivote es v = 4 (proceso 3). Los procesos con d ≤ 4 (celestes) toman destino j − 1: 0, 1, 2, 3. Los demás (naranjas) van a p′ + i − j: 4, 5, 6, 7. Quedan 4 procesos con {2, 4, 1, 3} y 4 con {7, 9, 8, 6}, y cada mitad repite el algoritmo por separado. El orden relativo dentro de cada lado se mantiene, porque la suma de prefijos preserva el orden.
+</U5Fig>
+
+### Por qué T<sub>p</sub> = O(log² p)
+
+Cada nivel hace un broadcast, una suma de prefijos y otro broadcast, cada uno de O(log p) pasos. Más un envío (O(1)). Si el pivote divide a la mitad (es lo esperado con pivote al azar), la recursión es:
+
+T(p) = T(p/2) + c·log p
+
+Expandiendo:
+
+T(p) = c·[log p + log(p/2) + log(p/4) + … + log 2] = c·[log p + (log p − 1) + … + 1] = c · (log p)(log p + 1)/2
+
+Por tanto **T(p) = O(log² p)**.
+
+Comprobación con p = 8: log 8 + log 4 + log 2 = 3 + 2 + 1 = 6 = 3·4/2 ✓.
+
+:::caution[Supuesto que hay que declarar]
+O(log² p) es el **caso esperado**. Si el pivote cae siempre en un extremo, la recursión es T(p) = T(p − 1) + log p = O(p log p), igual que el peor caso del secuencial. Por eso el pivote se elige **al azar** (o como mediana de una muestra).
+:::
+
+## Caso n > p (lámina 21)
+
+Cada proceso tiene n/p elementos:
+
+1. **Ordenar localmente:** O((n/p) log(n/p)).
+2. En cada uno de los log p niveles, **mover datos** entre procesos: O(α + β·n/p) por nivel, es decir, O(log p · (α + n/p)) en total.
+3. Los broadcasts y sumas de prefijos: O(log² p), como en la versión PRAM.
+
+**T<sub>p</sub>(n, p) = O( (n/p)·log n + log p · (α + n/p) + log² p )**
+
+Esta es exactamente la expresión de **Hyksort** (quicksort en hipercubo) de la PD5: T<sub>p</sub> = O((n/p) log n + log p · (n/p) + log² p). El análisis de escalabilidad está en [Escalabilidad de ordenamientos](/final/ordenamiento/escalabilidad/).
+
+El mejor quicksort paralelo de propósito general es el de **Sanders** (lámina 18; Sanders & Hansch 1996, Axtmann & Sanders 2017).
+
+## En la práctica: quicksort con OpenMP tasks (solución propia, medida)
+
+Las dos llamadas recursivas son dos **tareas** independientes. El **corte** evita crear tareas para trozos pequeños: crear una tarea cuesta más que ordenar unos pocos elementos.
+
+```cpp
+void qs(vector<int>& a, int lo, int hi, int corte) {
+    if (lo >= hi) return;
+    int k = particion(a, lo, hi);
+    if (hi - lo < corte) {
+        qs(a, lo, k - 1, corte);
+        qs(a, k + 1, hi, corte);
+        return;
+    }
+    #pragma omp task shared(a)
+    qs(a, lo, k - 1, corte);
+    #pragma omp task shared(a)
+    qs(a, k + 1, hi, corte);
+    #pragma omp taskwait
+}
+
+#pragma omp parallel
+#pragma omp single
+qs(a, 0, n - 1, 10000);
+```
+
+Medido al ejecutarlo con n = 2²⁴ ≈ 16.8 M enteros al azar. El secuencial es el mismo `qs` sin tareas (1.25–1.34 s); `std::sort` tarda ≈ 1.15 s:
+
+| Hilos | Corte | Tiempo | S vs. qs secuencial |
+|---|---|---|---|
+| 1 | 10 000 | 1.32 s | 0.98 |
+| 2 | 10 000 | 1.24 s | 1.04 |
+| 3 | 10 000 | 0.71 s | 1.97 |
+| 4 | 10 000 | 0.79 s | 1.59 |
+| 6 | 10 000 | 0.43 s | 2.95 |
+| 8 | 10 000 | 0.37 s | 3.46 |
+| 6 | 100 | 0.60 s | 2.09 |
+| 6 | 1 000 000 | 0.41 s | 2.98 |
+| 6 | **1** | **9.22 s** | **0.14** |
+
+Qué se concluye:
+
+- **El corte importa muchísimo.** Con corte = 1 se crean ≈ 16 millones de tareas y el programa es **7 veces más lento** que el secuencial: el *overhead* de crear y planificar tareas se come todo. Con cortes de 10⁴ a 10⁶ hay pocas tareas grandes y el resultado es bueno.
+- **El límite teórico** es la partición inicial: el primer `particion` recorre los n elementos **en un solo hilo**. El span es n + n/2 + n/4 + … ≈ 2n, así que S<sub>máx</sub> ≈ (n log n)/(2n) = (log n)/2 ≈ 12 para n = 2²⁴. Para pasar de ahí hay que paralelizar la partición, que es lo que hace la versión con suma de prefijos.
+- *Observación propia:* con 2 hilos casi no hubo mejora en las 6 repeticiones (S ≈ 1.04), y con 3 sí (1.97). No lo pudimos atribuir con certeza: probamos fijar los hilos a núcleos (`OMP_PLACES`, `OMP_PROC_BIND`) y `untied`, sin cambio. Probablemente se debe a la laptop (núcleos híbridos rápidos y lentos). Es un ejemplo de por qué **los tiempos se miden, no se suponen**.
+
+## Práctica
+
+**1.** Aplica un nivel del quicksort paralelo a d = [5, 1, 7, 3, 8, 2, 6, 4] (procesos 0..7) con pivote v = 5. Da flag, j, p′ y los destinos.
+
+<Solucion>
+flag = (d ≤ 5) = [1, 1, 0, 1, 0, 1, 0, 1]
+
+j (prefijo inclusivo) = [1, 2, 2, 3, 3, 4, 4, 5], así que **p′ = 5**.
+
+Destinos: si flag, j − 1; si no, p′ + i − j.
+- i = 0 (5): 0 · i = 1 (1): 1 · i = 3 (3): 2 · i = 5 (2): 3 · i = 7 (4): 4
+- i = 2 (7): 5 + 2 − 2 = 5 · i = 4 (8): 5 + 4 − 3 = 6 · i = 6 (6): 5 + 6 − 4 = 7
+
+Resultado: [5, 1, 3, 2, 4 | 7, 8, 6]. La izquierda (5 procesos) y la derecha (3) siguen por separado. Las particiones quedan **desiguales** (5 y 3): por eso el análisis O(log² p) es el caso **esperado**.
+</Solucion>
+
+**2.** Resuelve T(p) = T(p/2) + log p para p = 1024 (con T(1) = 0, log en base 2).
+
+<Solucion>
+T(1024) = 10 + 9 + 8 + … + 1 = 10·11/2 = **55**. Es log p (log p + 1)/2, de orden log² p.
+</Solucion>
+
+<Quiz
+	client:visible
+	id="u5-qs"
+	preguntas={[
+		{ q: 'En el quicksort paralelo n = p, ¿para qué sirve la suma de prefijos?', opts: ['para elegir el pivote', 'para que cada proceso sepa a qué posición enviar su elemento', 'para ordenar localmente', 'para el broadcast'], ok: 1 },
+		{ q: 'T(p) = T(p/2) + log p da…', opts: ['O(log p)', 'O(log² p)', 'O(p)', 'O(p log p)'], ok: 1 },
+		{ q: 'Si el pivote siempre cae en un extremo, el quicksort paralelo n = p tarda…', opts: ['O(log² p)', 'O(log p)', 'O(p log p)', 'O(1)'], ok: 2 },
+		{ q: 'En el quicksort con OpenMP tasks, ¿por qué se usa un corte?', opts: ['para que sea estable', 'para no crear tareas diminutas cuyo overhead supera su trabajo', 'para evitar deadlock', 'OpenMP lo exige'], ok: 1 },
+		{ q: '¿Qué limita el speedup del quicksort con tasks y partición secuencial?', opts: ['el taskwait', 'la primera partición recorre los n elementos en un solo hilo (span ≈ 2n)', 'el pivote', 'la memoria'], ok: 1 },
+	]}
+/>
+
+<Fuente archivos={['U5.2 Algoritmos-ordenamiento.pdf (láminas 16–21)', '2026I-CS4052-PD5.pdf (ejercicio 3b)', 'qs_tasks.cpp (solución propia, ejecutada)']} />

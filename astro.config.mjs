@@ -63,6 +63,32 @@ export default defineConfig({
 								{ label: 'Descomposición de dominio y halos', slug: 'final/hibrido/dominio-halos' },
 							],
 						},
+						{
+							label: '10 · EDP (U5.1)',
+							badge: { text: 'sem 11', variant: 'note' },
+							items: [
+								{ label: 'EDP y diferencias finitas', slug: 'final/edp/fundamentos' },
+								{ label: 'Laplace/Jacobi en paralelo', slug: 'final/edp/jacobi-paralelo' },
+								{ label: 'Onda y tsunami (MPI)', slug: 'final/edp/onda-tsunami' },
+							],
+						},
+						{
+							label: '11 · Ordenamiento (U5.2)',
+							badge: { text: 'sem 11–12', variant: 'note' },
+							items: [
+								{ label: 'Bases y ranking', slug: 'final/ordenamiento/bases' },
+								{ label: 'Quicksort paralelo y Hyksort', slug: 'final/ordenamiento/quicksort' },
+								{ label: 'Mergesort odd-even y bitónico', slug: 'final/ordenamiento/merge-bitonico' },
+								{ label: 'Escalabilidad de ordenamientos', slug: 'final/ordenamiento/escalabilidad' },
+							],
+						},
+						{
+							label: '12 · Examen final',
+							badge: { text: 'PD05', variant: 'caution' },
+							items: [
+								{ label: 'Simulacro PD05 (2026-I resuelta)', slug: 'final/examen/simulacro-pd5' },
+							],
+						},
 					],
 				},
 				{

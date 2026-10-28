@@ -1,0 +1,256 @@
+---
+title: "Onda y tsunami: EDP hiperbólica con MPI"
+description: "Discretización de la ecuación de onda, el código pd5-onda_sec.cpp y su bug de división entera, paralelización con MPI_Send/MPI_Recv, tiempos medidos para p = 1, 2, 4, 8 y si la ola de la costa supera 20."
+---
+import U5Fig from '../../../../components/U5Fig.astro';
+import OndaCurvas from '../../../../components/playgrounds/OndaCurvas.tsx';
+import EnSimple from '../../../../components/EnSimple.astro';
+import Quiz from '../../../../components/Quiz.tsx';
+import Solucion from '../../../../components/Solucion.astro';
+import Fuente from '../../../../components/Fuente.astro';
+
+<EnSimple>
+Una cuerda de guitarra: cada punto sube o baja según **cómo están sus vecinos ahora** y **dónde estaba él mismo hace un instante** (la inercia). Por eso la fórmula de la onda guarda **dos fotos del pasado**: la de ahora (t) y la anterior (t − 1).
+
+Para paralelizar se hace igual que con Laplace: se parte la cuerda en trozos, uno por proceso, y en cada paso de tiempo cada trozo le pasa a su vecino el punto del borde. El tiempo **no** se reparte: el paso 500 necesita el 499.
+</EnSimple>
+
+Este es el **ejercicio 1 de la PD05 2026-I** (3 pts) y el tema más probable de la PD05 de este ciclo: una EDP de U5.1 paralelizada con MPI P2P, con medición de tiempos y una gráfica.
+
+## Discretización (láminas 35–36)
+
+Ecuación de onda: ∂²u/∂t² = c² · ∂²u/∂x².
+
+1. Segunda derivada en el **tiempo**, centrada: (u(x,t+1) − 2u(x,t) + u(x,t−1)) / Δt²
+2. Segunda derivada en el **espacio**, centrada: (u(x+1,t) − 2u(x,t) + u(x−1,t)) / Δx²
+3. Igualar y despejar u(x, t+1):
+
+**u(x,t+1) = 2u(x,t) − u(x,t−1) + τ² · [u(x+1,t) − 2u(x,t) + u(x−1,t)]**, con **τ = c·Δt/Δx**.
+
+<U5Fig fig="onda">
+**Cómo leerlo:** para el punto naranja del futuro se usan 3 puntos del presente (celestes: x−1, x, x+1) y el mismo x del pasado (morado, flecha punteada). En el código esto son **tres arreglos**: `oldval` (t−1), `values` (t) y `newval` (t+1), como en el código del curso. Solo los vecinos x±1 del presente cruzan entre procesos: el halo es de **1 valor por lado**.
+</U5Fig>
+
+:::note[Estabilidad (conocimiento general, no está en las láminas)]
+El esquema explícito es estable solo si **τ = c·Δt/Δx ≤ 1** (condición CFL de Courant-Friedrichs-Lewy). Con τ > 1 la solución explota. Aquí se usa c = 1, Δt = 0.3 y Δx = 1, así que τ = 0.3 y τ² = 0.09.
+:::
+
+
+## El código del curso: `pd5-onda_sec.cpp`
+
+El enunciado entrega un secuencial (en el material está como `2026I-pd5-onda_sec.cpp`). Sus datos:
+
+| Parámetro | Valor en el código |
+|---|---|
+| Puntos y pasos | `tpoints = 1024`, `nsteps = 800` |
+| Constantes | Δt = 0.3, c = 1, Δx = 1, así que τ² = 0.09 |
+| Onda inicial | sin(2πx), con `oldval = values` (arranca en reposo) |
+| Fronteras | en el código están en 0. Las del enunciado, 0.1·sin(i) en el punto 1 y 0.1·cos(i) en el último, están **comentadas** |
+| Índices | los arreglos van de 1 a `tpoints` (la posición 0 y la `tpoints + 1` sobran) |
+
+## El término de tsunami
+
+El enunciado pide sumar **0.01·sin(K·(i/180))**, donde i es el índice del punto. El código lo suma **directamente** a la actualización, sin multiplicarlo por Δt²:
+
+```cpp
+newval[i] = (2.0 * values[i]) - oldval[i]
+          + (sqtau * (values[i-1] - (2.0 * values[i]) + values[i+1]))
+          + 0.01 * std::sin(K * (i / 180.0));
+```
+
+Para la PD hay que usar la fórmula **tal como la da el enunciado**: sin π y sin Δt². Si escribes la versión "físicamente correcta" (Δt²·0.01·sin(Kπi/180)), resuelves otro modelo y las amplitudes cambian por completo (ver la tabla de abajo).
+
+:::caution[El código entregado tiene una división entera]
+La línea que trae el archivo es `0.01 * std::sin(K * i / 180)`. `K` e `i` son `int`, así que `K * i / 180` es una **división entera**. Con K = 10 da 0 para i < 18, luego 1, 2, 3…, y el seno recibe valores truncados: la fuente queda en escalones. Se corrige con `180.0`. Si en tu PD el código viene así, **corrígelo y dilo en el informe**, porque cambia la respuesta:
+:::
+
+| Versión del término (K = 10, 1024 puntos, 800 pasos) | máx \|v\| en la costa (x ≤ 0.11) | máx \|v\| global |
+|---|---|---|
+| Código tal cual se entrega (división entera, fronteras 0) | **27.38** (> 20) | 28.07 |
+| `K * (i / 180.0)` + fronteras del enunciado | **13.67** (< 20) | 24.08 en x ≈ 0.84 |
+| Con π: `K * PI * (i / 180.0)` | — | 5.67 |
+| Multiplicado por Δt² = 0.09 | — | 2.15 |
+
+Con la división entera la conclusión sería "sí hay tsunami de alto peligro". Con el término corregido, no. Por eso hay que declararlo.
+
+## Código paralelo (solución propia)
+
+Sigue lo que pide el enunciado: partes iguales (con resto, sirve para cualquier p), **`MPI_Send`/`MPI_Recv`** con los vecinos en cada paso, y actualización local. Tres decisiones:
+
+1. **Orden par/impar para no bloquearse.** Si todos hacen `Send` primero y MPI no guarda el mensaje en un buffer, todos esperan para siempre (deadlock, lo probamos en la [página de Jacobi](/final/edp/jacobi-paralelo/)). Los pares envían y luego reciben; los impares al revés. `MPI_Sendrecv` es la alternativa en una línea.
+2. **Índice global.** El término 0.01·sin(K·g/180) y las fronteras dependen de la posición g en **toda** la cuerda, no en el trozo local: `g = first + j − 1`.
+3. **La fuente no depende del tiempo**, así que se calcula una vez en `F`. Es el cambio que más acelera (ver tiempos).
+
+```cpp
+#include <mpi.h>
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
+#include <vector>
+using namespace std;
+
+#define PI 3.14159265
+
+int main(int argc, char** argv) {
+    MPI_Init(&argc, &argv);
+    int rank, p;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &p);
+
+    int K = argc > 1 ? atoi(argv[1]) : 10;
+    int tpoints = argc > 2 ? atoi(argv[2]) : 1024;
+    int nsteps = argc > 3 ? atoi(argv[3]) : 800;
+    const double sqtau = 0.3 * 0.3;
+
+    int base = tpoints / p, resto = tpoints % p;
+    int npts = base + (rank < resto);
+    int first = rank * base + min(rank, resto) + 1;
+    int izq = rank > 0 ? rank - 1 : MPI_PROC_NULL;
+    int der = rank < p - 1 ? rank + 1 : MPI_PROC_NULL;
+
+    vector<double> values(npts + 2), oldval(npts + 2), newval(npts + 2), F(npts + 2);
+    for (int j = 1; j <= npts; j++) {
+        int g = first + j - 1;
+        values[j] = oldval[j] = sin(2.0 * PI * ((g - 1) / (tpoints - 1.0)));
+        F[j] = 0.01 * sin(K * (g / 180.0));
+    }
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    double t0 = MPI_Wtime();
+    for (int s = 1; s <= nsteps; s++) {
+        if (rank % 2 == 0) {
+            MPI_Send(&values[npts], 1, MPI_DOUBLE, der, 0, MPI_COMM_WORLD);
+            MPI_Recv(&values[npts + 1], 1, MPI_DOUBLE, der, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            MPI_Send(&values[1], 1, MPI_DOUBLE, izq, 1, MPI_COMM_WORLD);
+            MPI_Recv(&values[0], 1, MPI_DOUBLE, izq, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        } else {
+            MPI_Recv(&values[0], 1, MPI_DOUBLE, izq, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            MPI_Send(&values[1], 1, MPI_DOUBLE, izq, 1, MPI_COMM_WORLD);
+            MPI_Recv(&values[npts + 1], 1, MPI_DOUBLE, der, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            MPI_Send(&values[npts], 1, MPI_DOUBLE, der, 0, MPI_COMM_WORLD);
+        }
+        for (int j = 1; j <= npts; j++) {
+            int g = first + j - 1;
+            if (g == 1) newval[j] = 0.1 * sin(g);
+            else if (g == tpoints) newval[j] = 0.1 * cos(g);
+            else newval[j] = 2.0 * values[j] - oldval[j]
+                           + sqtau * (values[j - 1] - 2.0 * values[j] + values[j + 1]) + F[j];
+        }
+        oldval.swap(values);
+        values.swap(newval);
+    }
+    double t = MPI_Wtime() - t0, tmax;
+    MPI_Reduce(&t, &tmax, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+
+    vector<int> cnt(p), dis(p);
+    for (int r = 0; r < p; r++) { cnt[r] = base + (r < resto); dis[r] = r * base + min(r, resto); }
+    vector<double> all(rank == 0 ? tpoints : 0);
+    MPI_Gatherv(&values[1], npts, MPI_DOUBLE, all.data(), cnt.data(), dis.data(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
+    if (rank == 0) {
+        fprintf(stderr, "p=%d K=%d puntos=%d pasos=%d tiempo=%.6f\n", p, K, tpoints, nsteps, tmax);
+        for (int i = 1; i <= tpoints; i++) printf("%.6f \t %.10f \n", double(i) / tpoints, all[i - 1]);
+    }
+    MPI_Finalize();
+}
+```
+
+Compilar y ejecutar: `mpicxx -O2 onda_pd5.cpp -o onda` y `mpirun -np 4 ./onda 10`. Los argumentos son K, puntos y pasos (por defecto 1024 y 800).
+
+**Verificación:** para K = 10, 15, 20 y 25, la salida con p = 1, 2, 3, 4 y 8 es **idéntica byte a byte** a la del secuencial del curso con el término corregido. Esto es lo primero que debe mostrar el informe.
+
+## Tiempos medidos: p = 1, 2, 4, 8
+
+Laptop Intel i5-12450HX (8 núcleos: 4 de rendimiento con 2 hilos y 4 de eficiencia, 12 hilos en total), Open MPI, `-O2`, K = 10, 800 pasos, mediana de 5 corridas. Se comparan el secuencial del curso, la versión MPI del informe de la PD5 del grupo (calcula el `sin` en cada paso) y la de esta página (con `F` precalculada):
+
+| Puntos | Versión | p = 1 | p = 2 | p = 4 | p = 8 |
+|---|---|---|---|---|---|
+| 1 024 | secuencial del curso | 0.0086 s | | | |
+| | MPI, sin() en cada paso | 0.0103 | 0.0046 | 0.0054 | 0.0199 |
+| | MPI, F precalculada | 0.0028 | 0.0012 | 0.0171 | 0.0414 |
+| 65 536 | secuencial del curso | 0.590 s | | | |
+| | MPI, sin() en cada paso | 0.644 | 0.343 | 0.233 | 0.215 |
+| | MPI, F precalculada | 0.062 | 0.032 | 0.028 | 0.069 |
+| 1 048 576 | secuencial del curso | 10.47 s | | | |
+| | MPI, sin() en cada paso | 10.33 | 6.04 | 3.84 | **3.18** |
+| | MPI, F precalculada | **1.35** | 1.17 | 1.06 | 1.17 |
+
+Speedup S = T<sub>s</sub>/T<sub>p</sub> y eficiencia E = S/p con 1 048 576 puntos:
+
+| | p = 2 | p = 4 | p = 8 |
+|---|---|---|---|
+| sin() en cada paso, contra su secuencial (10.47 s) | S = 1.73, E = 0.87 | S = 2.72, E = 0.68 | S = 3.30, E = 0.41 |
+| F precalculada, contra su p = 1 (1.35 s) | S = 1.15, E = 0.58 | S = 1.28, E = 0.32 | S = 1.15, E = 0.14 |
+
+### Cómo analizarlo (lo que pide "haga un análisis comparativo")
+
+1. **Con 1024 puntos (el tamaño del enunciado) no conviene paralelizar más allá de p = 2.** Cada proceso calcula 128–512 puntos por paso, unos pocos microsegundos, y cada paso exige 2 mensajes. La latencia de esos mensajes (y la espera al vecino más lento) cuesta lo mismo o más que el cálculo: con p = 8 es más lento que el secuencial.
+2. **Con N grande la comunicación deja de importar.** Cada proceso sigue enviando **2 doubles por paso**, sin importar N, mientras que su cómputo crece como N/p. Por eso la versión con sin() llega a S = 3.3 con 8 procesos.
+3. **Pero ese speedup es engañoso.** El `sin` es ≈ 87 % del costo del secuencial del curso (10.47 s contra 1.35 s sin él). Al precalcular la fuente, **1 proceso** (1.35 s) es 2.4 veces más rápido que la versión con sin() usando **8** (3.18 s). El speedup honesto se mide contra el **mejor** secuencial.
+4. **La versión optimizada está limitada por la memoria.** Por punto hace ≈ 8 operaciones y recorre 4 arreglos. Con 10⁶ puntos los 4 arreglos ocupan ≈ 32 MB, más que la caché L3 (12 MB), y todos los procesos comparten el mismo ancho de banda de RAM: S se queda en ≈ 1.3. Con 65 536 puntos (≈ 2 MB, cabe en caché) sí escala: S(4) = 2.2. En Khipu, con procesos en **nodos distintos**, cada uno tendría su propia memoria y escalaría mejor, a cambio de mensajes más lentos.
+5. **Los núcleos no son iguales.** Con p = 8 algunos procesos caen en núcleos de eficiencia o comparten un núcleo con hyperthreading. Como todos los trozos son del mismo tamaño, el más lento retrasa a todos en cada intercambio.
+
+## Gráfica de la onda para K = 10, 15, 20, 25
+
+<OndaCurvas client:visible />
+
+### ¿Supera las 20 unidades cerca de la costa?
+
+Con el término corregido y los parámetros del enunciado, **no**. La costa es el eje y (x = 0) y se toma como "ola más cercana" la primera cresta o valle (x ≤ 0.11, aproximadamente una longitud de onda de la fuente con K = 10):
+
+| K | Longitud de onda de la fuente 2π·180/K (en puntos) | Ola en la costa | Ola más alta (posición) |
+|---|---|---|---|
+| 10 | 113 (x ≈ 0.11) | 13.67 | 24.08 (x ≈ 0.84) |
+| 15 | 75 | 12.07 | 15.81 (x ≈ 0.97) |
+| 20 | 57 | 10.59 | 11.44 (x ≈ 0.81) |
+| 25 | 45 | 9.12 | 9.12 (x ≈ 0.03) |
+
+Solo K = 10 pasa de 20 (24.08), y lejos de la costa. Con una simulación más larga habría que ver si esa ola llega.
+
+**La amplitud baja al subir K**, aunque el enunciado diga que "K mide la amplitud de la ola más alta". La explicación: K no es una altura, es la **frecuencia** de la fuente. Una fuente F·sin(k·i) con k = K/180 empuja con olas de longitud 2π/k. El término de los vecinos τ²·(v<sub>i−1</sub> − 2v<sub>i</sub> + v<sub>i+1</sub>) frena más a las olas cortas: su respuesta estacionaria es ≈ F / (τ²·4·sin²(k/2)), que **decrece** con k (cálculo propio). Las olas largas (K pequeño) acumulan más altura y son las peligrosas. En el informe conviene decirlo así, con la tabla.
+
+## Checklist para este tipo de ejercicio
+
+- [ ] Escribir la fórmula de actualización y dónde va el término nuevo **tal como lo da el enunciado**
+- [ ] Revisar tipos: `K * i / 180` con enteros es división entera. Corregir y declararlo
+- [ ] Poner las fronteras que pide el enunciado (en el código pueden estar comentadas)
+- [ ] Repartir el dominio en partes iguales (con resto si p no divide a N) y usar el **índice global**
+- [ ] Halo de 1 valor por lado con `MPI_Send`/`MPI_Recv` en orden par/impar (o `MPI_Sendrecv`)
+- [ ] Las fronteras físicas solo las fija el primer y el último proceso
+- [ ] Verificar que la salida con p > 1 es igual a la secuencial
+- [ ] Medir con `MPI_Wtime` después de un `MPI_Barrier`, quedarse con el **máximo** entre procesos y repetir (mediana)
+- [ ] Tabla T, S, E con el tamaño del enunciado **y** con uno mayor, y explicar por qué cambia
+- [ ] Gráfica con curvas superpuestas, líneas en ±20, y conclusión sobre la costa
+
+## Práctica
+
+**1.** Con N = 10⁶ puntos y p = 8, ¿cuántos doubles envía cada proceso **interior** por paso de tiempo? ¿Y si la malla fuera 2D de 1000×1000 repartida en 8 franjas?
+
+<Solucion>
+**1D:** un valor a cada vecino, es decir, **2 doubles enviados** (y 2 recibidos) por paso. No depende de N.
+
+**2D con franjas:** una fila entera de 1000 valores a cada vecino, es decir, **2000 doubles**. En 2D el halo crece con el lado de la malla. Por eso importa la relación cómputo/comunicación de la [página de Jacobi](/final/edp/jacobi-paralelo/).
+</Solucion>
+
+**2.** Un compañero paraleliza también el bucle de **pasos de tiempo**: cada proceso hace 250 de los 2000 pasos. ¿Qué está mal?
+
+<Solucion>
+El paso s+1 necesita u en s y en s−1: es una **dependencia verdadera** en el tiempo. El proceso que haga los pasos 251–500 necesita el estado del paso 250, que todavía no existe. Las EDP de evolución reparten el **espacio**, no el tiempo (lámina 31).
+</Solucion>
+
+
+<Quiz
+	client:visible
+	id="u5-onda"
+	preguntas={[
+		{ q: '¿Cuántos instantes de tiempo guarda el esquema de la onda?', opts: ['uno (t)', 'dos (t y t−1) para calcular t+1', 'todos', 'ninguno'], ok: 1 },
+		{ q: 'En el código de la PD5, `0.01 * std::sin(K * i / 180)` con K e i enteros…', opts: ['es correcto', 'hace división entera: el seno recibe valores truncados', 'no compila', 'multiplica por π'], ok: 1 },
+		{ q: '¿Cómo se suma el término del tsunami en la PD5?', opts: ['multiplicado por Δt²', 'directamente: + 0.01·sin(K·(i/180.0))', 'multiplicado por τ²', 'solo en las fronteras'], ok: 1 },
+		{ q: 'Precalcular la fuente F[i] es válido porque…', opts: ['no depende de i', 'no depende del tiempo', 'MPI lo exige', 'no lo es'], ok: 1 },
+		{ q: 'Con 1024 puntos y p = 8 el programa es más lento que el secuencial. La causa es…', opts: ['deadlock', 'cada proceso calcula muy poco y la latencia de los mensajes por paso domina', 'mensajes muy grandes', 'el sin()'], ok: 1 },
+		{ q: '¿Cuál es el speedup "honesto"?', opts: ['el que se calcula contra la versión secuencial más rápida', 'el que se calcula contra la versión más lenta', 'el de p = 2', 'cualquiera'], ok: 0 },
+		{ q: 'Con el término corregido, ¿la ola de la costa supera 20 unidades?', opts: ['sí, con todos los K', 'no: la mayor es 13.67 (K = 10)', 'solo con K = 25', 'no se puede saber'], ok: 1 },
+	]}
+/>
+
+<Fuente archivos={['U5.1 Algoritmos-EDP.pdf (láminas 31–36)', '2026I-CS4052-PD5.pdf (ejercicio 1)', '2026I-pd5-onda_sec.cpp (código del curso, ejecutado)', 'onda_pd5.cpp (solución propia, ejecutada y comparada con el secuencial)', 'Informe de la PD5 del grupo (tiempos de la versión con sin() en cada paso)']} />

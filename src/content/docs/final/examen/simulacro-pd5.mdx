@@ -1,0 +1,183 @@
+---
+title: Simulacro PD05 (2026-I resuelta)
+description: "La PD05 del ciclo anterior completa: tsunami con MPI, DAG + sections vs tasks medido, y escalabilidad del bitónico y Hyksort. Con checklist de entrega."
+---
+import U5Fig from '../../../../components/U5Fig.astro';
+import EnSimple from '../../../../components/EnSimple.astro';
+import Quiz from '../../../../components/Quiz.tsx';
+import Solucion from '../../../../components/Solucion.astro';
+import Fuente from '../../../../components/Fuente.astro';
+import { LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+<EnSimple>
+El profesor subió en la semana 12 la **PD05 del ciclo pasado (2026-I)**, sobre "Unidad 5: EDP-Ordenamiento". Es el mejor modelo de lo que viene: **una EDP con MPI** (3 pts), **OpenMP con tareas y su DAG** (2.5 pts) y **escalabilidad de ordenamientos** (1.5 pts). Aquí está resuelta completa, con código probado y tiempos medidos.
+</EnSimple>
+
+**Formato** (igual que la PD04): en grupo de 2 o 3, en el laboratorio. La PD se entrega al final de la clase (80 % de la nota) y la **Tarea** unos días después completa los ejercicios (20 %). Si usas fuentes externas, hay que citarlas.
+
+| Ejercicio | Tema | Puntos | Dónde está resuelto |
+|---|---|---|---|
+| 1 · Tsunami | EDP hiperbólica + MPI P2P + tiempos + gráfica | 3 | [Onda y tsunami](/final/edp/onda-tsunami/) |
+| 2 · OMP task | DAG + sections vs tasks medido | 2.5 | **esta página** |
+| 3 · Bitónico | isoeficiencia malla vs hipercubo, Hyksort | 1.5 | [Escalabilidad de ordenamientos](/final/ordenamiento/escalabilidad/) |
+
+## Ejercicio 1 · Tsunami (3 pts)
+
+Resumen de la solución completa, que está en [Onda y tsunami](/final/edp/onda-tsunami/):
+
+1. **Término nuevo, tal como lo da el enunciado:** `newval[i] = 2·values[i] − oldval[i] + τ²·(values[i−1] − 2·values[i] + values[i+1]) + 0.01·sin(K·(i/180.0))`. Sin π y sin Δt². El código entregado trae `K * i / 180` con enteros (**división entera**): hay que corregirlo a `180.0` y declararlo, porque cambia la conclusión (27.38 en la costa sin corregir, 13.67 corregido, con K = 10). Conviene **precalcular** la fuente, porque no depende del tiempo.
+2. **Paralelizar (1 pt):** partes iguales de N/p puntos (con resto), 2 celdas fantasma, `MPI_Send`/`MPI_Recv` en orden par/impar con los vecinos en cada paso, índice global para la fuente y las fronteras (0.1·sin y 0.1·cos), que solo fijan el primer y el último proceso. Mostrar que la salida es idéntica a la secuencial.
+3. **Tiempos (1 pt):** p = 1, 2, 4, 8 con los mismos parámetros, con 1024 puntos **y** con un N mayor. Con 1024 puntos no conviene pasar de p = 2 (domina la latencia). Con 10⁶ puntos la versión con sin() llega a S = 3.3 con p = 8, pero la versión con F precalculada es más rápida con 1 proceso que la otra con 8, y está limitada por la memoria (S ≈ 1.3).
+4. **Gráfica (1 pt):** curvas superpuestas para K = 10, 15, 20, 25. Ninguna ola de la costa supera 20 (13.67, 12.07, 10.59, 9.12). Solo K = 10 pasa de 20 (24.08), y lejos, en x ≈ 0.84. La amplitud baja al subir K porque K es la frecuencia de la fuente: las olas cortas acumulan menos altura.
+
+## Ejercicio 2 · OMP, task (2.5 pts)
+
+```
+min_x = minimo(x, n);
+max_x = maximo(x, n);
+calculo_z(z, min_x, max_x, n);
+calculo_y(y, x, n);
+calculo_x(x, y, n);
+calculo_v(v, z, x);
+```
+
+"Solo el **primer** argumento de las funciones calculo_() es modificado." Esa frase define qué **escribe** cada función y qué **lee**:
+
+| Tarea | Lee | Escribe |
+|---|---|---|
+| minimo | x | min_x |
+| maximo | x | max_x |
+| calculo_z | min_x, max_x | z |
+| calculo_y | x | y |
+| calculo_x | y | **x** |
+| calculo_v | z, x | v |
+
+### 2a · DAG (1 pt)
+
+Hay dos clases de dependencia:
+
+- **Verdadera (lectura después de escritura, RAW):** calculo_z necesita min_x y max_x. calculo_x necesita y. calculo_v necesita z y el x **nuevo**.
+- **Anti-dependencia (escritura después de lectura, WAR):** calculo_x **sobreescribe x**, y minimo, maximo y calculo_y **leen** x. calculo_x no puede empezar hasta que esos tres terminen de leer. Es la trampa del ejercicio: si se olvida, minimo o maximo podrían leer un x ya modificado.
+
+<U5Fig fig="dagpd5">
+**Cómo leerlo:** el primer nivel (min, max, calculo_y) es independiente y puede ir en paralelo. calculo_z espera a min y max. calculo_x espera a calculo_y (flecha gris) y además a min y max (flechas rojas, anti-dependencia sobre x). calculo_v junta las dos ramas. Debajo de cada nodo está su tiempo **medido** en la versión de prueba.
+</U5Fig>
+
+**Ruta crítica y speedup máximo** (con los tiempos medidos, como pide la PD04 2.3):
+
+- T₁ = 0.11 + 0.11 + 0.62 + 0.51 + 0 + 0.045 ≈ **1.40 s**
+- Rutas: min → z → v = 0.11 + 0.62 + 0.045 = **0.775 s**. y → x → v = 0.51 + 0 + 0.045 = 0.555 s.
+- **T∞ = 0.775 s** (ruta crítica min/max → calculo_z → calculo_v)
+- **S<sub>máx</sub> = T₁ / T∞ ≈ 1.40 / 0.775 ≈ 1.8**
+**¿Alcanzan 2 hilos T∞?** Sí, con este reparto:
+
+| Hilo | 0 – 0.11 s | 0.11 – 0.62 s | 0.62 – 0.73 s | 0.73 – 0.775 s |
+|---|---|---|---|---|
+| A | minimo | calculo_z | calculo_z (sigue) | calculo_v |
+| B | maximo | calculo_y | calculo_x (≈ 0), luego libre | libre |
+
+calculo_z empieza a los 0.11 s (ya están min y max) y termina a los 0.73 s. Para entonces calculo_x ya terminó (0.62 s), así que calculo_v termina a los **0.775 s = T∞**. El hilo B no retrasa la ruta crítica.
+
+### 2b · Dos versiones: sections y tasks (1.5 pts)
+
+**Con `sections`**: hay que agrupar por **niveles**. La barrera implícita al final de cada `sections` respeta todas las dependencias (incluida la anti-dependencia, porque calculo_x va en el segundo bloque):
+
+```cpp
+#pragma omp parallel sections
+{
+    #pragma omp section
+    mn = minimo(x);
+    #pragma omp section
+    mx = maximo(x);
+    #pragma omp section
+    calculo_y(y, x, n);
+}
+#pragma omp parallel sections
+{
+    #pragma omp section
+    calculo_z(z, mn, mx, n);
+    #pragma omp section
+    calculo_x(x, y, n);
+}
+calculo_v(v, z, x);
+```
+
+**Con `task` + `depend`**: se declaran los datos que cada tarea lee (`in`) y escribe (`out`/`inout`). El runtime construye el DAG. `depend(inout: x)` en calculo_x hace que espere a **todas** las tareas anteriores con `depend(in: x)`, así que la anti-dependencia queda cubierta sola:
+
+```cpp
+#pragma omp parallel
+#pragma omp single
+{
+    #pragma omp task depend(in: x) depend(out: mn) shared(x, mn)
+    mn = minimo(x);
+    #pragma omp task depend(in: x) depend(out: mx) shared(x, mx)
+    mx = maximo(x);
+    #pragma omp task depend(in: x) depend(out: y) shared(x, y)
+    calculo_y(y, x, n);
+    #pragma omp task depend(in: mn, mx) depend(out: z) shared(z, mn, mx)
+    calculo_z(z, mn, mx, n);
+    #pragma omp task depend(in: y) depend(inout: x) shared(x, y)
+    calculo_x(x, y, n);
+    #pragma omp task depend(in: z, x) depend(out: v) shared(v, z, x)
+    calculo_v(v, z, x);
+}
+```
+
+`shared(...)` se pone explícito por seguridad. Regla: dentro de una tarea, una variable que **no** es compartida en el contexto que la crea es `firstprivate` por defecto. Aquí `x`, `mn`, … se declaran antes del `parallel`, así que ya son compartidas. Pero si se declararan **dentro** del `parallel`, cada tarea escribiría en su copia y el valor de `mn` se perdería.
+
+### Tiempos medidos (solución propia)
+
+Funciones de prueba con costos distintos (calculo_z ≈ 0.62 s, calculo_y ≈ 0.51 s, min y max ≈ 0.11 s, calculo_x ≈ 0, calculo_v ≈ 0.045 s), n = 200 000, 3 hilos, 5 corridas. Las tres versiones dan el mismo v = −3.8394599126.
+
+| Versión | Tiempo (5 corridas) | Modelo del DAG |
+|---|---|---|
+| secuencial | 1.29 – 1.47 s | T₁ ≈ 1.40 s |
+| `sections` | 1.09 – 1.23 s | 0.51 + 0.62 + 0.045 ≈ **1.18 s** |
+| `tasks` + `depend` | 0.73 – 0.75 s | T∞ ≈ **0.78 s** |
+
+<U5Fig fig="gantt">
+**Cómo leerlo:** con `sections`, calculo_z no puede empezar hasta que **todo** el primer bloque termine (línea roja a 0.51 s), aunque solo necesita min y max, que acabaron a los 0.11 s. Mientras tanto los hilos 0 y 1 están **ociosos**. Con `tasks`, calculo_z arranca a los 0.11 s y el programa termina en la ruta crítica (0.78 s).
+</U5Fig>
+
+### Ventajas y desventajas (lo que pide comparar)
+
+| | `sections` | `task` + `depend` |
+|---|---|---|
+| Cómo expresa el paralelismo | bloques fijos separados por **barreras** | grafo de dependencias por **datos** |
+| Respeta el DAG | solo por **niveles**: sobre-sincroniza | **exacto**: cada tarea espera solo lo que lee |
+| Tiempo en este problema | 1.18 s (pierde 0.4 s en la barrera) | 0.78 s (= T∞) |
+| Número de unidades | fijo al escribir el código | dinámico (recursión, bucles, listas) |
+| Overhead | bajo | mayor por tarea (crear y planificar). Importa con tareas pequeñas |
+| Facilidad | simple de leer | hay que acertar `in`/`out`. Un `depend` mal puesto es una carrera silenciosa |
+| Cuándo conviene | pocas tareas de costo parecido | costos desiguales, DAG irregular, recursión ([quicksort con tasks](/final/ordenamiento/quicksort/#en-la-práctica-quicksort-con-openmp-tasks-solución-propia-medida)) |
+
+## Ejercicio 3 · Ordenamiento bitónico (1.5 pts)
+
+Resuelto paso a paso en [Escalabilidad de ordenamientos](/final/ordenamiento/escalabilidad/). Las respuestas:
+
+- **3a:** malla n ∝ 2<sup>√p</sup>, hipercubo n ∝ 2<sup>log² p</sup>. **La malla escala mejor** (necesita menos W para mantener E) para p < 2¹⁶. Se puede añadir el matiz del cruce.
+- **3b:** Hyksort da n log n ∝ p log² p, una isoeficiencia **polinomial**. **Escala mejor que los anteriores.**
+
+## Checklist de entrega
+
+- [ ] Código que **compila** y cuya salida paralela coincide con la secuencial (mostrarlo)
+- [ ] DAG con **todas** las dependencias, incluidas las anti-dependencias (WAR)
+- [ ] T₁, T∞, ruta crítica y S<sub>máx</sub> si hay tiempos por tarea
+- [ ] Tiempos con `omp_get_wtime` / `MPI_Wtime`, varias corridas, misma configuración, y decir en qué máquina
+- [ ] Tabla T, S, E y una explicación de **por qué** (no solo "escala bien")
+- [ ] Isoeficiencia con los pasos: T<sub>o</sub> = pT<sub>p</sub> − W, luego W = K·T<sub>o</sub>, luego despejar n
+- [ ] Citar fuentes externas si se usan
+
+<Quiz
+	client:visible
+	id="u5-pd5"
+	preguntas={[
+		{ q: 'En el ejercicio 2, ¿por qué calculo_x debe esperar a minimo y maximo?', opts: ['porque usa min_x', 'porque sobreescribe x, que ellos leen (anti-dependencia WAR)', 'no debe esperar', 'por la barrera de sections'], ok: 1 },
+		{ q: '¿Qué tareas forman el primer nivel del DAG?', opts: ['minimo, maximo, calculo_y', 'minimo, maximo, calculo_z', 'calculo_y, calculo_x', 'todas'], ok: 0 },
+		{ q: '¿Por qué tasks fue más rápido que sections aquí?', opts: ['porque usa más hilos', 'porque calculo_z arranca apenas terminan min y max, sin esperar la barrera de calculo_y', 'porque las tareas no tienen overhead', 'por suerte'], ok: 1 },
+		{ q: 'depend(inout: x) en calculo_x hace que espere a…', opts: ['nada', 'las tareas previas con depend(in: x) o out: x', 'solo calculo_y', 'el final de la región'], ok: 1 },
+		{ q: 'Con T₁ = 1.40 s y T∞ = 0.775 s, S_máx ≈', opts: ['1.2', '1.8', '3', '6'], ok: 1 },
+	]}
+/>
+
+<Fuente archivos={['2026I-CS4052-PD5.pdf', 'ej02_tareas.cpp (solución propia, ejecutada)', 'CS4052-PD04-S02.pdf (formato)']} />

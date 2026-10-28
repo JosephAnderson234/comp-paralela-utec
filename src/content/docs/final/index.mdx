@@ -1,26 +1,56 @@
 ---
 title: Etapa final — ruta de estudio
-description: Qué entra al final, qué contenido ya está en la web y qué falta agregar, semana por semana.
+description: Qué entra al final, qué hay en la web, en qué orden estudiarlo y qué falta por llegar, semana por semana.
 ---
 import { CardGrid, LinkCard } from '@astrojs/starlight/components';
 import EnSimple from '../../../components/EnSimple.astro';
 import Fuente from '../../../components/Fuente.astro';
 
 <EnSimple>
-Esta sección crece semana a semana. Lo del **parcial** (U1–U3) sigue en su lugar del menú, porque el final se apoya en eso: MPI, speedup, eficiencia y escalabilidad se siguen usando. Aquí se agrega **solo lo nuevo**.
+Esta sección crece semana a semana. Lo del **parcial** (U1–U3) sigue en su lugar del menú, porque el final se apoya en eso: MPI, speedup, eficiencia, DAG e isoeficiencia se siguen usando en **todos** los ejercicios. Aquí se agrega **solo lo nuevo**.
+
+La pista más fuerte para lo que viene es la **PD05 del ciclo pasado**, que el profesor subió en la semana 12: EDP con MPI (3 pts), OpenMP con tareas y su DAG (2.5 pts) y escalabilidad de ordenamientos (1.5 pts). La ruta de abajo sigue ese orden de puntos.
 </EnSimple>
 
-## Unidad 4: Comunicación y coordinación
+## Ruta recomendada para la PD05
 
-Objetivos que da el profesor en las láminas de U4:
+Ordenada por peso en el modelo 2026-I. Cada paso dice qué deberías poder **hacer** al terminarlo.
+
+| # | Estudia | Para poder… | Peso en la PD05 2026-I |
+|---|---|---|---|
+| 0 | Repaso exprés: [DAG](/fundamentos/dag/) · [isoeficiencia](/performance/escalabilidad/) · [bloqueante vs no bloqueante](/mpi/bloqueante/) · [tareas OpenMP](/final/openmp/tareas-icv/) | usar las herramientas del parcial sin dudar | (base de todo) |
+| 1 | [EDP y diferencias finitas](/final/edp/fundamentos/) | discretizar una EDP y escribir la fórmula del stencil | 3 pts |
+| 2 | [Laplace/Jacobi en paralelo](/final/edp/jacobi-paralelo/) | repartir la malla, intercambiar halos sin deadlock y verificar | ↑ |
+| 3 | [Onda y tsunami](/final/edp/onda-tsunami/) | resolver el ejercicio 1 completo: código, tiempos y gráfica | ↑ |
+| 4 | [Simulacro PD05](/final/examen/simulacro-pd5/) | DAG con anti-dependencias, sections vs tasks, T∞ y S<sub>máx</sub> | 2.5 pts |
+| 5 | [Bases y ranking](/final/ordenamiento/bases/) → [Quicksort](/final/ordenamiento/quicksort/) → [Bitónico](/final/ordenamiento/merge-bitonico/) | explicar y trazar los algoritmos de ordenamiento paralelo | 1.5 pts |
+| 6 | [Escalabilidad de ordenamientos](/final/ordenamiento/escalabilidad/) | sacar la isoeficiencia de una T<sub>p</sub> dada y comparar | ↑ |
+
+**Cómo comprobar que lo dominas:** sin mirar la solución, resuelve (a) la práctica 1 de *Jacobi en paralelo*, (b) el DAG del simulacro, y (c) la isoeficiencia de T<sub>p</sub> = (n/p) log n + log² p. Si los tres te salen solos, estás listo para la PD05.
+
+## Unidad 5: Análisis y programación de algoritmos paralelos
+
+Objetivos que da el profesor en las láminas de U5:
+
+| # | Objetivo | Estado |
+|---|---|---|
+| 1 | Algoritmos naturalmente ("vergonzosamente") paralelos | ya visto en el parcial: [Random y Montecarlo](/diseno/random/), [Mandelbrot](/diseno/particionamiento/) |
+| 2 | **Ecuaciones diferenciales parciales** | ✅ U5.1 (semana 11) |
+| 3 | **Algoritmos de ordenamiento en paralelo** | ✅ U5.2 (semanas 11–12) |
+| 4 | Algoritmos de búsqueda en paralelo | ⏳ todavía no hay material |
+| 5 | Algoritmos de grafos en paralelo | ⏳ todavía no hay material |
+
+La lámina 36 de U5.2 menciona además una **Unidad 6: Performance** (minimizar la comunicación), que aún no ha llegado.
+
+## Unidad 4: Comunicación y coordinación
 
 | # | Objetivo | Dónde estudiarlo |
 |---|---|---|
 | 1 | Paso de mensajes: MPI, punto a punto, colectivas | [MPI básico](/mpi/basicos/) · [Colectivas](/mpi/colectivas/) (del parcial) |
 | 2 | Blocking vs non-blocking | [Bloqueante vs no bloqueante](/mpi/bloqueante/) (del parcial) |
 | 3 | Tipos MPI | [Tipos derivados](/mpi/tipos-derivados/) (del parcial) |
-| 4 | **Memoria compartida: OpenMP, constructores y cláusulas** | **Nuevo** — páginas de abajo |
-| 5 | **Programación híbrida** | **Nuevo** — [MPI + OpenMP](/final/hibrido/mpi-openmp/) · [Dominio y halos](/final/hibrido/dominio-halos/) |
+| 4 | Memoria compartida: OpenMP, constructores y cláusulas | secciones 7 y 8 del menú |
+| 5 | Programación híbrida | [MPI + OpenMP](/final/hibrido/mpi-openmp/) · [Dominio y halos](/final/hibrido/dominio-halos/) |
 
 ## Avance por semana
 
@@ -28,37 +58,45 @@ Objetivos que da el profesor en las láminas de U4:
 |---|---|---|
 | 9 | U4.1, U4.2, U4.3 Paralelismo compartido (OpenMP) + 12 programas de clase | ✅ agregado |
 | 10 | U4.4 OpenMP (modelo de memoria, locks), U4.5 Paralelismo híbrido + 7 programas de teoría + simulacro PC4 (9 programas) | ✅ agregado |
-| 11 en adelante | — | ⏳ pendiente |
-
-## OpenMP (semana 9)
-
-<CardGrid>
-	<LinkCard title="1 · Memoria compartida y fork-join" href="/final/openmp/introduccion/" description="Qué es OpenMP, OMP vs MPI, compilar, primera condición de carrera." />
-	<LinkCard title="2 · Repartir bucles: for y schedule" href="/final/openmp/for-schedule/" description="static, dynamic, guided, chunk, nowait, collapse." />
-	<LinkCard title="3 · sections, single, master, barreras" href="/final/openmp/sections-single-master/" description="Quién ejecuta qué y quién espera a quién." />
-	<LinkCard title="4 · Sincronización" href="/final/openmp/sincronizacion/" description="critical, atomic, ordered, flush; carreras medidas." />
-	<LinkCard title="5 · Alcance de datos y reduction" href="/final/openmp/datos/" description="shared, private, firstprivate, lastprivate, threadprivate." />
-	<LinkCard title="6 · Tareas e ICVs" href="/final/openmp/tareas-icv/" description="task, depend, taskwait, taskgroup, anidamiento." />
-	<LinkCard title="Repaso: chuleta, ¿qué imprime? y flashcards" href="/final/openmp/repaso/" description="Todo OpenMP en una página para la última vuelta." />
-</CardGrid>
+| 11 | U5.1 EDP (+ `laplace_sec/omp/mpi.cpp`), U5.2 Ordenamiento, `matvec_hibrido.cpp`, `peekaboo_mpi_omp.cpp` | ✅ agregado |
+| 12 | PD05 2026-I (modelo de examen), U5.2 (misma versión) | ✅ agregado: simulacro resuelto |
+| 13 en adelante | búsqueda, grafos, performance | ⏳ pendiente |
 
 :::note[Sobre el código]
-Todos los programas de las semanas 9 y 10 se compilaron con `g++ -fopenmp` (los híbridos con `mpicc -fopenmp`) y se ejecutaron; las salidas que aparecen en estas páginas son reales. Donde un ejemplo de clase tiene un detalle que puede fallar (variables sin inicializar o compartidas por error), está marcado como *observación propia*.
+Todos los programas se compilaron y ejecutaron: los de clase y las soluciones propias (onda con MPI, sections vs tasks, quicksort con tareas y bitónico con OpenMP). Las salidas y los tiempos de estas páginas son **medidos**, en una laptop de 8 núcleos (12 hilos), no en Khipu: los números absolutos cambiarán en otra máquina, las tendencias no. Donde un código de clase tiene un detalle que falla (por ejemplo, `laplace_mpi.cpp` con p = 3), está marcado.
 :::
 
-## OpenMP: memoria y locks (semana 10)
+## EDP (semana 11)
 
 <CardGrid>
-	<LinkCard title="¿Puede fallar el assert? Modelo de memoria" href="/final/openmp-avanzado/modelo-memoria/" description="Intercalados, reordenamiento del compilador (lo probamos: falla con -O2), data race, happens-before." />
-	<LinkCard title="critical, locks y filósofos" href="/final/openmp-avanzado/locks/" description="omp_lock_t, critical vs atomic vs lock medidos, histograma con un lock por bin, deadlock." />
-	<LinkCard title="Simulacro PC4" href="/final/openmp-avanzado/simulacro-pc4/" description="Histograma (critical, atomic, reduction de arreglos) y Monte Carlo del palo roto, resueltos y medidos." />
+	<LinkCard title="EDP y diferencias finitas" href="/final/edp/fundamentos/" description="Tipos de EDP, Taylor, stencil de 5 puntos, Jacobi vs Gauss-Seidel, T = k·m·N² (k medido)." />
+	<LinkCard title="Laplace/Jacobi en paralelo" href="/final/edp/jacobi-paralelo/" description="Los 3 códigos de clase, halos con Send/Recv, el bug con p = 3, el deadlock latente, franjas vs bloques." />
+	<LinkCard title="Onda y tsunami" href="/final/edp/onda-tsunami/" description="Ejercicio 1 de la PD05: código MPI verificado, tiempos para p = 1..8, curvas por K." />
 </CardGrid>
 
-## Paralelismo híbrido (semana 10)
+## Ordenamiento (semanas 11–12)
 
 <CardGrid>
-	<LinkCard title="MPI + OpenMP" href="/final/hibrido/mpi-openmp/" description="Por qué combinar, ventajas y desventajas, peekaboo, procesos × hilos por nodo, Slurm en Khipu." />
-	<LinkCard title="Descomposición de dominio y halos" href="/final/hibrido/dominio-halos/" description="Cuánto halo hay en 2D y 3D, por qué el híbrido ahorra memoria, Poisson 3D con Jacobi." />
+	<LinkCard title="Bases y ranking" href="/final/ordenamiento/bases/" description="Tabla de complejidad corregida, comparar-intercambiar, comparar-dividir, ranking PRAM." />
+	<LinkCard title="Quicksort paralelo y Hyksort" href="/final/ordenamiento/quicksort/" description="Suma de prefijos para particionar, O(log² p), n > p, quicksort con OpenMP tasks medido." />
+	<LinkCard title="Mergesort odd-even y bitónico" href="/final/ordenamiento/merge-bitonico/" description="Batcher con ejemplo, red bitónica interactiva, bitónico OpenMP vs std::sort." />
+	<LinkCard title="Escalabilidad de ordenamientos" href="/final/ordenamiento/escalabilidad/" description="Isoeficiencia malla vs hipercubo vs Hyksort (PD05 ej. 3), cruce en p = 2¹⁶." />
 </CardGrid>
 
-<Fuente archivos={['U4.1 Paralelismo compartido-OMP.pdf (objetivos)', 'U4.2 Paralelismo compartido-OMP.pdf (objetivos)', 'semana_9/', 'U4.4 Paralelismo compartido-OMP.pdf', 'U4.5 Paralelismo-hibrido.pdf', 'semana_10/']} />
+## Examen
+
+<CardGrid>
+	<LinkCard title="Simulacro PD05 (2026-I resuelta)" href="/final/examen/simulacro-pd5/" description="Los 3 ejercicios: tsunami, DAG + sections vs tasks medido, bitónico y Hyksort. Checklist." />
+	<LinkCard title="Simulacro PC4 (OpenMP)" href="/final/openmp-avanzado/simulacro-pc4/" description="Histograma, palo roto, critical/atomic/reduction." />
+</CardGrid>
+
+## OpenMP e híbrido (semanas 9–10)
+
+<CardGrid>
+	<LinkCard title="Memoria compartida y fork-join" href="/final/openmp/introduccion/" description="Qué es OpenMP, OMP vs MPI, compilar, primera condición de carrera." />
+	<LinkCard title="Tareas e ICVs" href="/final/openmp/tareas-icv/" description="task, depend, taskwait, taskgroup: base del ejercicio 2 de la PD05." />
+	<LinkCard title="Repaso OpenMP" href="/final/openmp/repaso/" description="Todo OpenMP en una página para la última vuelta." />
+	<LinkCard title="MPI + OpenMP" href="/final/hibrido/mpi-openmp/" description="Peekaboo, modos, Slurm en Khipu y el matriz × vector híbrido de la semana 11." />
+</CardGrid>
+
+<Fuente archivos={['U5.1 Algoritmos-EDP.pdf', 'U5.2 Algoritmos-ordenamiento.pdf', '2026I-CS4052-PD5.pdf', 'U4.1–U4.5', 'semana_9/', 'semana_10/', 'semana_11/']} />

@@ -1,0 +1,147 @@
+---
+title: Mergesort odd-even y ordenamiento bitónico
+description: "Merge paralelo, el odd-even merge de Batcher con un ejemplo completo, secuencias bitónicas, la red bitónica paso a paso, por qué T = log n (log n + 1)/2, y el bitónico con OpenMP medido contra std::sort."
+---
+import BitonicNet from '../../../../components/playgrounds/BitonicNet.tsx';
+import EnSimple from '../../../../components/EnSimple.astro';
+import Quiz from '../../../../components/Quiz.tsx';
+import Solucion from '../../../../components/Solucion.astro';
+import Fuente from '../../../../components/Fuente.astro';
+
+<EnSimple>
+Una **red de ordenamiento** es una receta fija de comparaciones: "compara la posición 0 con la 1, la 2 con la 3…". No depende de los datos, así que **todas las comparaciones de un paso se pueden hacer a la vez**.
+
+Una secuencia **bitónica** es como una montaña: sube y luego baja (por ejemplo 1 4 7 8 6 3). La gracia es que una montaña se ordena muy fácil: comparas la primera mitad con la segunda y quedan dos montañas más chicas, una toda por debajo de la otra. Repites hasta tener montañas de 2 elementos.
+</EnSimple>
+
+## Merge en paralelo (láminas 22–25)
+
+Problema: **mezclar** A = (a₁ … a<sub>n</sub>) y B = (b₁ … b<sub>n</sub>), ya ordenadas, en C ordenada de 2n elementos (supuestos: mismo tamaño y n potencia de 2).
+
+Con n = 2 (lámina 24) hacen falta 3 comparadores. P1 compara los menores: min(a₁, b₁) = c₁. P2 compara los mayores: max(a₂, b₂) = c₄. P3 ordena los dos del medio (c₂, c₃).
+
+## Odd-even merge de Batcher (láminas 26–28)
+
+Para mezclar dos secuencias de n:
+
+1. Mezclar **recursivamente** los elementos **impares** de A y B (a₁, a₃, … con b₁, b₃, …) y obtener d₁ … d<sub>n</sub>.
+2. **A la vez**, mezclar los **pares** (a₂, a₄, … con b₂, b₄, …) y obtener e₁ … e<sub>n</sub>.
+3. Juntar: c₁ = d₁, c<sub>2n</sub> = e<sub>n</sub>, y para i = 1 … n − 1:
+   **c<sub>2i</sub> = min(d<sub>i+1</sub>, e<sub>i</sub>)**, **c<sub>2i+1</sub> = max(d<sub>i+1</sub>, e<sub>i</sub>)**.
+
+<Solucion titulo="Ejemplo completo de la lámina 25: A = {3, 5, 7, 9}, B = {2, 4, 6, 8}">
+**Impares:** A → (3, 7), B → (2, 6). Mezclados: **d = (2, 3, 6, 7)**.
+
+**Pares:** A → (5, 9), B → (4, 8). Mezclados: **e = (4, 5, 8, 9)**.
+
+**Juntar:**
+- c₁ = d₁ = 2 · c₈ = e₄ = 9
+- i = 1: c₂ = min(d₂, e₁) = min(3, 4) = 3, c₃ = max(3, 4) = 4
+- i = 2: c₄ = min(d₃, e₂) = min(6, 5) = 5, c₅ = max(6, 5) = 6
+- i = 3: c₆ = min(d₄, e₃) = min(7, 8) = 7, c₇ = max(7, 8) = 8
+
+**C = (2, 3, 4, 5, 6, 7, 8, 9)** ✓. El último paso son 3 comparaciones **independientes**: se hacen en un solo paso paralelo.
+</Solucion>
+
+**Complejidad del mergesort paralelo** (lámina 29): mezclar dos secuencias de n tiene profundidad O(log n), y el mergesort hace log n niveles de mezcla. Por tanto el **span es O(log² n)**, con trabajo O(n log n) en el modelo PRAM **CREW**. Con el merge de Cole se llega a O(log n log log n).
+
+*Conocimiento general:* como **red** de comparadores fija, el odd-even mergesort de Batcher usa O(n log² n) comparadores, igual que el bitónico.
+
+## Ordenamiento bitónico (láminas 30–33)
+
+**Secuencia bitónica:** a₀ < a₁ < … < a<sub>i</sub> > a<sub>i+1</sub> > … > a<sub>n−1</sub>, es decir, primero crece y después decrece. También cuenta una rotación cíclica de una secuencia así.
+
+**Propiedad clave (half-cleaner):** si en una secuencia bitónica de n elementos se compara-intercambia **a<sub>i</sub> con a<sub>i+n/2</sub>** para todo i < n/2, se obtienen **dos secuencias bitónicas** de n/2, y **todo** elemento de la primera es ≤ que todo elemento de la segunda.
+
+Aplicándolo recursivamente (n/2, n/4, …, 2) una secuencia bitónica queda ordenada en **log n** pasos paralelos: es la **mezcla bitónica**.
+
+**Para ordenar una entrada cualquiera** (lámina 33): todo par de números es bitónico. Se ordenan pares (alternando creciente y decreciente), así cada 4 forman una secuencia bitónica. Se mezclan los bloques de 4 (alternando), y cada 8 son bitónicos, y así sucesivamente.
+
+<BitonicNet client:visible />
+
+### Por qué T<sub>p</sub> = log n (log n + 1)/2
+
+La etapa que construye bloques ordenados de tamaño 2<sup>i</sup> es una mezcla bitónica de **i** pasos. Las etapas van de i = 1 a log n:
+
+T<sub>p</sub> = Σ<sub>i=1</sub><sup>log n</sup> i = 1 + 2 + … + log n = **log n · (log n + 1) / 2 = O(log² n)**
+
+Comprobación con n = 8: 1 + 2 + 3 = 6 columnas (las del playground). Con n = 2²² son 22·23/2 = 253 pasos.
+
+**Trabajo:** cada paso tiene n/2 comparadores, así que W = (n/2) · log n (log n + 1)/2 = **O(n log² n)**. Es más que el O(n log n) del secuencial, así que **no es óptimo en costo**. Lo compensa su regularidad: no depende de los datos y se mapea bien a hardware (hipercubos, GPUs).
+
+## Bitónico con OpenMP: medido contra std::sort (solución propia)
+
+```cpp
+void bitonico(vector<int>& a) {
+    int n = a.size();
+    for (int k = 2; k <= n; k <<= 1)
+        for (int j = k >> 1; j > 0; j >>= 1) {
+            #pragma omp parallel for schedule(static)
+            for (int i = 0; i < n; i++) {
+                int l = i ^ j;
+                if (l > i) {
+                    bool asc = (i & k) == 0;
+                    if ((asc && a[i] > a[l]) || (!asc && a[i] < a[l])) swap(a[i], a[l]);
+                }
+            }
+        }
+}
+```
+
+Cómo leer el código: `k` es el tamaño del bloque que se está formando y `j` la distancia del comparador. El socio de `i` es `i ^ j` (XOR: cambia un bit). Por eso en un **hipercubo** cada comparación es entre vecinos directos. El bit `i & k` decide si ese bloque va creciente o decreciente.
+
+Con n = 2²² enteros al azar (salida verificada igual a la de `std::sort`):
+
+| Hilos | bitónico | std::sort (1 hilo) |
+|---|---|---|
+| 1 | 1.219 s | 0.260 s |
+| 2 | 0.643 s | 0.271 s |
+| 4 | 0.496 s | 0.257 s |
+| 8 | 0.349 s | 0.283 s |
+
+**Con 8 hilos el bitónico sigue siendo más lento que `std::sort` con un solo hilo.** Hace 253 · 2²¹ ≈ 5.3·10⁸ comparaciones, contra ≈ n log n ≈ 9.2·10⁷ de un buen secuencial (≈ 6 veces más trabajo), y además recorre el arreglo completo 253 veces. Escala (S(8) = 3.5 respecto a sí mismo), pero contra el mejor secuencial S = 0.75. Es la diferencia entre **speedup relativo** y **speedup absoluto**.
+
+## Heapsort (láminas 34–35)
+
+O(n log n) con un montículo (heap): se extrae la raíz (el máximo), se lleva el último elemento a la raíz y se "hunde". Cada extracción depende de la anterior, porque el heap cambia. Es una cadena secuencial de n pasos, y por eso es **difícil de paralelizar** (lámina 35).
+
+## Práctica
+
+**1.** ¿Es bitónica cada secuencia? (a) 2 5 8 6 1 (b) 1 3 2 4 (c) 7 4 1 3 6
+
+<Solucion>
+(a) **Sí**: sube 2→5→8 y baja 8→6→1.
+
+(b) **No**: sube, baja y vuelve a subir (1 3 2 4). Tampoco es rotación de una bitónica.
+
+(c) **Sí**: baja y luego sube. Es una rotación cíclica de 1 3 6 7 4, que sube y baja.
+</Solucion>
+
+**2.** Aplica el half-cleaner a la secuencia bitónica (1, 4, 7, 8, 6, 5, 3, 2).
+
+<Solucion>
+Se compara a<sub>i</sub> con a<sub>i+4</sub>: (1,6) → 1, 6 · (4,5) → 4, 5 · (7,3) → 3, 7 · (8,2) → 2, 8.
+
+Queda (1, 4, 3, 2 | 6, 5, 7, 8). Primera mitad: 1 4 3 2, bitónica. Segunda: 6 5 7 8, bitónica (rotación). Y máx(primera) = 4 ≤ 5 = mín(segunda) ✓.
+</Solucion>
+
+**3.** ¿Cuántos pasos paralelos y cuántas comparaciones hace la red bitónica con n = 1024?
+
+<Solucion>
+log n = 10, así que pasos = 10·11/2 = **55**. Comparaciones = 55 · 512 = **28 160**. Un secuencial necesita ≈ n log n = 10 240, así que la red hace 2.75 veces más trabajo.
+</Solucion>
+
+<Quiz
+	client:visible
+	id="u5-bitonico"
+	preguntas={[
+		{ q: 'Una secuencia bitónica es…', opts: ['siempre creciente', 'una que crece y luego decrece (o una rotación de ella)', 'una con dos elementos repetidos', 'una que alterna par/impar'], ok: 1 },
+		{ q: 'El half-cleaner compara a_i con…', opts: ['a_{i+1}', 'a_{i+n/2}', 'a_{n−i}', 'a_{2i}'], ok: 1 },
+		{ q: 'Pasos paralelos del bitónico con n elementos:', opts: ['log n', 'log n (log n + 1)/2', 'n/2', 'n log n'], ok: 1 },
+		{ q: '¿Por qué el bitónico no es óptimo en costo?', opts: ['porque es inestable', 'porque hace O(n log² n) comparaciones, más que O(n log n)', 'porque usa recursión', 'porque necesita CRCW'], ok: 1 },
+		{ q: 'En el odd-even merge, c_{2i} =', opts: ['max(d_{i+1}, e_i)', 'min(d_{i+1}, e_i)', 'd_i', 'e_{i+1}'], ok: 1 },
+		{ q: '¿Por qué heapsort es difícil de paralelizar?', opts: ['porque usa mucha memoria', 'porque cada extracción del máximo depende del heap que dejó la anterior', 'porque es O(n²)', 'porque no es estable'], ok: 1 },
+	]}
+/>
+
+<Fuente archivos={['U5.2 Algoritmos-ordenamiento.pdf (láminas 22–35)', 'bitonico.cpp (solución propia, ejecutada)']} />

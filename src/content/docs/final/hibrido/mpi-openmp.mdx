@@ -186,6 +186,41 @@ srun check-hybrid.gnu.pm
 
 `OMP_PROC_BIND=spread` reparte los hilos lo más lejos posible entre sí (por todo el socket) y `OMP_PLACES=threads` fija cada hilo a un hilo de hardware. Así los hilos no migran de núcleo y cada proceso usa la memoria de **su** socket (evita efectos NUMA).
 
+## Ejemplo completo: matriz × vector híbrido (`matvec_hibrido.cpp`, semana 11)
+
+Es el programa de la [práctica matriz × vector](/mpi/practica-matvec/) del parcial, ahora con **MPI entre procesos y OpenMP dentro de cada uno**:
+
+| Paso | Código | Paradigma |
+|---|---|---|
+| 1 | `MPI_Init_thread(…, MPI_THREAD_FUNNELED, &provided)` | MPI: avisa que habrá hilos, pero solo el hilo maestro llama a MPI |
+| 2 | `#pragma omp parallel for` que pone `A_loc` y `y_loc` en 0 | **first touch** (abajo) |
+| 3 | `MPI_Scatter(A, filas·N, …)` + `MPI_Bcast(x, N, …)` | MPI: cada proceso recibe N/p filas y el vector completo |
+| 4 | `#pragma omp parallel for schedule(static)` sobre las filas locales | OpenMP: los hilos se reparten las filas del proceso |
+| 5 | `MPI_Gather(y_loc, filas, …)` | MPI: rank 0 junta y |
+| 6 | verifica y[i] = (i+1)·N(N−1)/2 | resultado conocido, error relativo 0 |
+
+**Lo nuevo:**
+
+- **`MPI_THREAD_FUNNELED`**: los niveles de soporte de hilos son `SINGLE` < `FUNNELED` < `SERIALIZED` < `MULTIPLE`. Aquí basta FUNNELED porque todas las llamadas MPI están **fuera** de las regiones paralelas, en el hilo maestro. Lo correcto es comprobar que `provided ≥` el nivel pedido.
+- **First touch (efecto NUMA):** en Linux, una página de memoria se asigna en el banco de memoria del socket del hilo que la **escribe primero**. Si `MPI_Scatter`, que corre en el hilo maestro, escribiera `A_loc` primero, toda la matriz quedaría en el socket del maestro, y los hilos del otro socket leerían memoria remota (más lenta). Por eso cada hilo pone a 0 **sus** filas con el mismo `schedule(static)` que usará después. Es la "desventaja: efectos NUMA" de la lámina 10, resuelta en el código.
+- **`OMP_PROC_BIND=close OMP_PLACES=cores`** fija cada hilo a un núcleo, para que no migre y pierda esa localidad.
+- **`reps = 50`**: la matriz se reparte **una vez** (N² datos) y se multiplica 50 veces. El comentario del código separa "Cómputo (por producto)" de "Comunicación (una vez)".
+
+Medido al ejecutarlo en una laptop de 8 núcleos y 12 hilos (N = 4096, 50 productos), una corrida por configuración:
+
+| Procesos × hilos | Cómputo por producto | Comunicación (Scatter + Bcast + Gather) |
+|---|---|---|
+| 1 × 8 | 0.0109 s (3.1 GFLOP/s) | 0.026 s |
+| 2 × 4 | 0.0090 s (3.7 GFLOP/s) | 0.024 s |
+| 4 × 2 | 0.0127 s (2.7 GFLOP/s) | 0.112 s |
+| 8 × 1 | 0.0030 s (11.2 GFLOP/s) ⚠️ | 0.696 s |
+
+Cómo leerlo:
+
+- **La comunicación crece con los procesos:** repartir 4096² doubles (128 MB) cuesta 0.03 s con 1–2 procesos y 0.7 s con 8. Con más procesos hay más copias, y en un solo nodo los mensajes MPI son copias de memoria. Esa es la ventaja del híbrido: **menos procesos ⇒ menos datos movidos**.
+- ⚠️ **El 11.2 GFLOP/s de 8 × 1 no es fiable.** El tiempo lo mide **solo el rank 0** y los `MPI_Barrier` del código están comentados. Cada proceso empieza a calcular apenas recibe su parte, así que el rank 0 no mide a los demás. Para comparar bien hay que descomentar las barreras y reducir con `MPI_MAX` el tiempo de todos (*observación propia*).
+- Matriz × vector hace 2 flops por cada double leído de A: está **limitado por memoria**, no por cálculo. Con pocos GFLOP/s el ancho de banda ya se satura.
+
 ## ¿Por qué el híbrido no siempre es más eficiente? (lámina 26)
 
 - OpenMP escala con el paralelismo implícito, pero solo hasta el **límite de hardware** de un nodo.
@@ -228,4 +263,4 @@ Sin `num_threads(4)`, cada proceso usa `OMP_NUM_THREADS = 8` hilos: 6 × 8 = **4
 	]}
 />
 
-<Fuente archivos={['U4.5 Paralelismo-hibrido.pdf (láminas 2–26)']} />
+<Fuente archivos={['U4.5 Paralelismo-hibrido.pdf (láminas 2–26)', 'semana_11/matvec_hibrido.cpp']} />

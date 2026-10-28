@@ -1,0 +1,164 @@
+.svgfig {
+	margin: 1.4rem 0;
+	border: 1px solid var(--pg-border);
+	border-radius: var(--pg-radius-sm);
+	background: var(--pg-surface);
+	padding: 0.8rem 0.8rem 0.6rem;
+}
+.svgfig__scroll {
+	overflow-x: auto;
+}
+.svgfig svg {
+	display: block;
+	width: 100%;
+	min-width: 560px;
+	height: auto;
+	font-family: var(--sl-font);
+}
+.svgfig figcaption {
+	margin-top: 0.5rem;
+	font-size: 0.86rem;
+	color: var(--pg-muted);
+	line-height: 1.55;
+}
+.svgfig .t {
+	fill: var(--sl-color-white);
+	font-size: 14px;
+	text-anchor: middle;
+}
+.svgfig .t.s {
+	font-size: 12px;
+}
+.svgfig .t.b {
+	font-weight: 700;
+}
+.svgfig .t.l {
+	text-anchor: start;
+}
+.svgfig .t.r {
+	text-anchor: end;
+}
+.svgfig .t.mono {
+	font-family: var(--__sl-font-mono);
+}
+.svgfig .t.mu,
+.svgfig .cap {
+	fill: var(--pg-muted);
+}
+.svgfig .cap {
+	font-size: 12px;
+	text-anchor: middle;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+}
+.svgfig .cap.l {
+	text-anchor: start;
+}
+.svgfig .t.ok {
+	fill: var(--pg-ok);
+}
+.svgfig .t.bad {
+	fill: var(--pg-bad);
+}
+.svgfig .box {
+	fill: var(--pg-surface-2);
+	stroke: var(--pg-border);
+	stroke-width: 1.5;
+}
+.svgfig .frame {
+	fill: none;
+	stroke: var(--sl-color-gray-4);
+	stroke-width: 1.5;
+}
+.svgfig .os {
+	fill: var(--sl-color-gray-5);
+}
+.svgfig .hole {
+	stroke: none;
+}
+.svgfig .hatch {
+	stroke: var(--sl-color-gray-4);
+	stroke-width: 2;
+}
+.svgfig .sep {
+	stroke: var(--pg-border);
+}
+.svgfig .hl {
+	fill: color-mix(in srgb, var(--sl-color-accent) 18%, transparent);
+}
+.svgfig .q {
+	fill: color-mix(in srgb, var(--pg-c6) 14%, var(--pg-surface));
+	stroke: var(--pg-c6);
+	stroke-width: 1.5;
+}
+.svgfig .trap {
+	fill: color-mix(in srgb, var(--pg-bad) 12%, var(--pg-surface));
+	stroke: var(--pg-bad);
+	stroke-width: 1.2;
+}
+.svgfig .c1,
+.svgfig .c2,
+.svgfig .c3,
+.svgfig .c4,
+.svgfig .c5,
+.svgfig .c6 {
+	stroke-width: 1.5;
+}
+.svgfig .c1 { fill: color-mix(in srgb, var(--pg-c1) 22%, var(--pg-surface)); stroke: var(--pg-c1); }
+.svgfig .c2 { fill: color-mix(in srgb, var(--pg-c2) 22%, var(--pg-surface)); stroke: var(--pg-c2); }
+.svgfig .c3 { fill: color-mix(in srgb, var(--pg-c3) 22%, var(--pg-surface)); stroke: var(--pg-c3); }
+.svgfig .c4 { fill: color-mix(in srgb, var(--pg-c4) 22%, var(--pg-surface)); stroke: var(--pg-c4); }
+.svgfig .c5 { fill: color-mix(in srgb, var(--pg-c5) 22%, var(--pg-surface)); stroke: var(--pg-c5); }
+.svgfig .c6 { fill: color-mix(in srgb, var(--pg-c6) 22%, var(--pg-surface)); stroke: var(--pg-c6); }
+.svgfig .cell {
+	fill: color-mix(in srgb, var(--sl-color-gray-3) 45%, transparent);
+}
+.svgfig .cell-off {
+	fill: none;
+	stroke: var(--pg-border);
+	stroke-width: 0.6;
+}
+.svgfig .cell-on {
+	fill: var(--pg-c4);
+}
+.svgfig .curve {
+	fill: none;
+	stroke: var(--pg-c1);
+	stroke-width: 3;
+}
+.svgfig .axis {
+	stroke: var(--sl-color-gray-3);
+	stroke-width: 1.5;
+}
+.svgfig .ln {
+	fill: none;
+	stroke: var(--sl-color-gray-3);
+	stroke-width: 1.6;
+}
+.svgfig .ln.bad {
+	stroke: var(--pg-bad);
+}
+.svgfig .ln.ok {
+	stroke: var(--pg-ok);
+}
+.svgfig .ln.dash {
+	stroke-dasharray: 5 4;
+}
+.svgfig .head {
+	fill: var(--sl-color-gray-3);
+}
+.svgfig .head-bad {
+	fill: var(--pg-bad);
+}
+.svgfig tspan.b {
+	font-weight: 700;
+}
+.svgfig tspan.ok {
+	fill: var(--pg-ok);
+}
+.svgfig tspan.bad {
+	fill: var(--pg-bad);
+}
+.svgfig tspan.mono {
+	font-family: var(--__sl-font-mono);
+}

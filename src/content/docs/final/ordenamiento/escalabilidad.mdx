@@ -1,0 +1,123 @@
+---
+title: Escalabilidad de los ordenamientos
+description: "Isoeficiencia del bitónico en malla y en hipercubo y de Hyksort (ejercicio 3 de la PD5 resuelto paso a paso), el cruce en p = 2^16 y la tabla resumen de la lámina 36."
+---
+import IsoSort from '../../../../components/playgrounds/IsoSort.tsx';
+import EnSimple from '../../../../components/EnSimple.astro';
+import Quiz from '../../../../components/Quiz.tsx';
+import Solucion from '../../../../components/Solucion.astro';
+import Fuente from '../../../../components/Fuente.astro';
+
+<EnSimple>
+"Escalable" quiere decir: si te doy **más procesadores**, ¿cuánto **más grande** tiene que ser el problema para que cada procesador siga igual de ocupado (misma eficiencia)?
+
+Si basta con duplicar los datos, es muy escalable. Si hay que **elevarlos al cuadrado** o algo peor, apenas escala. La comparación entre la malla y el hipercubo de la PD5 es justo eso: cuál de las dos topologías pide **menos datos** para mantener la eficiencia.
+</EnSimple>
+
+## El método (repaso del parcial)
+
+Viene de [Escalabilidad e isoeficiencia](/performance/escalabilidad/):
+
+1. **Trabajo** W = T<sub>s</sub>: el mejor secuencial. Para ordenar, W = n log n.
+2. **Overhead** T<sub>o</sub> = p·T<sub>p</sub> − W: todo lo que los p procesadores gastan de más.
+3. **Eficiencia** E = W / (W + T<sub>o</sub>) = 1 / (1 + T<sub>o</sub>/W).
+4. **E constante ⇔ W = K·T<sub>o</sub>**, con K = E/(1 − E). Despejar n en función de p: esa es la **función de isoeficiencia**.
+5. **Menor crecimiento = más escalable.** Una isoeficiencia polinomial (p, p log p) es buena. Una exponencial (2<sup>√p</sup>) es mala.
+
+## PD05, ejercicio 3a: bitónico en malla vs hipercubo (1 pt)
+
+**Enunciado:** cómputo O((n/p) log n). Comunicación O(n/√p) en malla y O((n/p) log² p) en hipercubo. Analizar la escalabilidad y decidir qué modelo es más escalable.
+
+<Solucion titulo="Resolución paso a paso">
+**Malla.** T<sub>p</sub> = (n/p)·log n + n/√p.
+
+- p·T<sub>p</sub> = n log n + n·√p
+- T<sub>o</sub> = p·T<sub>p</sub> − n log n = **n·√p**
+- E constante: n log n = K·n·√p ⇒ log n = K·√p ⇒ **n ∝ 2<sup>K√p</sup>**
+
+**Hipercubo.** T<sub>p</sub> = (n/p)·log n + (n/p)·log² p.
+
+- p·T<sub>p</sub> = n log n + n·log² p
+- T<sub>o</sub> = **n·log² p**
+- E constante: n log n = K·n·log² p ⇒ log n = K·log² p ⇒ **n ∝ 2<sup>K log² p</sup>** (= p<sup>K log p</sup>)
+
+**Comparación.** Las dos son exponenciales en el exponente que hay que comparar: √p frente a log² p.
+
+| p | √p (malla) | log² p (hipercubo) | ¿cuál pide menos datos? |
+|---|---|---|---|
+| 16 | 4 | 16 | malla |
+| 1 024 | 32 | 100 | malla |
+| 65 536 = 2¹⁶ | 256 | 256 | iguales |
+| 2²⁰ ≈ 10⁶ | 1 024 | 400 | hipercubo |
+
+**Respuesta oficial de la PD:** "Para la malla n ∝ 2<sup>√p</sup>, para el hipercubo n ∝ 2<sup>log² p</sup>. La malla escala mejor porque necesita menos trabajo (W) para mantener E constante." Es correcta para **p < 2¹⁶ = 65 536**, que es cualquier cluster que uses en el curso.
+
+**Matiz:** para p > 2¹⁶, √p crece más rápido que log² p y el **hipercubo** pasa a ser el más escalable. Es la conclusión **asintótica** de los libros: Grama et al., cap. 9 (*conocimiento general*). En el examen conviene dar la respuesta oficial **y** mencionar el cruce: demuestra que entiendes de dónde sale.
+</Solucion>
+
+<IsoSort client:visible />
+
+## PD05, ejercicio 3b: Hyksort (0.5 pts)
+
+**Enunciado:** T<sub>p</sub> = O((n/p)·log n + log p·(n/p) + log² p). ¿Escala mejor que los anteriores?
+
+<Solucion titulo="Resolución paso a paso">
+- p·T<sub>p</sub> = n log n + n·log p + p·log² p
+- T<sub>o</sub> = **n·log p + p·log² p**
+
+Se iguala W = K·T<sub>o</sub> **término a término** (el término que pida más n manda):
+
+1. n log n ∝ n log p ⇒ log n ∝ log p ⇒ **n ∝ p<sup>K</sup>** (polinomial)
+2. n log n ∝ p log² p ⇒ **n ≈ p log p** (polinomial). Esta es la que da la PD: "n log n ∝ p log²(p)".
+
+**Las dos son polinomiales**, mientras que el bitónico pide crecimiento **exponencial** (2<sup>√p</sup> o 2<sup>log² p</sup>). Por tanto **Hyksort escala mucho mejor que los anteriores**.
+
+Ejemplo numérico con p = 1024: el bitónico en malla pide n ≈ 2³² ≈ 4·10⁹ datos (con K = 1); Hyksort pide n ≈ p log p ≈ 10⁴.
+</Solucion>
+
+## Tabla resumen (lámina 36, reconstruida)
+
+La lámina 36 tiene las celdas desalineadas. Esta es la lectura coherente con las láminas anteriores y con la PD:
+
+| Algoritmo | Secuencial | Span (p = n) | Con p procesos (Brent / bloques) |
+|---|---|---|---|
+| Bubble sort (odd-even transposition) | O(n²) | O(n) | O(n²/p + p) |
+| Mergesort | O(n log n) | O(n) si la mezcla es secuencial · O(log² n) con odd-even merge | — |
+| Quicksort | O(n log n) promedio | O(log² n) | O((n/p) log n + log² p) |
+| Bitónico | O(n log n) (mejor secuencial) | O(log² n) | O((n/p) log n + log² p) |
+| Heapsort | O(n log n) | difícil de paralelizar | — |
+
+Las dos ideas finales de la lámina:
+
+- **Con n > p, el cómputo local (n/p) log(n/p) importa**: es la parte que se reparte bien.
+- **Hay que minimizar la comunicación**, porque es lo que decide la escalabilidad (en el ejemplo de ranking dominaba ×65). La lámina 37 (Axtmann & Sanders 2020, 262 144 núcleos) muestra que el mejor algoritmo cambia según n/p.
+
+## Práctica
+
+**1.** Un ordenamiento tiene T<sub>p</sub> = (n/p) log n + log² p. ¿Cuál es su isoeficiencia?
+
+<Solucion>
+T<sub>o</sub> = p·T<sub>p</sub> − n log n = p log² p. Con W = K·T<sub>o</sub>: n log n ∝ p log² p ⇒ **n ∝ p log p**. Es muy escalable: duplicar p pide algo más del doble de datos.
+</Solucion>
+
+**2.** Con E = 0.8, ¿cuánto vale K? Para el bitónico en hipercubo con p = 64, ¿qué n hace falta?
+
+<Solucion>
+K = E/(1 − E) = 0.8/0.2 = **4**.
+
+Hipercubo: log n = K·log² p = 4 · 6² = 144, así que **n = 2¹⁴⁴**, un número imposible. Mantener E = 0.8 con el bitónico es inviable aunque p sea pequeño: en la práctica se acepta una E menor. Con K = 1 (E = 0.5): log n = 36, n = 2³⁶ ≈ 6.9·10¹⁰, que sigue siendo enorme.
+</Solucion>
+
+<Quiz
+	client:visible
+	id="u5-iso"
+	preguntas={[
+		{ q: 'El overhead se define como…', opts: ['T_p − T_s', 'p·T_p − T_s', 'T_s/T_p', 'p/T_p'], ok: 1 },
+		{ q: 'Isoeficiencia del bitónico en malla:', opts: ['n ∝ p', 'n ∝ p log p', 'n ∝ 2^√p', 'n ∝ 2^(log² p)'], ok: 2 },
+		{ q: 'Según la PD5, ¿qué topología escala mejor para el bitónico (p prácticos)?', opts: ['hipercubo', 'malla', 'iguales', 'ninguna'], ok: 1 },
+		{ q: '¿Desde qué p el hipercubo pasa a escalar mejor que la malla?', opts: ['p > 16', 'p > 1024', 'p > 2^16', 'nunca'], ok: 2 },
+		{ q: 'Hyksort escala mejor porque su isoeficiencia es…', opts: ['exponencial', 'polinomial', 'constante', 'logarítmica'], ok: 1 },
+	]}
+/>
+
+<Fuente archivos={['2026I-CS4052-PD5.pdf (ejercicio 3)', 'U5.2 Algoritmos-ordenamiento.pdf (láminas 21, 36–37)', 'U2.1 Diseño en paralelo-performance (isoeficiencia)']} />

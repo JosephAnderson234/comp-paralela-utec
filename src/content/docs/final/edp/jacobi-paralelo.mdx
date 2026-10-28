@@ -1,0 +1,163 @@
+---
+title: Laplace/Jacobi en paralelo (OpenMP y MPI)
+description: "Los tres códigos de clase (secuencial, OpenMP, MPI) explicados línea a línea, el intercambio de halos con Send/Recv, tres errores encontrados al ejecutarlos y cómo se reparte una malla 2D (franjas vs bloques)."
+---
+import U5Fig from '../../../../components/U5Fig.astro';
+import JacobiHalo from '../../../../components/playgrounds/JacobiHalo.tsx';
+import EnSimple from '../../../../components/EnSimple.astro';
+import Quiz from '../../../../components/Quiz.tsx';
+import Solucion from '../../../../components/Solucion.astro';
+import Fuente from '../../../../components/Fuente.astro';
+
+<EnSimple>
+Una fila de 100 personas. La primera tiene 0 °C y la última 100 °C. En cada ronda, cada persona dice "mi valor nuevo es el promedio de los valores **viejos** de mis dos vecinos". Todos pueden calcular **a la vez**, porque solo miran valores viejos.
+
+Si partes la fila en 4 grupos (4 procesos), la persona del extremo de cada grupo necesita el valor de alguien del grupo de al lado. Antes de cada ronda, los grupos **se pasan ese valor** por mensaje (Send/Recv). Ese valor prestado es el **halo** o celda fantasma.
+</EnSimple>
+
+## El problema de clase
+
+Laplace 1D en [0, 1] con N = 100 puntos: u(0) = 0, u(1) = 100, y d²u/dx² = 0 en el interior. La solución exacta es la recta **u(x) = 100·x**. El stencil 1D es **u[i] = ½ (u_old[i−1] + u_old[i+1])**.
+
+<JacobiHalo client:visible />
+
+## Versión OpenMP (`laplace_omp.cpp`)
+
+```cpp
+while (error > tol && iter < max_iter) {
+    u_old = u;                       // copia secuencial O(N)
+    error = 0.0;
+    #pragma omp parallel for reduction(max:error)
+    for (int i = 1; i < N - 1; ++i) {
+        u[i] = 0.5 * (u_old[i - 1] + u_old[i + 1]);
+        double local_error = std::abs(u[i] - u_old[i]);
+        if (local_error > error) error = local_error;
+    }
+    iter++;
+}
+```
+
+Por qué es correcto:
+
+- **Sin carreras:** cada hilo **escribe** solo su `u[i]` y **lee** solo `u_old`, que nadie modifica dentro del bucle. Esto funciona porque es Jacobi: con Gauss-Seidel (leer `u[i-1]` en lugar de `u_old[i-1]`) habría una carrera.
+- **`reduction(max:error)`:** cada hilo tiene su propio `error` privado, iniciado en el neutro del máximo, y al final se combinan con max. Repasa [reduction](/final/openmp/datos/).
+- **Barrera implícita** al final del `parallel for`: ningún hilo empieza la iteración siguiente hasta que todos terminaron.
+
+Lo que **limita** el speedup:
+
+1. `u_old = u` copia el arreglo **en serie** en cada iteración. Lo mejor es intercambiar punteros (`std::swap(u, u_old)`).
+2. Se abre y cierra una región paralela por iteración (fork-join de 10 000 iteraciones o más). Con N = 100 hay solo 98 puntos por iteración: el costo de crear el equipo de hilos **supera** el cálculo. Este ejemplo no gana nada con OpenMP. Hace falta un N grande.
+
+## Versión MPI (`laplace_mpi.cpp`), paso a paso
+
+<U5Fig fig="halo1d">
+**Cómo leerlo:** cada proceso guarda local_N = N/p puntos propios (posiciones 1..local_N) **más dos celdas fantasma**: `[0]` para el último punto del vecino izquierdo y `[local_N+1]` para el primero del derecho. Las flechas son los mensajes de cada iteración.
+</U5Fig>
+
+| Paso | Código | Qué hace |
+|---|---|---|
+| 1 | `MPI_Scatter(sendbuf, local_N, …, &local_u[1], …)` | rank 0 reparte bloques contiguos de N/p puntos; se guardan desde la posición 1 (la 0 es fantasma) |
+| 2 | `if (rank == 0) local_u[1] = 0; if (rank == size-1) local_u[local_N] = 100;` | fija las fronteras físicas |
+| 3 | `MPI_Send(&local_old[1] → rank−1)` + `MPI_Recv(&local_old[0] ← rank−1)` | intercambio con el vecino **izquierdo** |
+| 4 | `MPI_Send(&local_old[local_N] → rank+1)` + `MPI_Recv(&local_old[local_N+1] ← rank+1)` | intercambio con el vecino **derecho** |
+| 5 | bucle `i = 1..local_N` (salta las fronteras físicas) | stencil local + error local |
+| 6 | `MPI_Allreduce(&local_error, &global_error, MPI_MAX)` | todos conocen el error global y deciden juntos si seguir |
+| 7 | `MPI_Gather(&local_u[1], …)` | rank 0 junta la solución |
+
+**Costo por iteración y por proceso:** cómputo ≈ (N/p)·m · t<sub>c</sub>. Comunicación: 2 mensajes de **1 double** a cada lado (latencia pura, 2·(t<sub>s</sub> + t<sub>w</sub>)) más un Allreduce ≈ log p · (t<sub>s</sub> + t<sub>w</sub>). En 1D el halo **no crece con N**, así que con N grande el cómputo domina y escala bien.
+
+## Lo que encontramos al ejecutar los códigos
+
+Se compilaron y ejecutaron los tres programas. Con p = 1, 2, 4 y 5 el MPI da **exactamente** la misma salida que el secuencial y que OpenMP. Pero hay tres detalles que un examen tipo "detective" puede preguntar.
+
+### 1 · Con p = 3 el resultado es incorrecto
+
+`int local_N = N / size;  // Suponemos que N es divisible entre size`
+
+Con N = 100 y p = 3, local_N = 33: se reparten 99 puntos y **el punto 99 nunca llega a ningún proceso**. Además el último proceso pone 100 en su último punto propio, que es el índice global **98**. Medido al ejecutarlo:
+
+| p | u(0.4949) | u(0.9899) | error final |
+|---|---|---|---|
+| 1, 2, 4, 5 | 49.0813 | 98.9768 | 4.17·10⁻⁴ |
+| **3** | **49.6267** | **100.0000** ✗ | 3.83·10⁻⁴ |
+
+La frontera quedó un punto antes y el resultado es incorrecto sin ningún aviso. **Corrección:** comprobar `N % size == 0` y abortar (como hace `matvec_hibrido.cpp`), o repartir el resto con `MPI_Scatterv` (local_N = N/p, más 1 para los primeros N % p procesos).
+
+### 2 · El intercambio de halos puede bloquearse (deadlock)
+
+Fíjate en el orden: **todos** hacen primero `Send` a la izquierda. El rank 1 envía al rank 0, pero el rank 0, que no tiene vecino izquierdo, está haciendo `Send` al rank 1. Los dos están enviando y ninguno está recibiendo.
+
+Funciona solo porque un mensaje de **1 double** es pequeño y MPI lo copia a un buffer interno: `MPI_Send` retorna sin esperar al receptor (protocolo *eager*). Para probarlo, cambiamos `MPI_Send` por `MPI_Ssend` (envío síncrono, que espera al receptor): **con p = 2 el programa se cuelga** y hubo que cortarlo por timeout. Es el patrón *unsafe* de [bloqueante vs no bloqueante](/mpi/bloqueante/). Con halos grandes (por ejemplo, filas enteras en 2D) el mismo código puede bloquearse.
+
+**Corrección** con `MPI_Sendrecv` y `MPI_PROC_NULL` (un envío o recepción a `MPI_PROC_NULL` no hace nada, así no hacen falta los `if`):
+
+```cpp
+int izq = rank > 0 ? rank - 1 : MPI_PROC_NULL;
+int der = rank < size - 1 ? rank + 1 : MPI_PROC_NULL;
+MPI_Sendrecv(&local_old[1], 1, MPI_DOUBLE, izq, 0,
+             &local_old[local_N + 1], 1, MPI_DOUBLE, der, 0,
+             MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+MPI_Sendrecv(&local_old[local_N], 1, MPI_DOUBLE, der, 1,
+             &local_old[0], 1, MPI_DOUBLE, izq, 1,
+             MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+```
+
+Otra opción es `MPI_Isend`/`MPI_Irecv` + `MPI_Waitall`. Además permite **solapar**: calcular los puntos interiores mientras llegan los halos y dejar para el final los 2 puntos del borde.
+
+### 3 · 10 000 iteraciones no bastan
+
+Visto en [EDP y diferencias finitas](/final/edp/fundamentos/): se necesitan 21 980 iteraciones. Las tres versiones paran en `max_iter`, con error 4.17·10⁻⁴ > tol = 10⁻⁶. Que las tres den lo mismo prueba que la **paralelización es correcta**, no que la solución haya convergido.
+
+:::note[Detalle de la lámina 18]
+En la versión resumida de la lámina 18 falta la línea `local_error = max(local_error, |local_u[i] − local_old[i]|)` dentro del bucle. Sin ella, `global_error` siempre vale 0 y el `while` termina después de **una** iteración. El archivo `laplace_mpi.cpp` sí la tiene.
+:::
+
+## En 2D: ¿franjas o bloques? (láminas 32–34 y U4.5)
+
+Malla N×N, p procesos y una celda de halo por lado:
+
+| Reparto | Halo que envía cada proceso por iteración | Cómputo / comunicación |
+|---|---|---|
+| **Franjas** (filas contiguas) | 2 mensajes de N valores: 2(t<sub>s</sub> + N·t<sub>w</sub>) | (N²/p) / 2N = **N / 2p** |
+| **Bloques** (√p × √p) | 4 mensajes de N/√p valores: 4(t<sub>s</sub> + (N/√p)·t<sub>w</sub>) | (N²/p) / (4N/√p) = **N / 4√p** |
+
+- Con **franjas** el halo por proceso **no baja** al aumentar p: siempre son 2 filas de N.
+- Con **bloques** baja como 1/√p (lámina 13 de U4.5), pero hay 4 vecinos, así que el doble de latencias.
+- Los bloques ganan cuando N/(4√p) > N/(2p), es decir, √p > 2, o sea **p > 4**. Con pocos procesos, o con latencia t<sub>s</sub> alta, las franjas son más simples y van igual o mejor.
+
+En C, una franja de filas es memoria **contigua** y se envía tal cual. Una columna de un bloque no lo es: hay que usar un `MPI_Type_vector` (ver [tipos derivados](/mpi/tipos-derivados/)).
+
+## Práctica
+
+**1.** Laplace 2D con N = 4096, p = 16, t<sub>c</sub> = 1 ns por operación (m = 5), t<sub>s</sub> = 2 µs y t<sub>w</sub> = 4 ns por double. Calcula el tiempo por iteración con franjas y con bloques.
+
+<Solucion>
+**Cómputo** (igual en los dos repartos): (N²/p)·m·t<sub>c</sub> = (16 777 216/16)·5·1 ns = 1 048 576·5 ns ≈ **5.24 ms**.
+
+**Franjas:** 2(t<sub>s</sub> + N·t<sub>w</sub>) = 2(2 µs + 4096·4 ns) = 2(2 + 16.38) µs ≈ **36.8 µs**. Total ≈ 5.28 ms.
+
+**Bloques:** √p = 4, N/√p = 1024. 4(2 µs + 1024·4 ns) = 4(2 + 4.10) µs ≈ **24.4 µs**. Total ≈ 5.26 ms.
+
+Los bloques comunican ≈ 34 % menos, pero con N = 4096 la comunicación es menos del 1 % del total. La diferencia importaría con N pequeño o con p grande.
+</Solucion>
+
+**2.** ¿Por qué no se puede repartir el bucle `while` (las iteraciones) entre procesos?
+
+<Solucion>
+Porque la iteración k+1 **necesita** el resultado completo de la iteración k: es una dependencia verdadera en el tiempo. Lo que se reparte es el **espacio** (los puntos), y dentro de cada iteración todos los puntos son independientes. Es la misma razón por la que en las EDP parabólicas el tiempo es secuencial (lámina 31).
+</Solucion>
+
+<Quiz
+	client:visible
+	id="u5-jacobi-par"
+	preguntas={[
+		{ q: 'En laplace_mpi.cpp, ¿para qué sirven local_u[0] y local_u[local_N+1]?', opts: ['para guardar el error', 'son celdas fantasma (halo) con el borde de los vecinos', 'para la frontera física de todos los procesos', 'no se usan'], ok: 1 },
+		{ q: '¿Qué pasa al ejecutar laplace_mpi con N = 100 y p = 3?', opts: ['funciona igual', 'deadlock', 'resultado incorrecto: un punto no se reparte y la frontera queda corrida', 'error de compilación'], ok: 2 },
+		{ q: '¿Por qué el intercambio Send-luego-Recv no se cuelga en la práctica?', opts: ['porque MPI_Send siempre es no bloqueante', 'porque los mensajes de 1 double se copian a un buffer interno (eager) y Send retorna', 'porque hay un Barrier', 'porque Recv va primero'], ok: 1 },
+		{ q: '¿Qué operación MPI decide si todos los procesos siguen iterando?', opts: ['MPI_Bcast', 'MPI_Allreduce con MPI_MAX', 'MPI_Gather', 'MPI_Barrier'], ok: 1 },
+		{ q: 'En 2D con franjas, al aumentar p, el halo por proceso…', opts: ['baja como 1/p', 'baja como 1/√p', 'no cambia (2 filas de N)', 'crece'], ok: 2 },
+		{ q: 'En la versión OpenMP, ¿qué evita la carrera sobre u?', opts: ['critical', 'que cada hilo escribe su u[i] y solo lee u_old, que nadie modifica en el bucle', 'atomic', 'schedule(dynamic)'], ok: 1 },
+	]}
+/>
+
+<Fuente archivos={['U5.1 Algoritmos-EDP.pdf (láminas 17–18, 32–34)', 'U5.1 Algoritmos-EDP-code/laplace_sec.cpp', 'laplace_omp.cpp', 'laplace_mpi.cpp', 'U4.5 Paralelismo-hibrido.pdf (lámina 13)']} />

@@ -1,0 +1,143 @@
+---
+title: EDP y diferencias finitas
+description: "Qué es una ecuación diferencial parcial, los tres tipos (elíptica, parabólica, hiperbólica), cómo se convierte en un stencil con diferencias finitas, Jacobi vs Gauss-Seidel y la complejidad T = k·m·N²."
+---
+import U5Fig from '../../../../components/U5Fig.astro';
+import EnSimple from '../../../../components/EnSimple.astro';
+import Quiz from '../../../../components/Quiz.tsx';
+import Solucion from '../../../../components/Solucion.astro';
+import Fuente from '../../../../components/Fuente.astro';
+
+<EnSimple>
+Piensa en una plancha de metal con un borde caliente y los otros fríos. ¿Qué temperatura tiene cada punto cuando todo se estabiliza? Cada punto termina con **el promedio de sus vecinos**.
+
+La computadora no puede trabajar con "infinitos puntos", así que pone una **cuadrícula** (malla) y repite: "cada casilla = promedio de sus vecinas", hasta que los números dejan de cambiar. Eso es resolver una EDP con **diferencias finitas** y el **método de Jacobi**.
+
+Para el curso, lo importante es lo paralelo: cada casilla solo mira a sus vecinas. Si partes la malla entre procesos, cada uno solo necesita **el borde del vecino** (el halo de la U4.5).
+</EnSimple>
+
+## Qué es una EDP
+
+Una **ecuación diferencial parcial** (EDP) relaciona una función de varias variables, por ejemplo u(x, y) o u(x, t), con sus derivadas parciales. Modela calor, difusión, fluidos, ondas y potenciales gravitacionales o eléctricos (lámina 2).
+
+## Los tres tipos (láminas 5–6)
+
+<U5Fig fig="tipos">
+**Cómo leerlo:** la diferencia que importa en paralelo es si aparece el **tiempo**. Las elípticas no lo tienen: se itera hasta que la solución converge. Las parabólicas e hiperbólicas avanzan paso a paso en el tiempo, y ese avance **no se puede paralelizar** (lámina 31): solo se reparte el **espacio**.
+</U5Fig>
+
+:::caution[Signo en la lámina 6]
+La lámina escribe la ecuación de onda como ∂²u/∂t² = −c² ∂²u/∂x², con signo menos. El signo correcto es **+**: ∂²u/∂t² = c² ∂²u/∂x². Con el signo menos la ecuación no describe una onda: es inestable y crece sin control. La lámina 35 ya la escribe con +.
+:::
+
+## De la derivada a la resta: diferencias finitas (láminas 4, 7–8)
+
+**Idea:** la derivada es una pendiente. En una malla con separación h, la aproximas restando valores vecinos.
+
+| Derivada | Aproximación | Error |
+|---|---|---|
+| Primera (hacia adelante) | (u<sub>i+1</sub> − u<sub>i</sub>) / h | O(h) |
+| Primera (centrada) | (u<sub>i+1</sub> − u<sub>i−1</sub>) / 2h | O(h²) |
+| Segunda (centrada) | (u<sub>i+1</sub> − 2u<sub>i</sub> + u<sub>i−1</sub>) / h² | O(h²) |
+
+Salen de la serie de Taylor: si sumas u(x₀+h) y u(x₀−h), los términos de orden impar se cancelan y queda u(x₀+h) + u(x₀−h) = 2u(x₀) + h²·u″(x₀) + O(h⁴). Al despejar u″ sale la fórmula de la segunda derivada.
+
+## Laplace 2D paso a paso (láminas 7–16)
+
+Ecuación de Laplace (equilibrio de temperatura): ∂²u/∂x² + ∂²u/∂y² = 0.
+
+1. **Sustituir** cada segunda derivada por su diferencia finita (con Δx = Δy = h):
+
+   (u<sub>i+1,j</sub> − 2u<sub>i,j</sub> + u<sub>i−1,j</sub>)/h² + (u<sub>i,j+1</sub> − 2u<sub>i,j</sub> + u<sub>i,j−1</sub>)/h² = 0
+
+2. **Multiplicar por h²** y juntar términos:
+
+   u<sub>i+1,j</sub> + u<sub>i−1,j</sub> + u<sub>i,j+1</sub> + u<sub>i,j−1</sub> − 4u<sub>i,j</sub> = 0
+
+3. **Despejar** u<sub>i,j</sub>: u<sub>i,j</sub> = ¼ · (suma de los 4 vecinos).
+
+4. **Frontera:** si un vecino está en el borde, su valor es **conocido** y pasa al lado derecho (lámina 15): −4u<sub>2,4</sub> + u<sub>3,4</sub> + u<sub>2,3</sub> + u<sub>2,5</sub> = −u<sub>1,4</sub>.
+
+Una ecuación por punto interior: con N×N puntos hay **N² ecuaciones con N² incógnitas** (en 3D con 1000³ puntos, 10⁹ ecuaciones, lámina 24). Nadie resuelve eso por eliminación gaussiana: se **itera**.
+
+<U5Fig fig="stencil">
+**Cómo leerlo:** el punto naranja se recalcula con los 4 celestes. Este patrón fijo de vecinos se llama **stencil** de 5 puntos. Como cada punto solo depende de vecinos cercanos, el problema se reparte bien: un proceso solo necesita los puntos de sus bordes que tienen otros procesos.
+</U5Fig>
+
+:::note[Una observación sobre la lámina 9]
+La lámina escribe el paso como Δu = (promedio de vecinos) − u<sup>n</sup>, y luego u<sup>n+1</sup> = u<sup>n</sup> + Δu. Las dos formas dan lo mismo: u<sup>n+1</sup> = promedio de vecinos. El código de la lámina usa directamente la segunda.
+:::
+
+### Poisson: Laplace con fuente (láminas 23–25)
+
+∇²u = S(x, y). La fuente S es la masa, la carga o una fuente de calor. Con el mismo procedimiento:
+
+u<sup>k+1</sup><sub>i,j</sub> = ¼ · ( u<sup>k</sup><sub>i+1,j</sub> + u<sup>k</sup><sub>i−1,j</sub> + u<sup>k</sup><sub>i,j+1</sub> + u<sup>k</sup><sub>i,j−1</sub> − h²·S<sub>i,j</sub> )
+
+Tipos de frontera: **Dirichlet** fija el valor (u = f en el borde). **Neumann** fija la derivada normal (∂u/∂n = g, por ejemplo "no sale calor").
+
+## Jacobi vs Gauss-Seidel (láminas 25–26)
+
+| | Jacobi | Gauss-Seidel |
+|---|---|---|
+| Qué vecinos usa | todos de la iteración **anterior** (u_old) | los ya actualizados en **esta** iteración |
+| Memoria | dos arreglos (u y u_old) | uno solo |
+| Iteraciones para converger | más | menos (≈ la mitad) |
+| Paralelismo | **todos los puntos a la vez** | el punto i espera al i−1: secuencial. Hay que reordenar (rojo-negro, *conocimiento general*) |
+
+**Criterio de parada:** diff = max |u<sup>k+1</sup> − u<sup>k</sup>| < ε. En paralelo, cada proceso calcula su máximo local y luego se hace un `MPI_Allreduce` con `MPI_MAX`.
+
+## Complejidad: T(N) = k · m · N² (lámina 26)
+
+- **N:** puntos por dimensión (N² en total en 2D).
+- **m:** operaciones por punto (≈ 5 en el stencil: 3 sumas, 1 multiplicación y la diferencia del error).
+- **k:** número de iteraciones hasta converger.
+
+La trampa es que **k no es constante**: crece con N. Medido con `laplace_sec.cpp` (Laplace 1D, tolerancia 10⁻⁶):
+
+| N | Iteraciones de Jacobi hasta converger |
+|---|---|
+| 50 | 6 066 |
+| 100 | 21 980 |
+| 200 | 77 614 |
+
+Al duplicar N las iteraciones se multiplican por ≈ 3.6. Es decir, k crece casi como N². El motivo: el valor de la frontera avanza **un punto por iteración**, y además cada recorrido solo reduce un poco el error.
+
+:::caution[El código de clase no converge]
+`laplace_sec.cpp` usa `max_iter = 10000`, pero con N = 100 se necesitan **21 980** iteraciones. Al ejecutarlo se detiene en 10 000 con error 4.2·10⁻⁴, mil veces más que la tolerancia 10⁻⁶, y da u(0.4949) = 49.08 cuando el valor exacto es 49.49. La gráfica de clase "se ve" bien, pero no convergió. Si un examen pregunta por qué, la respuesta es que Jacobi converge lento: k ∝ N².
+:::
+
+## Práctica
+
+**1.** Discretiza la ecuación del calor 1D ∂u/∂t = D·∂²u/∂x² con diferencia hacia adelante en el tiempo (paso Δt) y centrada en el espacio (paso h). Escribe u<sub>i</sub><sup>n+1</sup>.
+
+<Solucion>
+Izquierda: (u<sub>i</sub><sup>n+1</sup> − u<sub>i</sub><sup>n</sup>)/Δt. Derecha: D·(u<sub>i+1</sub><sup>n</sup> − 2u<sub>i</sub><sup>n</sup> + u<sub>i−1</sub><sup>n</sup>)/h².
+
+Despejando: **u<sub>i</sub><sup>n+1</sup> = u<sub>i</sub><sup>n</sup> + (D·Δt/h²)·(u<sub>i+1</sub><sup>n</sup> − 2u<sub>i</sub><sup>n</sup> + u<sub>i−1</sub><sup>n</sup>)**.
+
+Es el mismo stencil de 3 puntos, así que se paraleliza igual que Laplace 1D: 1 valor de halo por lado y por paso. *Conocimiento general:* este esquema explícito solo es estable si D·Δt/h² ≤ ½.
+</Solucion>
+
+**2.** Una malla 3D de 512³ puntos, m = 8 operaciones por punto y k = 2000 iteraciones. ¿Cuántas operaciones hace Jacobi? Si la máquina hace 10 GFLOP/s, ¿cuánto tarda?
+
+<Solucion>
+T = k·m·N³ (en 3D hay N³ puntos) = 2000 · 8 · 512³ = 2000 · 8 · 134 217 728 ≈ **2.15·10¹² operaciones**.
+
+A 10·10⁹ op/s: 2.15·10¹² / 10¹⁰ ≈ **215 s**. Por eso estos problemas se reparten entre muchos procesos.
+</Solucion>
+
+<Quiz
+	client:visible
+	id="u5-edp-fund"
+	preguntas={[
+		{ q: '¿Qué tipo de EDP es la ecuación de Laplace?', opts: ['hiperbólica', 'parabólica', 'elíptica', 'ninguna'], ok: 2 },
+		{ q: 'En una EDP parabólica u(x,t), ¿qué se puede paralelizar?', opts: ['el tiempo y el espacio', 'solo el tiempo', 'solo el espacio (el tiempo es secuencial)', 'nada'], ok: 2 },
+		{ q: 'El stencil de Laplace 2D calcula u[i][j] como…', opts: ['la suma de 8 vecinos', '¼ de la suma de los 4 vecinos', 'el máximo de los vecinos', 'u_old[i][j] + 1'], ok: 1 },
+		{ q: '¿Por qué Jacobi se paraleliza mejor que Gauss-Seidel?', opts: ['porque converge más rápido', 'porque solo usa valores de la iteración anterior, así que todos los puntos son independientes', 'porque usa menos memoria', 'porque no necesita frontera'], ok: 1 },
+		{ q: 'En T(N) = k·m·N², ¿qué pasa con k al aumentar N en Jacobi?', opts: ['queda constante', 'crece (≈ N²)', 'disminuye', 'depende solo de m'], ok: 1 },
+		{ q: 'Una frontera de Neumann fija…', opts: ['el valor de u en el borde', 'la derivada normal de u en el borde', 'el número de iteraciones', 'la fuente S'], ok: 1 },
+	]}
+/>
+
+<Fuente archivos={['U5.1 Algoritmos-EDP.pdf (láminas 2–31)', 'U5.1 Algoritmos-EDP-code/laplace_sec.cpp']} />

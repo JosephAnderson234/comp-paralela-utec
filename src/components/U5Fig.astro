@@ -1,0 +1,302 @@
+---
+/** Diagramas de la unidad 5: EDP (tipos, stencil, halos, onda), ordenamiento (comparar-intercambiar, quicksort paralelo) y DAG de la PD5. */
+import '../styles/svgfig.css';
+type Fig = 'tipos' | 'stencil' | 'halo1d' | 'onda' | 'cmpx' | 'qspar' | 'dagpd5' | 'gantt';
+interface Props {
+	fig: Fig;
+}
+const { fig } = Astro.props;
+const A = `url(#u5a-${fig})`;
+const R = `url(#u5r-${fig})`;
+const defs = `<defs><marker id="u5a-${fig}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head"/></marker><marker id="u5r-${fig}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head-bad"/></marker></defs>`;
+
+const tipos = [
+	{ x: 20, c: 'c1', t: 'Elíptica', e: 'Laplace, Poisson', f: '∂²u/∂x² + ∂²u/∂y² = S', d1: 'estado de equilibrio:', d2: 'no hay tiempo', d3: '→ se itera hasta converger' },
+	{ x: 270, c: 'c3', t: 'Parabólica', e: 'calor, difusión', f: '∂u/∂t = D ∂²u/∂x²', d1: 'evoluciona en el tiempo', d2: '(1.ª derivada en t)', d3: '→ un paso usa el anterior' },
+	{ x: 520, c: 'c4', t: 'Hiperbólica', e: 'onda, tsunami', f: '∂²u/∂t² = c² ∂²u/∂x²', d1: 'evoluciona en el tiempo', d2: '(2.ª derivada en t)', d3: '→ usa t y t − 1' },
+];
+
+const G = 5;
+const gs = 46;
+const gx = 60;
+const gy = 30;
+const vec = [
+	[1, 2],
+	[3, 2],
+	[2, 1],
+	[2, 3],
+];
+
+const glob = Array.from({ length: 12 }, (_, i) => i);
+const pc = ['c1', 'c2', 'c3'];
+
+const qd = [7, 2, 9, 4, 1, 8, 3, 6];
+const qf = qd.map((v) => (v <= 4 ? 1 : 0));
+const qj: number[] = [];
+qf.reduce((acc, f, i) => ((qj[i] = acc + f), acc + f), 0);
+const qp = qj[7];
+const qdest = qd.map((_, i) => (qf[i] ? qj[i] - 1 : qp + i - qj[i]));
+const qres: number[] = [];
+qd.forEach((v, i) => (qres[qdest[i]] = v));
+
+const nodos: Record<string, { x: number; y: number; t: string; c: string; ms: string }> = {
+	mn: { x: 110, y: 60, t: 'min_x = minimo(x)', c: 'c1', ms: '0.11 s' },
+	mx: { x: 330, y: 60, t: 'max_x = maximo(x)', c: 'c1', ms: '0.11 s' },
+	y: { x: 580, y: 60, t: 'calculo_y(y, x)', c: 'c2', ms: '0.51 s' },
+	z: { x: 220, y: 175, t: 'calculo_z(z, min, max)', c: 'c3', ms: '0.62 s' },
+	xx: { x: 520, y: 175, t: 'calculo_x(x, y)', c: 'c2', ms: '≈ 0 s' },
+	v: { x: 370, y: 285, t: 'calculo_v(v, z, x)', c: 'c4', ms: '0.045 s' },
+};
+const nw = 190;
+const nh = 44;
+const aristas: { a: string; b: string; w?: boolean }[] = [
+	{ a: 'mn', b: 'z' },
+	{ a: 'mx', b: 'z' },
+	{ a: 'y', b: 'xx' },
+	{ a: 'mn', b: 'xx', w: true },
+	{ a: 'mx', b: 'xx', w: true },
+	{ a: 'z', b: 'v' },
+	{ a: 'xx', b: 'v' },
+];
+
+const esc = 520;
+const gx0 = 150;
+const gt = (t: number) => gx0 + (t / 1.2) * esc;
+const ganttS = [
+	{ h: 0, a: 0, b: 0.11, t: 'min', c: 'c1' },
+	{ h: 1, a: 0, b: 0.11, t: 'max', c: 'c1' },
+	{ h: 2, a: 0, b: 0.51, t: 'calculo_y', c: 'c2' },
+	{ h: 0, a: 0.51, b: 1.13, t: 'calculo_z', c: 'c3' },
+	{ h: 1, a: 0.51, b: 0.52, t: '', c: 'c2' },
+	{ h: 0, a: 1.13, b: 1.18, t: 'v', c: 'c4' },
+];
+const ganttT = [
+	{ h: 0, a: 0, b: 0.11, t: 'min', c: 'c1' },
+	{ h: 1, a: 0, b: 0.11, t: 'max', c: 'c1' },
+	{ h: 2, a: 0, b: 0.51, t: 'calculo_y', c: 'c2' },
+	{ h: 0, a: 0.11, b: 0.73, t: 'calculo_z', c: 'c3' },
+	{ h: 2, a: 0.51, b: 0.52, t: '', c: 'c2' },
+	{ h: 0, a: 0.73, b: 0.78, t: 'v', c: 'c4' },
+];
+---
+
+<figure class="svgfig not-content">
+	<div class="svgfig__scroll">
+		{fig === 'tipos' && (
+			<svg viewBox="0 0 760 220" role="img" aria-label="Los tres tipos de EDP: elíptica, parabólica e hiperbólica">
+				{tipos.map((k) => (
+					<>
+						<rect x={k.x} y="15" width="220" height="190" rx="10" class={k.c} />
+						<text x={k.x + 110} y="45" class="t b">{k.t}</text>
+						<text x={k.x + 110} y="68" class="t s mu">{k.e}</text>
+						<text x={k.x + 110} y="104" class="t s mono">{k.f}</text>
+						<line x1={k.x + 20} y1="122" x2={k.x + 200} y2="122" class="sep" />
+						<text x={k.x + 110} y="148" class="t s">{k.d1}</text>
+						<text x={k.x + 110} y="168" class="t s">{k.d2}</text>
+						<text x={k.x + 110} y="190" class="t s b">{k.d3}</text>
+					</>
+				))}
+			</svg>
+		)}
+
+		{fig === 'stencil' && (
+			<svg viewBox="0 0 760 290" role="img" aria-label="Stencil de 5 puntos: el punto i,j se calcula con sus cuatro vecinos">
+				<Fragment set:html={defs} />
+				{Array.from({ length: G * G }, (_, q) => {
+					const i = q % G;
+					const j = Math.floor(q / G);
+					const centro = i === 2 && j === 2;
+					const vecino = vec.some(([a, b]) => a === i && b === j);
+					const borde = i === 0 || j === 0 || i === G - 1 || j === G - 1;
+					return <rect x={gx + i * gs} y={gy + j * gs} width={gs - 4} height={gs - 4} rx="5" class={centro ? 'c2' : vecino ? 'c1' : borde ? 'trap' : 'box'} />;
+				})}
+				<text x={gx + 2 * gs + 21} y={gy + 2 * gs + 27} class="t s b">i,j</text>
+				<text x={gx + 1 * gs + 21} y={gy + 2 * gs + 27} class="t s">i−1</text>
+				<text x={gx + 3 * gs + 21} y={gy + 2 * gs + 27} class="t s">i+1</text>
+				<text x={gx + 2 * gs + 21} y={gy + 1 * gs + 27} class="t s">j−1</text>
+				<text x={gx + 2 * gs + 21} y={gy + 3 * gs + 27} class="t s">j+1</text>
+				<text x={gx + 2.5 * gs} y={gy + G * gs + 22} class="t s mu">rojo = frontera (valor conocido)</text>
+				<text x="340" y="70" class="t l b">Cada punto interior = promedio de sus 4 vecinos</text>
+				<text x="340" y="110" class="t l mono">u[i][j] = 0.25 · ( uold[i−1][j] + uold[i+1][j]</text>
+				<text x="340" y="134" class="t l mono">                 + uold[i][j−1] + uold[i][j+1] )</text>
+				<text x="340" y="176" class="t s l">viene de  ∂²u/∂x² + ∂²u/∂y² = 0  con diferencias finitas:</text>
+				<text x="340" y="200" class="t s l mono">u(i+1,j) + u(i−1,j) + u(i,j+1) + u(i,j−1) − 4u(i,j) = 0</text>
+				<text x="340" y="236" class="t s l mu">m = 5 operaciones por punto · N² puntos · k iteraciones</text>
+				<text x="340" y="256" class="t s l b">T(N) = k · m · N²</text>
+			</svg>
+		)}
+
+		{fig === 'halo1d' && (
+			<svg viewBox="0 0 760 270" role="img" aria-label="Arreglo de 12 puntos repartido entre 3 procesos, cada uno con dos celdas fantasma">
+				<Fragment set:html={defs} />
+				<text x="20" y="30" class="cap l">arreglo global u (N = 12)</text>
+				{glob.map((i) => (
+					<>
+						<rect x={110 + i * 46} y="42" width="42" height="34" rx="4" class={i === 0 || i === 11 ? 'trap' : pc[Math.floor(i / 4)]} />
+						<text x={131 + i * 46} y="64" class="t s">{i}</text>
+					</>
+				))}
+				<text x="20" y="140" class="cap l">local_u en cada proceso</text>
+				{[0, 1, 2].map((r) => {
+					const x0 = 30 + r * 250;
+					return (
+						<>
+							<text x={x0 + 105} y="166" class="t s b">rank {r}</text>
+							{[0, 1, 2, 3, 4, 5].map((j) => {
+								const g = j === 0 || j === 5;
+								return (
+									<>
+										<rect x={x0 + j * 36} y="176" width="32" height="32" rx="4" class={g ? 'box' : pc[r]} stroke-dasharray={g ? '4 3' : undefined} />
+										<text x={x0 + j * 36 + 16} y="197" class="t s">{g ? (r === 0 && j === 0) || (r === 2 && j === 5) ? '—' : '👻' : r * 4 + j - 1}</text>
+									</>
+								);
+							})}
+							<text x={x0 + 16} y="226" class="t s mu mono">[0]</text>
+							<text x={x0 + 196} y="226" class="t s mu mono">[5]</text>
+						</>
+					);
+				})}
+				<path d="M 210 172 C 240 140, 270 140, 296 172" class="ln" marker-end={A} />
+				<path d="M 316 212 C 290 244, 240 244, 212 212" class="ln" marker-end={A} />
+				<path d="M 460 172 C 490 140, 520 140, 546 172" class="ln" marker-end={A} />
+				<path d="M 566 212 C 540 244, 490 244, 462 212" class="ln" marker-end={A} />
+				<text x="380" y="258" class="t s mu">👻 = celda fantasma (halo): copia del borde del vecino, se recibe con MPI en cada iteración · — = sin vecino</text>
+			</svg>
+		)}
+
+		{fig === 'onda' && (
+			<svg viewBox="0 0 760 250" role="img" aria-label="Malla espacio-tiempo de la ecuación de onda: el punto futuro usa tres vecinos del presente y uno del pasado">
+				<Fragment set:html={defs} />
+				{['t + 1 (futuro)', 't (presente)', 't − 1 (pasado)'].map((lab, r) => (
+					<>
+						<text x="110" y={58 + r * 70} class="t s r">{lab}</text>
+						{Array.from({ length: 7 }, (_, c) => {
+							const x = 140 + c * 70;
+							const y = 40 + r * 70;
+							const obj = r === 0 && c === 3;
+							const usa = (r === 1 && c >= 2 && c <= 4) || (r === 2 && c === 3);
+							return <rect x={x} y={y} width="56" height="34" rx="6" class={obj ? 'c2' : usa ? (r === 1 ? 'c1' : 'c3') : 'box'} />;
+						})}
+					</>
+				))}
+				<text x="378" y="62" class="t s b">u(x, t+1)</text>
+				<text x="308" y="132" class="t s">x−1</text>
+				<text x="378" y="132" class="t s">x</text>
+				<text x="448" y="132" class="t s">x+1</text>
+				<text x="378" y="202" class="t s">x</text>
+				<line x1="336" y1="110" x2="368" y2="76" class="ln" marker-end={A} />
+				<line x1="378" y1="110" x2="378" y2="78" class="ln" marker-end={A} />
+				<line x1="420" y1="110" x2="388" y2="76" class="ln" marker-end={A} />
+				<path d="M 410 196 C 480 180, 480 90, 410 64" class="ln dash" marker-end={A} />
+				<text x="380" y="240" class="t s mono">u(x,t+1) = 2u(x,t) − u(x,t−1) + (c·Δt/Δx)² · [u(x+1,t) − 2u(x,t) + u(x−1,t)]</text>
+			</svg>
+		)}
+
+		{fig === 'cmpx' && (
+			<svg viewBox="0 0 760 230" role="img" aria-label="Comparar e intercambiar entre dos procesos: caso 1 con un mensaje de vuelta, caso 2 con intercambio simétrico">
+				<Fragment set:html={defs} />
+				<text x="190" y="24" class="cap">caso 1 · un solo comparador</text>
+				<rect x="40" y="50" width="90" height="56" rx="8" class="c1" />
+				<text x="85" y="84" class="t b">P1: A</text>
+				<rect x="250" y="50" width="90" height="56" rx="8" class="c2" />
+				<text x="295" y="84" class="t b">P2: B</text>
+				<line x1="132" y1="66" x2="246" y2="66" class="ln" marker-end={A} />
+				<text x="190" y="58" class="t s">① envía A</text>
+				<line x1="246" y1="96" x2="134" y2="96" class="ln" marker-end={A} />
+				<text x="190" y="118" class="t s">③ devuelve min(A,B)</text>
+				<text x="295" y="140" class="t s">② P2 compara</text>
+				<text x="295" y="158" class="t s">y se queda max(A,B)</text>
+				<text x="190" y="200" class="t s mu">2 mensajes en serie · P1 espera</text>
+				<line x1="380" y1="20" x2="380" y2="215" class="sep" />
+				<text x="570" y="24" class="cap">caso 2 · los dos comparan</text>
+				<rect x="420" y="50" width="90" height="56" rx="8" class="c1" />
+				<text x="465" y="84" class="t b">P1: A</text>
+				<rect x="630" y="50" width="90" height="56" rx="8" class="c2" />
+				<text x="675" y="84" class="t b">P2: B</text>
+				<line x1="512" y1="66" x2="626" y2="66" class="ln" marker-end={A} />
+				<line x1="626" y1="96" x2="514" y2="96" class="ln" marker-end={A} />
+				<text x="570" y="58" class="t s">A →</text>
+				<text x="570" y="118" class="t s">← B</text>
+				<text x="465" y="140" class="t s">A = min(A,B)</text>
+				<text x="675" y="140" class="t s">B = max(A,B)</text>
+				<text x="570" y="200" class="t s mu">mensajes a la vez · el cálculo se duplica</text>
+			</svg>
+		)}
+
+		{fig === 'qspar' && (
+			<svg viewBox="0 0 760 300" role="img" aria-label="Un paso de quicksort paralelo con n = p = 8 usando suma de prefijos para decidir el destino">
+				<Fragment set:html={defs} />
+				{[
+					{ y: 30, l: 'proceso i', v: qd.map((_, i) => String(i)), c: '' },
+					{ y: 70, l: 'd (pivote v = 4)', v: qd.map(String), c: 'd' },
+					{ y: 110, l: 'flag = d ≤ v', v: qf.map(String), c: 'f' },
+					{ y: 150, l: 'j = prefijo de flag', v: qj.map(String), c: 'j' },
+					{ y: 190, l: 'destino', v: qdest.map(String), c: 'dest' },
+					{ y: 250, l: 'después del envío', v: qres.map(String), c: 'res' },
+				].map((row) => (
+					<>
+						<text x="170" y={row.y + 20} class="t s r b">{row.l}</text>
+						{row.v.map((t, i) => (
+							<>
+								<rect x={190 + i * 66} y={row.y} width="58" height="30" rx="5" class={row.c === '' ? 'box' : row.c === 'res' ? (i < qp ? 'c1' : 'c2') : row.c === 'd' && i === 3 ? 'c6' : (qf[i] ? 'c1' : 'c2')} />
+								<text x={219 + i * 66} y={row.y + 20} class="t s">{t}</text>
+							</>
+						))}
+					</>
+				))}
+				<text x="190" y="240" class="t s l mu">p′ = j[7] = {qp} → procesos 0..{qp - 1} quedan con los ≤ v · si flag: destino = j − 1 · si no: destino = p′ + i − j</text>
+			</svg>
+		)}
+
+		{fig === 'dagpd5' && (
+			<svg viewBox="0 0 760 356" role="img" aria-label="DAG del ejercicio 2 de la PD5 con dependencias de datos y anti-dependencias sobre x">
+				<Fragment set:html={defs} />
+				{aristas.map((e) => {
+					const a = nodos[e.a];
+					const b = nodos[e.b];
+					return <line x1={a.x} y1={a.y + nh / 2} x2={b.x + (a.x - b.x) * 0.15} y2={b.y - nh / 2 - 2} class={e.w ? 'ln bad dash' : 'ln'} marker-end={e.w ? R : A} />;
+				})}
+				{Object.values(nodos).map((n) => (
+					<>
+						<rect x={n.x - nw / 2} y={n.y - nh / 2} width={nw} height={nh} rx="8" class={n.c} />
+						<text x={n.x} y={n.y - 2} class="t s mono b">{n.t}</text>
+						<text x={n.x} y={n.y + 15} class="t s mu">{n.ms}</text>
+					</>
+				))}
+				<text x="20" y="328" class="t s l mu">— gris: dependencia verdadera (lee lo que otro escribió)</text>
+				<text x="20" y="346" class="t s l bad">- - roja: anti-dependencia (calculo_x sobreescribe x, que min y max todavía leen)</text>
+			</svg>
+		)}
+
+		{fig === 'gantt' && (
+			<svg viewBox="0 0 760 300" role="img" aria-label="Línea de tiempo con 3 hilos: sections espera la barrera, tasks arranca calculo_z apenas terminan min y max">
+				{[
+					{ y0: 30, titulo: 'sections (2 regiones con barrera implícita)', g: ganttS, fin: 1.18, bar: 0.51 },
+					{ y0: 165, titulo: 'tasks con depend', g: ganttT, fin: 0.78, bar: -1 },
+				].map((blk) => (
+					<>
+						<text x="20" y={blk.y0} class="t s l b">{blk.titulo}</text>
+						{[0, 1, 2].map((h) => (
+							<>
+								<text x={gx0 - 10} y={blk.y0 + 28 + h * 30} class="t s r mu">hilo {h}</text>
+								<line x1={gx0} y1={blk.y0 + 24 + h * 30} x2={gt(1.2)} y2={blk.y0 + 24 + h * 30} class="sep" />
+							</>
+						))}
+						{blk.g.map((b) => (
+							<>
+								<rect x={gt(b.a)} y={blk.y0 + 10 + b.h * 30} width={Math.max(3, gt(b.b) - gt(b.a))} height="24" rx="4" class={b.c} />
+								{b.t && <text x={(gt(b.a) + gt(b.b)) / 2} y={blk.y0 + 27 + b.h * 30} class="t s">{b.t}</text>}
+							</>
+						))}
+						{blk.bar > 0 && <line x1={gt(blk.bar)} y1={blk.y0 + 4} x2={gt(blk.bar)} y2={blk.y0 + 102} class="ln bad dash" />}
+						{blk.bar > 0 && <text x={gt(0.33)} y={blk.y0 + 50} class="t s bad">hilos 0 y 1 ociosos →</text>}
+						<line x1={gt(blk.fin)} y1={blk.y0 + 4} x2={gt(blk.fin)} y2={blk.y0 + 102} class="ln ok" />
+						<text x={gt(blk.fin) + 6} y={blk.y0 + 100} class="t s l ok b">{blk.fin.toFixed(2)} s</text>
+					</>
+				))}
+				{[0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2].map((t) => <text x={gt(t)} y="292" class="t s mu">{t.toFixed(1)} s</text>)}
+			</svg>
+		)}
+	</div>
+	<figcaption><slot /></figcaption>
+</figure>
