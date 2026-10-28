@@ -43,6 +43,7 @@ export default defineConfig({
 								{ label: 'Sincronización', slug: 'final/openmp/sincronizacion' },
 								{ label: 'Alcance de datos y reduction', slug: 'final/openmp/datos' },
 								{ label: 'Tareas e ICVs', slug: 'final/openmp/tareas-icv' },
+								{ label: 'Laboratorio de tareas (código de clase)', slug: 'final/openmp/tareas-laboratorio' },
 								{ label: 'Repaso OpenMP', slug: 'final/openmp/repaso' },
 							],
 						},
@@ -53,6 +54,7 @@ export default defineConfig({
 								{ label: '¿Puede fallar el assert? Modelo de memoria', slug: 'final/openmp-avanzado/modelo-memoria' },
 								{ label: 'critical, locks y filósofos', slug: 'final/openmp-avanzado/locks' },
 								{ label: 'Simulacro PC4', slug: 'final/openmp-avanzado/simulacro-pc4' },
+								{ label: 'PD04 Ej. 3: inventario', slug: 'final/openmp-avanzado/pd04-inventario' },
 							],
 						},
 						{

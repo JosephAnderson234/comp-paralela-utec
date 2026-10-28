@@ -1,0 +1,245 @@
+---
+title: "Laboratorio de tareas: el código de clase ejecutado"
+description: "Los ejemplos de la sesión C de la semana 9 (task, taskwait, depend, taskgroup, taskyield, collapse, nowait) ejecutados muchas veces: qué salidas aparecen, cuáles nunca, y los dos errores que tiene el código."
+---
+import OmpFig from '../../../../components/OmpFig.astro';
+import EnSimple from '../../../../components/EnSimple.astro';
+import Quiz from '../../../../components/Quiz.tsx';
+import Solucion from '../../../../components/Solucion.astro';
+import Fuente from '../../../../components/Fuente.astro';
+
+<EnSimple>
+Con tareas, **el orden en que se imprimen las cosas cambia de una corrida a otra**. Una corrida sola no demuestra nada: puede salir "bien" por suerte. Por eso aquí cada ejemplo se ejecutó **muchas veces** y se contó qué órdenes aparecen.
+
+La regla para leer los resultados: si algo **apareció** aunque sea una vez, es posible. Si **nunca** apareció, puede ser que esté garantizado o que solo sea poco probable. Para saber cuál de los dos es, hay que razonar con las reglas de OpenMP, no con la salida.
+</EnSimple>
+
+Son los 18 programas de la sesión C de la semana 9, compilados con `g++ -O2 -fopenmp` y ejecutados con 4 hilos (los que fijan otro número con `omp_set_num_threads` usan el suyo). La teoría está en [Tareas, dependencias e ICVs](/final/openmp/tareas-icv/). Esta página es la práctica, y es la base del ejercicio 2 de la [PD05](/final/examen/simulacro-pd5/).
+
+## 1 · `sections` vs `task`: quién ejecuta qué
+
+`Ejemp04_sect01.cpp` reparte 3 `section` y `Ejemp04_task01.cpp` crea 3 `task` desde un `single`. Tres corridas de cada uno:
+
+| Corrida | sections (s1, s2, s3) | tasks (t1, t2, t3) |
+|---|---|---|
+| 1 | s1 hilo 0, s2 hilo 0, s3 hilo 0 | t1 hilo 1, t2 hilo 0, t3 hilo 2 |
+| 2 | s2 hilo 3, s1 hilo 0, s3 hilo 1 | t1 hilo 2, t3 hilo 1, t2 hilo 0 |
+| 3 | s1 hilo 2, s3 hilo 1, s2 hilo 0 | t1 hilo 0, t2 hilo 2, t3 hilo 1 |
+
+- **Ni el orden ni el hilo están fijos.** En la corrida 1 de `sections`, el hilo 0 hizo las tres: un hilo puede tomar varias secciones si llega primero. Es lo que dibuja el comentario al final del archivo.
+- **La diferencia está en quién crea el trabajo.** En `sections` el número de bloques está fijo en el código. Con `task` lo crea **un** hilo (el del `single`) en tiempo de ejecución y lo toma cualquier hilo libre, incluido el que lo creó.
+
+## 2 · `task` sin `single`: cada hilo crea la suya
+
+```cpp title="Ejemp04_task02.cpp"
+#pragma omp parallel num_threads(8)
+{
+    int j = omp_get_thread_num();
+    #pragma omp task
+    printf("%d\n", j);
+}
+```
+
+Salidas: `7 6 0 1 2 4 5 3`, `0 4 6 7 1 3 2 5`, `0 6 7 3 4 1 5 2`. Siempre los 8 números, en cualquier orden.
+
+- **Sin `single`, los 8 hilos ejecutan el bloque**, así que se crean **8 tareas**, no una. Es el error típico cuando se olvida el `single`: el trabajo se repite p veces.
+- **`j` vale lo correcto en cada tarea** porque es `firstprivate` por defecto: se declara **dentro** del `parallel` (es privada del hilo), y la tarea copia su valor al crearse. Si `j` fuera compartida, la tarea podría leerla cuando ya cambió.
+
+## 3 · Tareas dentro de un `for`: suma por bloques
+
+`Ejemp04_task03.cpp` recorre 120 unos en bloques de 10. Cada iteración del `for` crea una tarea que suma su bloque y lo agrega a `sum` con `critical`. En 20 corridas dio siempre **`sum 120`**.
+
+- `start` y `end` se declaran dentro del bucle, así que cada tarea guarda **su** copia (`firstprivate`). Sin eso, todas sumarían el último bloque.
+- `sum` es compartida y la escriben varias tareas: sin `critical` (o `atomic`) habría carrera. Una alternativa más barata es `taskloop` con `reduction`, o acumular en una variable local y sumar una sola vez, como el acumulador privado de la [PD04](/final/openmp-avanzado/pd04-inventario/).
+
+## 4 · `taskwait` espera a las hijas, no a las nietas
+
+```cpp title="Ejemp04_taskwait01.cpp (8 hilos)"
+#pragma omp parallel
+#pragma omp single
+{
+    #pragma omp task
+    {
+        printf("Task 1\n");
+        #pragma omp task
+        printf("Task 2\n");
+        #pragma omp task
+        printf("Task 4\n");
+    }
+    #pragma omp task
+    printf("Task 5\n");
+    #pragma omp taskwait
+    #pragma omp task
+    printf("Task 3\n");
+}
+```
+
+<OmpFig fig="arbol">
+**Cómo leerlo:** el `single` crea **dos hijas**: Task 1 y Task 5 (celestes). Task 1 a su vez crea Task 2 y Task 4, que son **nietas** del `single` (moradas). El `taskwait` (verde) solo espera a las hijas de **quien lo ejecuta**. Por eso Task 3 (naranja) puede imprimirse **antes** que Task 2 o Task 4 (flecha roja): nadie espera a las nietas.
+</OmpFig>
+
+Medido en **200 corridas**:
+
+| Orden impreso | Veces |
+|---|---|
+| Task 1, 2, 4, 5, **3** | 182 |
+| Task 1, 2, 5, **3**, 4 | 8 |
+| Task 1, 5, 2, 4, **3** | 7 |
+| Task 1, 5, 4, **3**, 2 | 1 |
+| Task 1, 5, 2, **3**, 4 | 1 |
+| Task 1, 2, 5, 4, **3** | 1 |
+
+En **10 de 200** corridas Task 3 salió antes que una nieta. Si se agrega un `usleep(200000)` antes del `printf` de Task 4, sale **siempre** después de Task 3 (5 de 5 corridas).
+
+**El arreglo** ya está comentado en el archivo: envolver las tareas en `#pragma omp taskgroup { … }`. `taskgroup` espera a las tareas del bloque **y a todas sus descendientes**. Con el mismo retraso en Task 4, el orden pasa a ser 1, 2, 5, **4, 3** en 5 de 5 corridas.
+
+### `Ejemp04_taskwait02.cpp`: la misma idea con el `taskwait` dentro de B
+
+Task B crea C y D, hace `taskwait` (espera a C y D) y **después** crea E. El `single` hace `taskwait` (espera a A y B) e imprime F.
+
+- En 200 corridas salió siempre `A B C D E F`.
+- Pero E **no está garantizado** antes de F: E es nieta del `single`, y B puede terminar sin esperarla. Con un `usleep(200000)` en E, la salida fue `A B C D F E` en 5 de 5 corridas.
+
+Es el ejemplo perfecto de por qué "salió bien 200 veces" no demuestra nada.
+
+## 5 · `depend`: los tres tipos de dependencia
+
+Los cuatro primeros `Ejemp05_task_dep` son el mismo par de tareas con distinto `depend`. 100 corridas de cada uno:
+
+| Archivo | Tareas en orden de creación | Tipo | Salida (100 corridas) |
+|---|---|---|---|
+| `.1` | `x = 2` (out) → `printf x` (in) | **RAW**: leer después de escribir | `x = 2` las 100 |
+| `.2` | `printf x` (in) → `x = 2` (out) | **WAR**: escribir después de leer (anti-dependencia) | `x = 1` las 100 |
+| `.3` | `x = 1` (out) → `x = 2` (out) → `taskwait` | **WAW**: escribir después de escribir | `x = 2` las 100 |
+| `.4` | `x = 2` (out) → `x+1` (in), `x+2` (in) | dos lecturas | `3, 4` 93 veces; `4, 3` 7 veces |
+
+- **`depend` sigue el orden de creación.** La tarea con `in: x` espera a la tarea **anterior** con `out: x`, y la `out: x` espera a todas las anteriores con `in` u `out` sobre x. Por eso en `.2` el `printf` siempre ve el x viejo: la escritura espera a la lectura. Es la misma anti-dependencia de `calculo_x` en la PD05.
+- **Dos `in` sobre la misma variable no se ordenan entre sí** (`.4`): las dos lecturas pueden ir en cualquier orden y en paralelo. Siempre van **después** de la escritura.
+
+## 6 · El ejercicio del DAG: `Ejemp05_task_dep.5.cpp`
+
+El archivo dice *"Elabore el DAG correspondiente al código"*:
+
+```cpp
+#pragma omp parallel
+#pragma omp master
+{
+    #pragma omp task depend(out: a)
+    { a = 1; sleep(1); printf("Task 1, a: %d\n", a); }
+
+    #pragma omp task depend(out: b)
+    {
+        b = 2; sleep(1); printf("Task 2, b: %d\n", b);
+        #pragma omp task depend(in: b) depend(out: c)
+        { c = b + 3; printf("Task 5, c: %d\n", c); }
+    }
+    #pragma omp task depend(in: a, b) depend(out: c)
+    { c = a + b; printf("Task 3, c: %d\n", c); }
+
+    #pragma omp task depend(in: c)
+    { sleep(1); printf("Task 4, c: %d\n", c); }
+}
+```
+
+<OmpFig fig="dep5">
+**Cómo leerlo:** Task 3 espera a Task 1 y a Task 2 (escriben a y b), y Task 4 espera a Task 3 (escribe c). Task 5 la **crea** Task 2 (flecha punteada gris), así que no es hermana de Task 3 ni de Task 4. **`depend` solo ordena tareas hermanas**, creadas por la misma tarea. Entre Task 5 y las tareas 3 y 4 no hay ninguna flecha (rojo), aunque las tres usan c: hay una **carrera sobre c**.
+</OmpFig>
+
+<Solucion titulo="El DAG y por qué la salida engaña">
+**DAG:** {"{Task 1, Task 2}"} → Task 3 → Task 4, y Task 2 → Task 5 (relación padre-hija, no de datos). Ruta crítica: Task 1 o Task 2 (1 s) → Task 3 (≈ 0) → Task 4 (1 s) ≈ **2 s**, con 2 hilos basta.
+
+**Lo medido** en 30 corridas: siempre `Task 4, c: 3`. Task 5 imprime `c: 5`, pero siempre **antes** que Task 3, así que Task 3 sobreescribe c con 3.
+
+**Pero no está garantizado.** Con una versión instrumentada (marca de tiempo en cada tarea y 0.3 s de retraso dentro de Task 5):
+
+```
+1.01 T1 hilo 6
+1.01 T2 hilo 4
+1.01 T3 c=3 hilo 4
+1.31 T5 c=5 hilo 6
+2.01 T4 c=5 hilo 4
+```
+
+Task 4 imprimió **c = 5**: la escritura de Task 5 llegó entre Task 3 y Task 4. Que en el original salga siempre 3 depende del tiempo que tarda cada cosa, no del código.
+
+**Cómo se arregla** (respuesta de examen): crear Task 5 en el `master`, al mismo nivel que las otras (entonces su `depend(out: c)` la ordena respecto de Task 3 y Task 4), o poner un `taskwait` dentro de Task 2 después de crearla, para que Task 2 termine solo cuando termine Task 5.
+</Solucion>
+
+## 7 · `taskgroup` y `taskyield`
+
+**`Ejemp06_taskgoup01.cpp`** (4 hilos, 100 corridas): las tareas A, B y sus hijas A1, B1 salieron en tres órdenes distintos (52, 46 y 2 veces), pero **"Después del taskgroup" salió siempre después de las cuatro**, y "Fin" después de C. Aquí sí hay garantía: `taskgroup` espera a las descendientes, y por eso A1 y B1 nunca quedan fuera.
+
+**`Ejemp07_taskyield.cpp`** (4 hilos, una corrida):
+
+```
+Inicio (hilo 1)
+Task A start (hilo 0)
+Task A paso 0 (hilo 0)
+Task B start (hilo 2)
+Task C start (hilo 3)
+Task C end
+Task A paso 1 (hilo 0)
+Task B end
+Task A paso 2 (hilo 0)
+Task A end
+Todas las tareas terminadas
+```
+
+Con 4 hilos y 3 tareas, cada tarea tiene su propio hilo desde el principio, así que el `taskyield` **no tiene nada que ceder** y la salida es la misma que sin él. `taskyield` es solo una **sugerencia**: sirve cuando hay más tareas que hilos y una tarea larga podría acaparar uno. Para verlo, prueba con `omp_set_num_threads(1)`.
+
+## 8 · `collapse`: cuántas iteraciones le tocan al hilo 0
+
+Los tres `Ejemp03_collapse` recorren una matriz 4 × 16 (64 iteraciones) e imprimen solo lo que hace el hilo 0:
+
+| Versión | Qué reparte | Líneas del hilo 0, con 4 hilos | Con 8 hilos |
+|---|---|---|---|
+| `_1`: `parallel for` en el bucle de i | 4 filas | 16 | **16** |
+| `_2`: `parallel for` anidado (`omp_set_nested(1)`) | 4 filas, y dentro 16 columnas por equipo | 16 | 8 |
+| `_3`: `parallel for collapse(2)` | 64 iteraciones juntas | 16 | **8** |
+
+Con 4 hilos las tres dan lo mismo, porque las 4 filas alcanzan justo. **Con 8 hilos se ve el problema:** en `_1` solo hay 4 filas para 8 hilos, así que 4 hilos se quedan sin trabajo y el hilo 0 hace una fila entera (16). `collapse(2)` junta las 64 iteraciones y le da 8 a cada hilo. El anidado (`_2`) también reparte, pero crea un equipo de hilos por cada fila, que es mucho más caro.
+
+## 9 · Detective: `Ejemp02_nowait.cpp` tiene dos errores
+
+La idea del ejemplo es correcta: los tres bucles usan `schedule(static)` con **el mismo número de iteraciones**, así que el hilo que calcula `c[i]` es el mismo que después calcula `z[i]`, y el `nowait` es seguro (la explicación está en [for y schedule](/final/openmp/for-schedule/)). Pero al compilarlo con `-fsanitize=address`:
+
+```
+ERROR: AddressSanitizer: dynamic-stack-buffer-overflow
+READ of size 4 at ... thread T7
+```
+
+<Solucion titulo="¿Cuáles son los dos errores?">
+1. **Se sale del arreglo.** El tercer bucle va de `i = 1` hasta `i <= n` y usa `a[i]` y `y[i]`, pero los arreglos tienen tamaño 64 (índices 0–63). En la última iteración lee `a[64]` y escribe `y[64]`: comportamiento indefinido. En el ejemplo original de la especificación de OpenMP, el que llama reserva n + 1 elementos. Se corrige declarando `a[n + 1]` y `y[m + 1]`.
+2. **El `printf` final está mal.** El formato pide 8 `%f` pero recibe 7 valores, así que el octavo número es basura (sale `0.000000`). Y la tercera línea imprime `z[9]` donde debería ir `y[9]`.
+
+Ninguno de los dos cambia la lección sobre `nowait`, pero en un examen de "¿qué imprime?" el valor basura es un detalle que hay que poder explicar.
+</Solucion>
+
+## Práctica
+
+**1.** En `Ejemp04_taskwait02.cpp`, mueve el `taskwait` de Task B al final del bloque de B (después de crear E). ¿Ahora E sale siempre antes que F? Justifica con la regla de `taskwait`.
+
+<Solucion>
+Sí. B espera a sus hijas C, D y E antes de terminar, y el `taskwait` del `single` espera a B. Así que F va después de E **por regla**, no por suerte. Es lo mismo que usar un `taskgroup` en el `single`.
+</Solucion>
+
+**2.** En `Ejemp05_task_dep.2.cpp` se quita `depend(in: x)` de la tarea del `printf`. ¿Qué valores puede imprimir?
+
+<Solucion>
+**1 o 2.** Sin el `in`, la tarea `x = 2` (con `out`) no tiene a quién esperar, así que puede ejecutarse antes o después del `printf`. Además es una carrera de datos (una lectura y una escritura sin sincronizar), así que según el estándar el programa no está bien definido.
+</Solucion>
+
+<Quiz
+	client:visible
+	id="omp-tareas-lab"
+	preguntas={[
+		{ q: 'Sin `single`, un `#pragma omp task` dentro de `parallel num_threads(8)` crea…', opts: ['1 tarea', '8 tareas (una por hilo)', 'ninguna', 'depende del schedule'], ok: 1 },
+		{ q: '`taskwait` espera a…', opts: ['todas las tareas del programa', 'las tareas hijas de la tarea actual (no las nietas)', 'las hijas y las nietas', 'solo la última tarea creada'], ok: 1 },
+		{ q: '¿Qué construcción espera también a las tareas descendientes?', opts: ['taskwait', 'taskyield', 'taskgroup', 'barrier dentro de una tarea'], ok: 2 },
+		{ q: 'En task_dep.2 (`in: x` creada antes que `out: x`), el printf imprime…', opts: ['siempre 1', 'siempre 2', '1 o 2', 'basura'], ok: 0 },
+		{ q: 'En task_dep.5, ¿por qué Task 5 no queda ordenada respecto de Task 3?', opts: ['porque usa in: b', 'porque depend solo ordena tareas hermanas y Task 5 es hija de Task 2', 'porque falta un barrier', 'sí queda ordenada'], ok: 1 },
+		{ q: 'Matriz 4×16 con 8 hilos: ¿qué reparte mejor?', opts: ['parallel for en el bucle externo', 'collapse(2)', 'da igual', 'schedule(dynamic) en el externo'], ok: 1 },
+	]}
+/>
+
+<Fuente archivos={['semana_9/sesionc: Ejemp01_parallel, Ejemp02_nowait, Ejemp03_collapse_1–3, Ejemp04_sect01, Ejemp04_task01–03, Ejemp04_taskwait01–02, Ejemp05_task_dep.1–5, Ejemp06_taskgoup01, Ejemp07_taskyield (ejecutados)', 'U4.3 Paralelismo compartido-OMP.pdf (task, depend, taskgroup, taskyield)']} />

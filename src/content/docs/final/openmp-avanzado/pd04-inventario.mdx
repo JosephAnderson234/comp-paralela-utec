@@ -1,0 +1,201 @@
+---
+title: "PD04 Ej. 3: el inventario (resuelto y medido)"
+description: "Condición de carrera entre un hilo que despacha y otro que audita: intercalados que rompen el invariante, por qué -O3 la esconde, critical vs atomic, y el costo de sincronizar con un solo contador o lotes."
+---
+import OmpFig from '../../../../components/OmpFig.astro';
+import EnSimple from '../../../../components/EnSimple.astro';
+import Quiz from '../../../../components/Quiz.tsx';
+import Solucion from '../../../../components/Solucion.astro';
+import Fuente from '../../../../components/Fuente.astro';
+
+<EnSimple>
+Un almacén tiene dos cuadernos: "quedan" y "salieron". Cada despacho borra 1 en el primero y suma 1 en el segundo, **en dos pasos**. Un auditor mira los dos cuadernos y comprueba que sumen 10 000.
+
+Si el auditor mira justo **entre** los dos pasos, ve un número viejo y uno nuevo, y la suma da 9 999. Nadie se equivocó al escribir: el problema es **cuándo** se lee. Para arreglarlo, los dos pasos y las dos lecturas tienen que hacerse "de un solo golpe", y eso cuesta tiempo.
+</EnSimple>
+
+Es el ejercicio 3 de la **PD04 2026-II** (2 pts), sobre el mismo tema que [¿Puede fallar el assert?](/final/openmp-avanzado/modelo-memoria/). Los resultados son los de la entrega del grupo, y se volvieron a ejecutar todos los programas para confirmarlos.
+
+## El código (`ejercicio03.cpp`)
+
+```cpp
+class Inventario {
+public:
+    int disponibles = 10000;
+    int despachados = 0;
+
+    void procesar() {
+        for (int i = 0; i < 5000; i++) {
+            disponibles--;  // A
+            despachados++;  // B
+        }
+    }
+
+    void auditar() {
+        int errores = 0;
+        for (int i = 0; i < 5000; i++) {
+            int a = disponibles; // C
+            int b = despachados; // D
+            if (a + b != 10000)
+                errores++;
+        }
+        cout << "Inconsistencias: " << errores << endl;
+    }
+};
+
+#pragma omp parallel num_threads(2)
+{
+    #pragma omp sections
+    {
+        #pragma omp section
+        inv.procesar();
+        #pragma omp section
+        inv.auditar();
+    }
+}
+```
+
+El enunciado pide compilar **con y sin `-O3`** y ejecutar cada binario 5 veces.
+
+## 3.1 · ¿Hay condición de carrera? (1 pt)
+
+**Sí.** Las dos variables son compartidas, un hilo las escribe y el otro las lee, y nadie sincroniza. El invariante disponibles + despachados = 10 000 solo vale **antes de A o después de B**: entre A y B está roto.
+
+<OmpFig fig="inventario">
+**Cómo leerlo:** el tiempo avanza hacia la derecha. El hilo 0 hace A (disponibles pasa a 9999). Antes de que haga B, el hilo 1 lee C (a = 9999) y D (b = 0, todavía viejo). Después llega B. El auditor sumó un valor **nuevo** con uno **viejo**: 9999 + 0 = 9999.
+</OmpFig>
+
+Dos intercalados que dan inconsistencia (los pide el enunciado):
+
+| Orden | a | b | a + b |
+|---|---|---|---|
+| A → C → D → B | 9999 | 0 | **9999** |
+| C → A → B → D | 10000 | 1 | **10001** |
+
+**¿Por qué falla aunque el compilador no reordene?** Porque A + B **no es una operación indivisible**: son dos instrucciones (y cada `--` o `++` es leer, modificar y escribir). El sistema operativo y el hardware pueden ejecutar C y D del otro hilo justo en medio. Igual con C y D: son dos lecturas separadas, y el escritor puede avanzar entre ellas. El problema es el **intercalado**, no el orden del código.
+
+### Lo medido (5 corridas por binario)
+
+| Binario | Inconsistencias (entrega) | Inconsistencias (re-ejecución) | Final disp / desp |
+|---|---|---|---|
+| sin flag | 0, 0, 0, 87, 0 | 28, 278, 155, 233, 4925 | 5000 / 5000 |
+| `-O3` | 0, 0, 0, 0, 0 | 0, 0, 0, 0, 0 | 5000 / 5000 |
+
+- **Sin flag, la carrera es intermitente.** Cuando sale 0, el despachador terminó antes de que arrancara el auditor y no llegaron a cruzarse. Depende de cuándo arranca cada hilo.
+- **Con `-O3` sale siempre 0, pero el código sigue mal.** En el ensamblador, el compilador junta todo el bucle de `procesar()` en **una sola instrucción** que suma −5000 y +5000 a las dos variables (están contiguas en memoria), y `auditar()` lee las variables una sola vez, fuera del bucle. La carrera es **comportamiento indefinido**: queda escondida, no arreglada. "Da 0" no prueba que esté bien.
+- **Los finales siempre son 5000 / 5000** porque solo un hilo escribe: no se pierden actualizaciones. Lo que falla es **lo que ve el auditor**.
+
+## 3.2 · Corregir con un constructor de sincronización (0.5 pts)
+
+La **misma** sección crítica con nombre para la escritura del par **y** para su lectura (`ejercicio03_solucion.cpp`):
+
+```cpp
+void procesar() {
+    for (int i = 0; i < 5000; i++) {
+        #pragma omp critical(inventario)
+        {
+            disponibles--;
+            despachados++;
+        }
+    }
+}
+
+void auditar() {
+    int errores = 0;
+    for (int i = 0; i < 5000; i++) {
+        int a, b;
+        #pragma omp critical(inventario)
+        {
+            a = disponibles;
+            b = despachados;
+        }
+        if (a + b != 10000)
+            errores++;
+    }
+    cout << "Inconsistencias: " << errores << endl;
+}
+```
+
+Ahora A + B y C + D nunca se mezclan: el auditor ve el estado de antes o el de después de un despacho completo. **0 inconsistencias** en las 5 corridas, con y sin `-O3`.
+
+### Las dos preguntas trampa
+
+| Variante | Sin flag | `-O3` | Por qué |
+|---|---|---|---|
+| `critical` **solo en las escrituras** | 18–38 (entrega) · 36–60 (re-ejecución) | 0 | un `critical` solo excluye a quien **también entra** en él. El auditor lee sin entrar, así que nunca espera y sigue leyendo entre A y B |
+| `atomic` **por cada variable** | ≈ 2900–3100 · 1160–3440 | 2454–4765 · 2144–2877 | cada operación es indivisible, pero el **par** no. Entre el `atomic` de A y el de B el auditor sigue viendo el estado intermedio. Y con `-O3` ya no se pueden juntar las dos sumas en una instrucción, así que la carrera aparece también ahí |
+
+**Regla:** `atomic` sirve para **una** variable. Un invariante entre **dos** variables necesita que la escritura del par y su lectura estén en la misma región de exclusión mutua.
+
+## 3.3 · Costo de sincronización y alternativa (0.5 pts)
+
+Con 5 despachos por lectura el costo no se nota, así que se midió con **5 millones** de despachos y 5 millones de lecturas (`bench_contador.cpp`, `-O3`):
+
+| Variante | Entrega | Re-ejecución (5 corridas) | Inconsistencias |
+|---|---|---|---|
+| `critical` por despacho | ≈ 250–260 ms | 223–243 ms | 0 |
+| `omp_lock` por despacho | ≈ 390–415 ms | — | 0 |
+| `critical` + acumulador privado, lotes de 100 | ≈ 71–81 ms | 79–102 ms | 0 |
+| **un solo contador** con `atomic` | **≈ 27 ms** (46 ms sin flag) | **26–43 ms** | 0 |
+
+**Por qué cuesta el `critical`:** cada despacho y cada lectura toman **el mismo candado**, así que los dos hilos pasan casi todo el tiempo turnándose, y el candado (y la línea de caché de las variables) salta de un núcleo a otro en cada acceso. Se paga millones de veces por operaciones que son una suma.
+
+**Alternativa 1: un solo contador** (`ejercicio03_un_contador.cpp`). Si disponibles + despachados = 10 000 siempre, la misma información está guardada **dos veces**. Se guarda solo `despachados` y se calcula `disponibles = TOTAL − despachados`:
+
+```cpp
+void procesar() {
+    for (int i = 0; i < 5000; i++) {
+        #pragma omp atomic
+        despachados++;
+    }
+}
+
+void auditar() {
+    int errores = 0;
+    for (int i = 0; i < 5000; i++) {
+        int b;
+        #pragma omp atomic read
+        b = despachados;
+        int a = TOTAL - b;
+        if (a + b != TOTAL)
+            errores++;
+    }
+    cout << "Inconsistencias: " << errores << endl;
+}
+```
+
+- Un despacho pasa a ser **una operación sobre una variable**: ya no existe el estado a medias, y por eso ahora **sí** basta `atomic`, que usa una instrucción del procesador en vez de un candado. Es entre 5 y 9 veces más rápido que el `critical`.
+- `atomic read` hace que el auditor lea el contador entero, no un valor a medio escribir.
+- *Matiz propio:* con este diseño la comprobación `a + b != TOTAL` es **siempre falsa por construcción** (a se calcula a partir de b). El invariante ya no se puede romper, así que la auditoría deja de comprobar algo. Es una buena solución, pero en el examen conviene decirlo: se cambió el problema (la estructura de datos), no solo la sincronización.
+
+**Alternativa 2: lotes** (`ejercicio03_optimizado.cpp`), si hay que conservar las dos variables. El despachador cuenta en una variable **local** y solo entra al `critical` cada k = 100 despachos, para actualizar las dos juntas (50 entradas en vez de 5000). Es el patrón del **acumulador privado**. Cuesta un tercio del `critical`, pero el auditor ve el inventario avanzar de 100 en 100 y sigue tomando el candado en cada lectura.
+
+**Hipótesis descartada: un hilo por variable.** Con 3 hilos (uno para `disponibles--`, otro para `despachados++` y el auditor), sin sincronizar salieron 0–4371 inconsistencias, y con `critical` en cada operación **2517–4999**: peor. Cada variable avanza a su ritmo y casi nunca existe un instante con el despacho completo. `critical` protege cada operación, pero no puede juntar dos operaciones de hilos distintos. Con dos `barrier` por despacho vuelve a ser correcto, pero ≈ 5 veces más lento que el `critical` del 3.2: los hilos avanzan por turnos.
+
+## Práctica
+
+**1.** Un compañero cambia el auditor a `#pragma omp atomic read` en cada una de las dos lecturas, sin tocar `procesar()`. ¿Se arregla?
+
+<Solucion>
+**No.** Cada lectura es indivisible, pero el despachador sigue sin protección y, aunque la tuviera, entre la lectura de `a` y la de `b` puede ocurrir un despacho completo (C → A → B → D da 10 001). Hace falta que el **par** de lecturas y el **par** de escrituras estén en la misma sección crítica.
+</Solucion>
+
+**2.** Con lotes de k despachos, ¿cuántas veces entra el despachador al `critical` para n despachos? ¿Qué pasa si k = n?
+
+<Solucion>
+⌈n/k⌉ veces (50 con n = 5000 y k = 100). Con k = n entra **una sola vez**, al final: es lo más barato, pero el auditor ve el inventario sin cambios todo el tiempo y luego saltar de golpe. Hay un compromiso entre costo y qué tan "al día" está la auditoría.
+</Solucion>
+
+<Quiz
+	client:visible
+	id="pd04-inventario"
+	preguntas={[
+		{ q: 'Con -O3 el original da 0 inconsistencias. Eso significa que…', opts: ['el código es correcto', 'la carrera sigue ahí pero el compilador la escondió (comportamiento indefinido)', 'O3 agrega sincronización', 'OpenMP serializa las sections'], ok: 1 },
+		{ q: '¿Por qué no basta proteger solo las escrituras con critical?', opts: ['porque critical es lento', 'porque el auditor no entra al critical, así que no espera y sigue leyendo entre A y B', 'porque hay que usar atomic', 'sí basta'], ok: 1 },
+		{ q: '`atomic` por separado en disponibles-- y despachados++…', opts: ['arregla el problema', 'hace indivisible cada operación, pero no el par: el invariante se sigue rompiendo', 'produce deadlock', 'pierde actualizaciones'], ok: 1 },
+		{ q: '¿Por qué con un solo contador sí basta atomic?', opts: ['porque atomic es más rápido', 'porque el despacho pasa a ser una sola operación sobre una sola variable', 'porque se usa atomic read', 'porque hay menos hilos'], ok: 1 },
+		{ q: 'Los finales salen siempre 5000/5000 porque…', opts: ['hay sincronización', 'solo un hilo escribe, así que no se pierden actualizaciones', 'O3 lo corrige', 'es casualidad'], ok: 1 },
+	]}
+/>
+
+<Fuente archivos={['CS4052-PD04-S02.pdf (ejercicio 3)', 'pc4/ej3: ejercicio03.cpp, ejercicio03_solucion.cpp, ejercicio03_solo_escrituras.cpp, ejercicio03_atomic.cpp, ejercicio03_un_contador.cpp, ejercicio03_optimizado.cpp, separado.cpp, ejercicio03_barreras.cpp (ejecutados)', 'pc4/ej3: bench_contador.cpp, bench_barreras.cpp (tiempos)', 'Entrega del grupo, pregunta 3']} />

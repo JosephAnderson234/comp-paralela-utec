@@ -1,0 +1,128 @@
+---
+/** Diagramas de OpenMP con el código de clase: árbol de tareas y taskwait, DAG de task_dep.5 e intercalado del inventario (PD04). */
+import '../styles/svgfig.css';
+type Fig = 'arbol' | 'dep5' | 'inventario';
+interface Props {
+	fig: Fig;
+}
+const { fig } = Astro.props;
+const A = `url(#oa-${fig})`;
+const R = `url(#or-${fig})`;
+const defs = `<defs><marker id="oa-${fig}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head"/></marker><marker id="or-${fig}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head-bad"/></marker></defs>`;
+
+const bw = 130;
+const bh = 40;
+const arbol = {
+	s: { x: 380, y: 36, t: 'single', d: 'crea las tareas', c: 'c6' },
+	t1: { x: 220, y: 116, t: 'Task 1', d: 'hija', c: 'c1' },
+	t5: { x: 540, y: 116, t: 'Task 5', d: 'hija', c: 'c1' },
+	t2: { x: 110, y: 206, t: 'Task 2', d: 'nieta', c: 'c3' },
+	t4: { x: 300, y: 206, t: 'Task 4', d: 'nieta', c: 'c3' },
+	tw: { x: 540, y: 206, t: 'taskwait', d: 'espera a 1 y 5', c: 'c4' },
+	t3: { x: 540, y: 290, t: 'Task 3', d: 'después del taskwait', c: 'c2' },
+};
+type K = keyof typeof arbol;
+const arbolE: { a: K; b: K; k: 'ln' | 'ok' }[] = [
+	{ a: 's', b: 't1', k: 'ln' },
+	{ a: 's', b: 't5', k: 'ln' },
+	{ a: 't1', b: 't2', k: 'ln' },
+	{ a: 't1', b: 't4', k: 'ln' },
+	{ a: 't1', b: 'tw', k: 'ok' },
+	{ a: 't5', b: 'tw', k: 'ok' },
+	{ a: 'tw', b: 't3', k: 'ok' },
+];
+
+const dw = 200;
+const dep = {
+	t1: { x: 150, y: 46, t: 'Task 1: a = 1', d: 'depend(out: a)', c: 'c1' },
+	t2: { x: 470, y: 46, t: 'Task 2: b = 2', d: 'depend(out: b)', c: 'c1' },
+	t3: { x: 310, y: 156, t: 'Task 3: c = a + b', d: 'in: a, b · out: c', c: 'c2' },
+	t5: { x: 620, y: 156, t: 'Task 5: c = b + 3', d: 'in: b · out: c (hija de 2)', c: 'c3' },
+	t4: { x: 310, y: 266, t: 'Task 4: imprime c', d: 'depend(in: c)', c: 'c4' },
+};
+type D = keyof typeof dep;
+const depE: { a: D; b: D }[] = [
+	{ a: 't1', b: 't3' },
+	{ a: 't2', b: 't3' },
+	{ a: 't3', b: 't4' },
+];
+
+const ev = [
+	{ x: 150, h: 0, t: 'A', d: 'disponibles = 9999' },
+	{ x: 310, h: 1, t: 'C', d: 'a = 9999' },
+	{ x: 470, h: 1, t: 'D', d: 'b = 0' },
+	{ x: 630, h: 0, t: 'B', d: 'despachados = 1' },
+];
+const ly = [70, 160];
+---
+
+<figure class="svgfig not-content">
+	<div class="svgfig__scroll">
+		{fig === 'arbol' && (
+			<svg viewBox="0 0 760 330" role="img" aria-label="Árbol de tareas de Ejemp04_taskwait01: taskwait espera a las hijas, no a las nietas">
+				<Fragment set:html={defs} />
+				{arbolE.map((e) => {
+					const a = arbol[e.a];
+					const b = arbol[e.b];
+					return <line x1={a.x} y1={a.y + bh / 2} x2={b.x} y2={b.y - bh / 2 - 3} class={e.k === 'ok' ? 'ln ok' : 'ln'} marker-end={A} />;
+				})}
+				<line x1={arbol.t4.x + bw / 2} y1={arbol.t4.y + 10} x2={arbol.t3.x - bw / 2 - 3} y2={arbol.t3.y} class="ln bad dash" marker-end={R} />
+				<text x="300" y="296" class="t s bad">nadie las espera: pueden</text>
+				<text x="300" y="312" class="t s bad">imprimir después de Task 3</text>
+				{Object.values(arbol).map((n) => (
+					<>
+						<rect x={n.x - bw / 2} y={n.y - bh / 2} width={bw} height={bh} rx="8" class={n.c} />
+						<text x={n.x} y={n.y - 3} class="t s mono b">{n.t}</text>
+						<text x={n.x} y={n.y + 13} class="t s mu">{n.d}</text>
+					</>
+				))}
+			</svg>
+		)}
+
+		{fig === 'dep5' && (
+			<svg viewBox="0 0 760 320" role="img" aria-label="DAG de Ejemp05_task_dep.5: Task 5 es hija de Task 2 y no tiene orden con Task 3 ni Task 4">
+				<Fragment set:html={defs} />
+				{depE.map((e) => {
+					const a = dep[e.a];
+					const b = dep[e.b];
+					return <line x1={a.x} y1={a.y + bh / 2} x2={b.x} y2={b.y - bh / 2 - 3} class="ln" marker-end={A} />;
+				})}
+				<line x1={dep.t2.x} y1={dep.t2.y + bh / 2} x2={dep.t5.x} y2={dep.t5.y - bh / 2 - 3} class="ln dash" marker-end={A} />
+				<text x="580" y="100" class="t s l mu">la crea</text>
+				<line x1={dep.t5.x - dw / 2} y1={dep.t5.y} x2={dep.t3.x + dw / 2 + 3} y2={dep.t3.y} class="ln bad dash" />
+				<line x1={dep.t5.x - 40} y1={dep.t5.y + bh / 2} x2={dep.t4.x + dw / 2 + 3} y2={dep.t4.y} class="ln bad dash" marker-end={R} />
+				<text x="560" y="250" class="t s bad">sin orden entre ellas:</text>
+				<text x="560" y="266" class="t s bad">carrera sobre c</text>
+				{Object.values(dep).map((n) => (
+					<>
+						<rect x={n.x - dw / 2} y={n.y - bh / 2} width={dw} height={bh} rx="8" class={n.c} />
+						<text x={n.x} y={n.y - 3} class="t s mono b">{n.t}</text>
+						<text x={n.x} y={n.y + 13} class="t s mu">{n.d}</text>
+					</>
+				))}
+			</svg>
+		)}
+
+		{fig === 'inventario' && (
+			<svg viewBox="0 0 760 230" role="img" aria-label="Intercalado A, C, D, B del inventario: el auditor lee entre las dos escrituras">
+				<Fragment set:html={defs} />
+				<text x="20" y={ly[0] + 5} class="t s l b">hilo 0: procesar</text>
+				<text x="20" y={ly[1] + 5} class="t s l b">hilo 1: auditar</text>
+				{ly.map((y) => <line x1="130" y1={y} x2="740" y2={y} class="sep" />)}
+				{ev.slice(0, -1).map((e, i) => {
+					const n = ev[i + 1];
+					return <line x1={e.x + 20} y1={ly[e.h]} x2={n.x - 22} y2={ly[n.h]} class="ln dash" marker-end={A} />;
+				})}
+				{ev.map((e) => (
+					<>
+						<circle cx={e.x} cy={ly[e.h]} r="18" class={e.h === 0 ? 'c2' : 'c1'} />
+						<text x={e.x} y={ly[e.h] + 5} class="t mono b">{e.t}</text>
+						<text x={e.x} y={e.h === 0 ? ly[0] - 28 : ly[1] + 38} class="t s mono">{e.d}</text>
+					</>
+				))}
+				<text x="390" y="222" class="t s bad b">el auditor ve a + b = 9999 + 0 = 9999 ≠ 10000</text>
+			</svg>
+		)}
+	</div>
+	<figcaption><slot /></figcaption>
+</figure>
