@@ -2,6 +2,7 @@
 title: Repartir bucles — omp for y schedule
 description: Constructor for, parallel for combinado, schedule static/dynamic/guided/runtime/auto, chunk, nowait y collapse.
 ---
+import FinalFig from '../../../../components/FinalFig.astro';
 import OmpSchedule from '../../../../components/playgrounds/OmpSchedule.tsx';
 import EnSimple from '../../../../components/EnSimple.astro';
 import Quiz from '../../../../components/Quiz.tsx';
@@ -46,6 +47,10 @@ Las iteraciones deben ser **independientes**: ninguna puede necesitar el resulta
 | `guided, c` | Como dynamic, pero los bloques empiezan grandes y se **achican** hasta `c` | Irregular, con menos pedidos que dynamic |
 | `runtime` | Lo decide la variable de entorno `OMP_SCHEDULE` al ejecutar | Probar sin recompilar |
 | `auto` | Lo decide el compilador / runtime | — |
+
+<FinalFig fig="schedule">
+**Cómo leerlo:** cada fila es un `schedule` distinto para el mismo bucle de 16 iteraciones y 4 hilos; el número y el color dicen qué hilo ejecuta cada iteración. `static` y `static, 2` son **fijos** (siempre igual). `dynamic` y `guided` dependen de quién termina primero, así que la fila es **una** corrida posible. En `guided` los bloques empiezan grandes (aprox. iteraciones que faltan / hilos) y se achican; el tamaño exacto depende de la implementación.
+</FinalFig>
 
 <OmpSchedule client:visible />
 
@@ -135,6 +140,32 @@ for (i = 0; i < N; i++)
 
 (Respuesta propia: la lámina lo muestra así, sin marcarlo como error.)
 
+</Solucion>
+
+## Errores típicos
+
+- Pensar que `dynamic` siempre es mejor: cada pedido de bloque cuesta. Con iteraciones de costo parecido, `static` gana.
+- Usar `nowait` entre bucles dependientes con `dynamic` o con distinto número de iteraciones: el hilo que calcula `c[i]` ya no es necesariamente el que calcula `z[i]`.
+- Paralelizar un bucle con dependencia entre iteraciones (`a[i] = a[i-1] + …`): ningún `schedule` lo arregla, el resultado es incorrecto.
+- Olvidar que `schedule(runtime)` toma el valor de `OMP_SCHEDULE` al ejecutar.
+
+## Práctica extra
+
+1. Bucle de 12 iteraciones, 3 hilos, `schedule(static, 2)`. ¿Qué iteraciones hace cada hilo?
+
+<Solucion>
+Bloques de 2 por turnos: hilo 0 → 0, 1, 6, 7 · hilo 1 → 2, 3, 8, 9 · hilo 2 → 4, 5, 10, 11.
+</Solucion>
+
+2. 16 iteraciones, 4 hilos, la iteración i cuesta i unidades (costo creciente). Calcula el tiempo con `static` y con `static, 1` (sin overhead) y el speedup de cada uno.
+
+<Solucion>
+Trabajo total: 0 + 1 + … + 15 = 120.
+
+- `static`: hilo 0 → 0+1+2+3 = 6, hilo 1 → 22, hilo 2 → 38, hilo 3 → 12+13+14+15 = **54**. T = 54, S = 120/54 = **2.22**.
+- `static, 1`: hilo 0 → 0+4+8+12 = 24, hilo 1 → 28, hilo 2 → 32, hilo 3 → **36**. T = 36, S = 120/36 = **3.33**.
+
+El ideal sería 120/4 = 30. Repartir por turnos mezcla iteraciones baratas y caras en cada hilo.
 </Solucion>
 
 <Quiz

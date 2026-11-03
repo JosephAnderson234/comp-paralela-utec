@@ -1,0 +1,223 @@
+---
+title: "DFS, branch and bound e IDA*"
+description: "Búsqueda primero en profundidad secuencial y paralela (tareas + taskwait), branch and bound con el ejemplo de programación lineal entera verificado, profundización iterativa e IDA*, y la tabla de complejidades de la lámina 23."
+---
+import BusqFig from '../../../../components/BusqFig.astro';
+import EnSimple from '../../../../components/EnSimple.astro';
+import Quiz from '../../../../components/Quiz.tsx';
+import Solucion from '../../../../components/Solucion.astro';
+import Fuente from '../../../../components/Fuente.astro';
+
+<EnSimple>
+Imagina un laberinto. **DFS** (primero en profundidad) es "sigue un pasillo hasta el fondo; si es callejón sin salida, vuelve a la última bifurcación y prueba otro". Gasta poca memoria: solo recuerdas el camino actual.
+
+**Branch and bound** es DFS con una regla extra: "si ya encontré una salida a 10 pasos, no sigo un pasillo donde ya llevo 10". **IDA\*** es "busca con un límite; si no encuentras, sube el límite y vuelve a empezar".
+
+En paralelo, cada bifurcación es una oportunidad: mandar a otra persona por el otro pasillo.
+</EnSimple>
+
+## DFS secuencial (láminas 10–11)
+
+Se expande el nodo inicial y, en cada paso, se expande **uno de los nodos generados más recientemente** (una pila). Si una rama no tiene éxito se hace **backtrack**: se vuelve al padre y se prueba otro hijo. Conviene ordenar los hijos por la probabilidad de llegar a la solución (**búsqueda dirigida**).
+
+```
+DFS(v):
+    Procesar(v)
+    for each hijo u de v:
+        DFS(u)
+```
+
+- Para un árbol de n nodos con costo constante por nodo: **T<sub>s</sub>(n) = Θ(n)**.
+- **Ventaja:** la memoria es lineal en la **profundidad** d del árbol (solo la pila del camino actual), no en el número de nodos.
+
+## DFS en paralelo (láminas 14–15)
+
+Se cambia el `for` por un `pardo`: cada hijo es una **tarea** independiente, y el padre espera a todas con `SYNC` (en OpenMP, `taskwait`).
+
+<BusqFig fig="dfs">
+**Cómo leerlo:** a la izquierda, el número es el orden en que un solo hilo visita los nodos; la flecha punteada es la vuelta atrás. A la derecha, cada subárbol coloreado es una tarea que puede correr en otro hilo; la raíz hace `taskwait` y no termina hasta que acaban las dos. Así, cuando `DFS(root)` retorna, se recorrió todo el árbol.
+</BusqFig>
+
+### Trabajo y profundidad para un árbol binario balanceado
+
+Las dos recurrencias de la lámina 14, resueltas paso a paso:
+
+- **Trabajo** (todas las operaciones): W(n) = 2W(n/2) + Θ(1). Por el teorema maestro (a = 2, b = 2, f = Θ(1) = O(n<sup>1−ε</sup>)) es **W(n) = Θ(n)**: el paralelo no hace más trabajo que el secuencial.
+- **Profundidad** (camino crítico, los dos hijos corren a la vez): T(n) = T(n/2) + Θ(1) ⇒ T(n) = Θ(1) + Θ(1) + … (log n veces) = **Θ(log n)**.
+- **Con p procesadores** (Brent): T<sub>p</sub> = O(W/p + T<sub>∞</sub>) = **O(n/p + log n)**.
+
+Para un árbol general de altura h (puede no estar balanceado), el camino crítico es h: **T<sub>p</sub> = O(n/p + h)**. Para un grafo con n vértices y m aristas: O((n + m)/p + h).
+
+:::tip[Por qué se paraleliza "desde arriba"]
+La lámina 15 recomienda generar el paralelismo en los **niveles superiores** del árbol: ahí cada tarea es un subárbol grande, así que el costo de crear y planificar la tarea es pequeño comparado con su trabajo. Crear una tarea por cada hoja haría que el overhead domine. En el código se pone un **corte** (*cutoff*) de profundidad: arriba del corte se crean tareas, abajo se recorre en secuencia.
+:::
+
+Programa propio que recorre el árbol de la [participación 9](/final/busqueda/participacion9/) con tareas y corte en profundidad 2 (compilado con `g++ -fopenmp` y ejecutado con 4 hilos):
+
+```cpp
+void dfs_tareas(int v, int prof, int corte) {
+    for (int u : arbol[v].hijos) {
+        visitados++;                          // std::atomic<int>
+        if (arbol[u].solucion) { /* reportar */ }
+        if (prof < corte) {
+            #pragma omp task firstprivate(u, prof, corte)
+            dfs_tareas(u, prof + 1, corte);
+        } else {
+            dfs_tareas(u, prof + 1, corte);   // debajo del corte: secuencial
+        }
+    }
+    #pragma omp taskwait
+}
+// main: #pragma omp parallel  →  #pragma omp single  →  dfs_tareas(raiz, 0, 2);
+```
+
+```text title="salida"
+nodos = 36, aristas = 35
+DFS secuencial:
+  s1 en el paso 7
+  s2 en el paso 20
+  s3 en el paso 35
+DFS con tareas (corte en profundidad 2):
+  hilo 2 encontro s3
+  hilo 0 encontro s1
+  hilo 0 encontro s2
+aristas recorridas = 35 (sin trabajo redundante)
+```
+
+El orden en que aparecen las soluciones cambia entre ejecuciones (depende de qué hilo toma qué tarea), pero el total de aristas siempre es 35.
+
+## Branch and bound (láminas 16–18)
+
+Es un DFS orientado a encontrar la **mejor** solución:
+
+1. Cada vez que encuentra una solución mejor, **actualiza** la mejor solución y su costo (la *cota*).
+2. Antes de bajar por una rama, **estima** el mejor costo posible en ella. Si ni en el mejor caso puede mejorar la cota, **poda** la rama.
+3. Al terminar queda la solución **óptima**.
+
+### Cuántos nodos explora
+
+Con factor de ramificación b y profundidad d, el árbol completo tiene
+
+$$
+N_\text{exp} \le \sum_{i=0}^{d} b^i = \frac{b^{d+1}-1}{b-1} = \Theta(b^d)
+$$
+
+Si la poda es efectiva, solo se explora una fracción α (0 < α ≤ 1): N<sub>exp</sub> = α·b<sup>d</sup> y T<sub>s</sub> = Θ(α·b<sup>d</sup>).
+
+### En paralelo
+
+$$
+T_p \approx \frac{\alpha b^d}{p} + \Theta(d), \qquad S = \frac{T_s}{T_p} = O\!\left(\frac{\alpha b^d}{\alpha b^d/p + d}\right), \qquad E = O\!\left(\frac{1}{1 + \dfrac{p\,d}{\alpha b^d}}\right)
+$$
+
+**Cómo leer E:** el término p·d / (α·b<sup>d</sup>) es "overhead / trabajo útil". Mientras el árbol explorado (α·b<sup>d</sup>) sea mucho más grande que p·d, la eficiencia es cercana a 1. Si la poda es **muy** buena (α pequeño), queda poco trabajo y la eficiencia baja: paradójicamente, un buen B&B secuencial es más difícil de paralelizar bien.
+
+:::caution[Anomalías de speedup (conocimiento general)]
+En B&B paralelo el número de nodos explorados **no es fijo**: depende de cuándo se encuentra una buena cota. Si un proceso encuentra pronto una solución buena, los demás podan más y el speedup puede ser **mayor que p** (superlineal); si la encuentra tarde, se explora más que en el secuencial y el speedup cae. Por eso las láminas hablan de escalabilidad "alta/variable".
+:::
+
+### Ejemplo: programación lineal entera (láminas 19–20)
+
+Minimizar f(x) = cᵀx = 2x₁ + x₂ − x₃ − 2x₄ con x<sub>i</sub> ∈ \{0, 1\} y **Ax ≥ b**:
+
+$$
+\begin{aligned}
+5x_1 + 2x_2 + x_3 + 2x_4 &\ge 8\\
+x_1 - x_2 - x_3 + 2x_4 &\ge 2\\
+3x_1 + x_2 + x_3 + 3x_4 &\ge 5
+\end{aligned}
+$$
+
+El árbol fija una variable por nivel (x₁, luego x₂…). En cada nodo se pregunta: **¿todavía se puede cumplir cada restricción?** Para la fila i, lo mejor que se puede lograr es sumar lo ya fijado más los coeficientes **positivos** de las variables libres:
+
+$$
+\sum_{x_j \text{ fijas}} A[i,j]\,x_j + \sum_{x_j \text{ libres}} \max(A[i,j], 0) \ \ge\ b_i
+$$
+
+Si alguna fila falla, la rama se poda (nodo gris en la lámina).
+
+<BusqFig fig="ple">
+**Cómo leerlo:** cada nivel fija una variable. Rojo claro = rama podada porque ya no puede cumplir alguna fila (por ejemplo x₁ = 0: en la fila 1 lo máximo es 2 + 1 + 2 = 5 &lt; 8). Verde = solución factible. El recuadro es lo que **además** poda branch and bound: tras encontrar f = −1, la rama x₁ = x₂ = 1 tiene cota 2 + 1 − 1 − 2 = 0, que no mejora −1.
+</BusqFig>
+
+Recorrido verificado con un programa propio:
+
+```text title="salida de bnb_ple.cpp"
+Solo poda por factibilidad (backtracking):
+  solucion x = (1,0,1,1)  f = -1
+  solucion x = (1,1,0,1)  f = 1
+  nodos visitados = 13 de 31
+Branch and bound (factibilidad + cota de costo):
+  solucion x = (1,0,1,1)  f = -1
+  nodos visitados = 9 de 31
+optimo: x = (1,0,1,1), f = -1
+```
+
+:::note[Diferencia con la figura de la lámina 20]
+La forma del árbol de la figura coincide exactamente con el recorrido (13 nodos, 2 soluciones). Pero la figura rotula **f(x) = 0** y **f(x) = 2**, mientras que con el c de la lámina 19 las dos soluciones valen **−1** y **1**: f(1,0,1,1) = 2 − 1 − 2 = −1 y f(1,1,0,1) = 2 + 1 − 2 = 1. La figura parece venir de un libro con otro vector de costos. Lo que no cambia: el óptimo es **x = (1, 0, 1, 1)**.
+:::
+
+<Solucion titulo="Práctica: comprueba a mano por qué se poda (1, 0, 0, ·)">
+Con x₁ = 1, x₂ = 0, x₃ = 0 y x₄ libre, fila 1: 5·1 + 0 + 0 + máx(2, 0) = 7 &lt; 8. No se puede cumplir aunque x₄ = 1, así que se poda sin bajar más.
+</Solucion>
+
+## Profundización iterativa e IDA\* (láminas 21–22)
+
+**Problema de DFS:** si la solución está poco profunda pero en una rama de la derecha, DFS puede perderse mucho tiempo en una rama profunda de la izquierda (o en una infinita).
+
+**Profundización iterativa:** se hace DFS con un **límite de profundidad**; si no hay solución, se sube el límite y se repite.
+
+<BusqFig fig="ida">
+**Cómo leerlo:** tres rondas sobre el mismo árbol binario. Cada ronda repite lo de la anterior y baja un nivel más (línea roja = límite). La meta (verde) recién aparece en la ronda 3. Se visitan 3 + 7 + 15 = 25 nodos contra 15 de un solo recorrido: la repetición cuesta poco porque el último nivel tiene casi la mitad de los nodos (con b mayor, aún menos).
+</BusqFig>
+
+**IDA\*** usa un límite de **costo** en vez de profundidad. Para cada nodo x:
+
+$$
+l(x) = g(x) + h(x)
+$$
+
+- g(x): costo de llegar desde la raíz hasta x (conocido).
+- h(x): estimación **heurística** del costo de x a la solución.
+- Tras una ronda fallida, el nuevo límite es el **menor** l(x) que superó el límite anterior (así no se salta ninguna solución).
+- Si h es **admisible** (nunca sobreestima el costo real), IDA\* encuentra la solución **óptima**.
+
+Ejemplo clásico (8-puzzle, lámina 12): g = movimientos hechos, h = número de fichas fuera de lugar (admisible: cada ficha mal puesta necesita al menos 1 movimiento).
+
+## Tabla de complejidades (lámina 23)
+
+La tabla del PDF tiene las celdas desalineadas. Reconstruida:
+
+| Algoritmo | T<sub>s</sub> | T<sub>∞</sub> | T<sub>p</sub> | Escalabilidad |
+|---|---|---|---|---|
+| Lineal | O(n) | O(log n) | O(n/p + log n) | buena |
+| Binaria | O(log n) | — | O(log<sub>p</sub> n) | moderada |
+| DFS | O(n) | O(d) | O(n/p + d) | buena |
+| B&B | O(b<sup>d</sup>) | O(d) | O(b<sup>d</sup>/p + d) | alta / variable |
+| IDA\* | O(K·b<sup>d</sup>) | O(K·d) | O(K·b<sup>d</sup>/p + K·d) | alta / variable |
+
+n: elementos · b: factor de ramificación (b > 1) · d: profundidad máxima · p: procesadores · K: número de iteraciones de IDA\*.
+
+**Patrón común:** siempre es *trabajo / p + camino crítico*. Lo que cambia es cuánto trabajo hay (n, b<sup>d</sup>, K·b<sup>d</sup>) y qué tan largo es el camino que no se puede repartir (log n, d, K·d).
+
+## Errores típicos
+
+- Pensar que B&B siempre explora b<sup>d</sup> nodos: ese es el **peor caso**; la poda reduce a α·b<sup>d</sup>.
+- Olvidar el `taskwait` en el DFS con tareas: la función retorna antes de que terminen los hijos y el resultado queda incompleto.
+- Crear una tarea por nodo hasta las hojas: el overhead de tareas supera el trabajo. Usar un corte.
+- Confundir g(x) (costo ya pagado) con h(x) (estimación del que falta).
+
+<Quiz
+	client:visible
+	id="u53-dfs-bnb"
+	preguntas={[
+		{ q: 'Ventaja principal de DFS frente a BFS según la lámina 10:', opts: ['encuentra siempre el óptimo', 'memoria lineal en la profundidad', 'no necesita backtracking', 'es paralelo por naturaleza'], ok: 1 },
+		{ q: 'DFS paralelo en un árbol binario balanceado: profundidad T∞ =', opts: ['Θ(n)', 'Θ(log n)', 'Θ(1)', 'Θ(n log n)'], ok: 1, why: 'T(n) = T(n/2) + Θ(1).' },
+		{ q: 'En el ejemplo de PLE, ¿por qué se poda x₁ = 0?', opts: ['porque f sería negativa', 'porque la fila 1 llega como máximo a 5 < 8', 'porque la fila 2 no se cumple', 'porque ya se encontró el óptimo'], ok: 1 },
+		{ q: 'En IDA*, l(x) = g(x) + h(x). ¿Qué es h(x)?', opts: ['el costo ya recorrido', 'la profundidad del nodo', 'una estimación del costo que falta hasta la solución', 'el número de hijos'], ok: 2 },
+		{ q: 'Si la poda de B&B es muy efectiva (α pequeño), la eficiencia paralela…', opts: ['sube', 'baja, porque queda poco trabajo frente al overhead p·d', 'no cambia', 'se vuelve exactamente 1'], ok: 1 },
+		{ q: 'El speedup superlineal en B&B paralelo puede ocurrir porque…', opts: ['hay más caché', 'un proceso encuentra pronto una buena cota y los demás podan más', 'MPI es más rápido que OpenMP', 'nunca ocurre'], ok: 1 },
+	]}
+/>
+
+<Fuente archivos={['U5.3 Algoritmos-busqueda.pdf (láminas 10–23)', 'programas propios: dfs_tareas.cpp, bnb_ple.cpp']} />

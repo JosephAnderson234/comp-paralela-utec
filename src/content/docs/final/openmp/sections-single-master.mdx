@@ -2,6 +2,7 @@
 title: sections, single, master y barreras
 description: Repartir tareas distintas (sections), que lo haga uno solo (single, master) y cuándo esperan los hilos (barrier, barreras implícitas).
 ---
+import FinalFig from '../../../../components/FinalFig.astro';
 import OmpBarriers from '../../../../components/playgrounds/OmpBarriers.tsx';
 import EnSimple from '../../../../components/EnSimple.astro';
 import Quiz from '../../../../components/Quiz.tsx';
@@ -86,6 +87,10 @@ Salida real (4 hilos): `constructor Single ejecutado por el hilo 3` y luego solo
 
 **No** hay barrera al final de `master` ni de `critical`.
 
+<FinalFig fig="barreras">
+**Cómo leerlo:** el tiempo avanza a la derecha. Los tres hilos hacen su parte del `for`; los que terminan antes esperan (rojo claro) en la **barrera implícita** del `for`. Luego un solo hilo (el 0 en este ejemplo, podría ser cualquiera) ejecuta el `single` y los otros esperan en **su** barrera. El `master` lo hace solo el hilo 0 y **no tiene barrera**: los hilos 1 y 2 siguen de largo.
+</FinalFig>
+
 <OmpBarriers client:visible />
 
 :::caution[Barrera dentro de una función (U4.2)]
@@ -129,6 +134,25 @@ En `Ejemp01_master.c`, ¿qué pasaría si `toobig = 0` se hiciera con `master` e
 
 `master` **no tiene barrera**: otros hilos podrían empezar el siguiente `for` con `reduction(+:toobig)` antes de que el hilo 0 ponga `toobig = 0`. La lámina de U4.2 sobre `reduction` muestra exactamente ese error: la inicialización tiene que quedar **antes** de la reducción, con una `barrier` después del `master`, usando `single` (que trae barrera) o inicializando antes de la región paralela.
 
+</Solucion>
+
+## Errores típicos
+
+- Creer que `master` tiene barrera al final. No la tiene; `single` sí (salvo `nowait`).
+- Decir que `single` lo ejecuta el hilo 0. Lo ejecuta **el primero que llega**; el que siempre es el 0 es `master`.
+- Poner un `barrier` dentro de un `if (id == 0)`, un `single` o un `master`: no todos los hilos llegan y el programa se cuelga (o el comportamiento no está definido).
+- Esperar que con 2 hilos y 3 `section` corran las 3 a la vez: un hilo hace dos, una detrás de otra.
+
+## Práctica extra
+
+Tres `section` que tardan 2 s, 1 s y 1 s. ¿Cuánto tarda el bloque `sections` con 1, 2 y 3 hilos? ¿Cuál es el speedup máximo?
+
+<Solucion>
+- 1 hilo: 2 + 1 + 1 = **4 s**.
+- 2 hilos: el mejor reparto es un hilo con la de 2 s y el otro con las dos de 1 s → **2 s**.
+- 3 hilos: una sección por hilo → **2 s** (manda la más larga).
+
+S<sub>máx</sub> = 4/2 = **2**, aunque haya 3 hilos: el tiempo nunca baja de la sección más larga. Es el mismo argumento del camino crítico de un DAG.
 </Solucion>
 
 <Quiz

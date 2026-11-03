@@ -2,6 +2,7 @@
 title: Descomposición de dominio y halos
 description: Regiones de halo, cómo crece su costo al dividir el dominio en 2D y 3D, por qué el híbrido ahorra memoria y comunicación, y el ejemplo de Poisson 3D con Jacobi.
 ---
+import FinalFig from '../../../../components/FinalFig.astro';
 import HaloRatio from '../../../../components/playgrounds/HaloRatio.tsx';
 import EnSimple from '../../../../components/EnSimple.astro';
 import Quiz from '../../../../components/Quiz.tsx';
@@ -37,6 +38,10 @@ Al pasar de P a 4P procesos:
 - pero su halo solo se reduce a **la mitad**.
 
 En general, si el número de procesos crece como O(P), el halo por proceso baja solo como O(√P). La proporción halo / trabajo **empeora** al dividir más fino.
+
+<FinalFig fig="halos2d">
+**Cómo leerlo:** a la izquierda un proceso con un bloque de 8 × 8 celdas (celeste) y su halo alrededor (rojo, 2M + 2N = 32 celdas; las esquinas no hacen falta en un stencil de 5 puntos). A la derecha el mismo dominio partido en 4 procesos: cada uno calcula 16 celdas (un **cuarto**) pero guarda 16 de halo (solo la **mitad**). La proporción halo/trabajo pasó de 32/64 = 0.5 a 16/16 = 1.
+</FinalFig>
 
 <HaloRatio client:visible />
 
@@ -115,6 +120,24 @@ Cada proceso tiene un subdominio 3D de 30³ celdas con 1 capa de halo. ¿Qué po
 
 Con 8 veces más procesos, el trabajo por proceso cae 8 veces, pero el halo por proceso solo ≈ 3.75 veces (5768 → 1538): la fracción de halo casi se duplica.
 
+</Solucion>
+
+## Errores típicos
+
+- Suponer que el halo baja al mismo ritmo que el trabajo. El trabajo baja como 1/P y el halo solo como 1/√P (en 2D).
+- Actualizar los halos una sola vez al inicio: hay que intercambiarlos **en cada iteración**, porque los valores del vecino cambian.
+- Contar las esquinas en un stencil de 5 puntos: no se usan. Sí hacen falta en uno de 9 puntos.
+
+## Práctica extra
+
+Malla de 1000 × 1000 por proceso con P procesos. ¿Cómo cambia la razón halo/trabajo al pasar a 4P y a 16P (repartiendo el mismo dominio total)?
+
+<Solucion>
+- P: halo 2·1000 + 2·1000 = 4000, trabajo 10⁶ → **0.004**.
+- 4P: bloques de 500 × 500 → halo 2000, trabajo 250 000 → **0.008**.
+- 16P: bloques de 250 × 250 → halo 1000, trabajo 62 500 → **0.016**.
+
+Cada vez que se multiplica por 4 el número de procesos, la proporción de comunicación **se duplica**. Por eso OpenMP dentro del nodo (menos procesos, bloques más grandes) ayuda.
 </Solucion>
 
 <Quiz

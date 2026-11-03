@@ -2,6 +2,7 @@
 title: critical, locks y el problema de los filósofos
 description: Repaso de critical (con nombre), la API de locks de OpenMP, comparación medida critical vs atomic vs lock, histograma con locks por bin y deadlock en los filósofos.
 ---
+import FinalFig from '../../../../components/FinalFig.astro';
 import HistogramLocks from '../../../../components/playgrounds/HistogramLocks.tsx';
 import Philosophers from '../../../../components/playgrounds/Philosophers.tsx';
 import EnSimple from '../../../../components/EnSimple.astro';
@@ -170,6 +171,10 @@ Lo ejecutamos 200 veces (con un límite de 2 s por corrida):
 
 Los `cout` hacen que los hilos se desfasen, y eso **esconde** el error casi siempre. Es lo típico de los errores de concurrencia: el programa "funciona" al probarlo y falla en otro momento.
 
+<FinalFig fig="filosofos">
+**Cómo leerlo:** a la izquierda, cada filósofo F<sub>i</sub> tiene su tenedor izquierdo (línea gruesa) y espera el derecho (flecha roja), que tiene el vecino: las flechas forman un **círculo** y nadie avanza. A la derecha, con el orden global F4 pide primero el tenedor 0, que tiene F0; espera **sin tener ninguno**, el tenedor 4 queda libre y F3 (verde) toma los dos y come. El círculo ya no se puede cerrar.
+</FinalFig>
+
 ### La solución: orden global de los locks
 
 Para que haya deadlock tiene que existir una **espera circular** (F0 espera a F1, que espera a F2… que espera a F0). Se rompe si todos toman los tenedores **en el mismo orden global**: primero el de **menor número**.
@@ -195,6 +200,24 @@ En el histograma con un lock por bin, ¿qué pasa con el rendimiento si todos lo
 
 Todos los hilos piden **el mismo** lock en cada iteración, así que hacen fila igual que con `critical`: el bucle queda secuencial, y además paga el costo de `omp_set_lock`/`omp_unset_lock`. Los locks por bin solo ayudan cuando los datos se **reparten** entre muchos bins. Si hay pocos bins o los datos están muy concentrados, conviene un histograma **local por hilo** y fusionar al final (ver el [simulacro de la PC4](/final/openmp-avanzado/simulacro-pc4/)).
 
+</Solucion>
+
+## Errores típicos
+
+- Olvidar `omp_init_lock` antes de usar el lock (u `omp_destroy_lock` al final).
+- Liberar un lock desde un hilo que **no** lo tomó: comportamiento no definido.
+- Tomar dos locks en **distinto orden** en hilos distintos: es exactamente el deadlock de los filósofos.
+- Tomar dos veces el mismo `omp_lock_t` en el mismo hilo (por ejemplo, en una función recursiva): se bloquea a sí mismo. Para eso existe `omp_nest_lock_t`.
+
+## Práctica extra
+
+Un deadlock necesita cuatro condiciones a la vez (Coffman): exclusión mutua, retener y esperar, no expropiación y **espera circular**. ¿Cuál rompe cada solución: (a) orden global de los locks, (b) sentar a lo más N − 1 filósofos?
+
+<Solucion>
+Las dos rompen la **espera circular**.
+
+- (a) Si todos piden en orden creciente, una cadena de esperas siempre va hacia números mayores y no puede volver al inicio.
+- (b) Con N − 1 filósofos y N tenedores, por el principio del palomar al menos uno consigue **los dos** tenedores, come y libera: el círculo nunca se completa.
 </Solucion>
 
 <Quiz

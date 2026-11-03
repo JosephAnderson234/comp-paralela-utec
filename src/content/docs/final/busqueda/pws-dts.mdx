@@ -1,0 +1,153 @@
+---
+title: "Repartir el árbol: PWS, DTS y clusters"
+description: "Descomposición del dominio de búsqueda (p = b^k), Parallel Window Search, Distributed Tree Search, búsqueda adaptiva por clusters, sus complejidades (Cuadro 2) y cuándo conviene cada una."
+---
+import BusqFig from '../../../../components/BusqFig.astro';
+import EnSimple from '../../../../components/EnSimple.astro';
+import Quiz from '../../../../components/Quiz.tsx';
+import Solucion from '../../../../components/Solucion.astro';
+import Fuente from '../../../../components/Fuente.astro';
+import BusquedaArbol from '../../../../components/playgrounds/BusquedaArbol.tsx';
+
+<EnSimple>
+Hay dos formas de que un equipo busque un objeto perdido en un edificio:
+
+- **DTS (repartir el edificio):** cada persona revisa **pisos distintos** con el mismo cuidado. No se repite nada, pero si a alguien le toca el piso más grande, todos lo esperan.
+- **PWS (repartir el nivel de detalle):** todos recorren el edificio **entero**, pero cada uno con una "lupa" distinta: uno mira solo por encima, otro un poco más, otro a fondo. Se repite mucho trabajo, pero sirve cuando no sabes **qué tan escondido** está el objeto.
+
+Los **clusters** mezclan las dos: varios equipos, cada equipo con su lupa, y dentro del equipo se reparten los pisos.
+</EnSimple>
+
+## Descomposición del dominio (láminas 24–26)
+
+Se parte el **espacio de búsqueda** (el árbol) y cada procesador busca en sus subárboles a la vez. El problema: los subárboles pueden tener tamaños muy distintos y es difícil saberlo **antes** de explorarlos. Por eso suele hacer falta **balance de carga dinámico** (ver [la página de balance](/final/busqueda/balance-carga/)).
+
+**Caso p = b<sup>k</sup>.** Si el factor de ramificación es b, se elige un nivel k con b<sup>k</sup> = p nodos. La búsqueda **hasta el nivel k es secuencial** (hay que generar esos nodos), y desde ahí cada proceso busca su subárbol de profundidad d − k:
+
+$$
+T_p = O\big(\underbrace{b^k}_{\text{generar la frontera}} + \underbrace{b^{d-k}}_{\text{un subárbol}}\big)
+$$
+
+<BusqFig fig="pbk">
+**Cómo leerlo:** a la izquierda, la parte gris (hasta el nivel k) la hace un solo proceso; debajo, cada triángulo es el subárbol de un proceso. Si el árbol está balanceado, todos terminan juntos. A la derecha, el árbol no está balanceado: se corta **más profundo** para tener muchos subárboles pequeños y repartir varios por proceso, así los grandes y los chicos se compensan (lámina 26).
+</BusqFig>
+
+<Solucion titulo="Práctica: b = 3, d = 10, p = 9">
+k = log₃ 9 = 2. T<sub>p</sub> = O(3² + 3⁸) = O(9 + 6561) ≈ 6570 nodos frente a T<sub>s</sub> ≈ 3¹⁰ = 59 049. S ≈ 59 049 / 6570 ≈ **9**, E ≈ 1: con árbol balanceado la parte secuencial (9 nodos) es despreciable.
+</Solucion>
+
+## Parallel Window Search, PWS (láminas 27–28)
+
+*Powley y Korf (1991).* Cada proceso recibe una **copia completa del árbol** y un **umbral de costo distinto** (su "ventana"). Cada uno hace un DFS limitado (como una ronda de [IDA\*](/final/busqueda/dfs-bnb/)) en paralelo. Hay que **esperar a que todos terminen** para saber el resultado.
+
+```
+B ← h(s);  solución ← ∅
+while solución = ∅:
+    for i ← 0 .. p−1 pardo:
+        B_i ← B + i·Δ
+        (sol_i, c_i, next_i) ← DFSLimitado(s, B_i)
+    TASKWAIT()
+    S ← { sol_i ≠ ∅ }
+    if S ≠ ∅: return la de menor c_i
+    B ← mín_i next_i          // nueva ronda con umbrales más altos
+```
+
+**Idea clave:** IDA\* secuencial prueba los umbrales B, B + Δ, B + 2Δ… **uno tras otro**. PWS los prueba **todos a la vez**, uno por proceso. Si la solución está en el umbral B + 5Δ, el secuencial hace 6 rondas; PWS con p ≥ 6 hace una sola.
+
+**Costo:** los procesos repiten la parte alta del árbol (trabajo **redundante**). PWS solo gana si de verdad ahorra rondas.
+
+## Distributed Tree Search, DTS (láminas 29–30)
+
+*Kumar y Rao (1990).* Todos los procesos usan el **mismo umbral**, pero cada uno recibe un **subárbol distinto**. Hay que fijar el nivel de partición; hasta ese nivel el cálculo es secuencial.
+
+```
+k ← log_b p
+F ← GenerarFrontera(s, k, B)          // secuencial: b^k nodos
+for i ← 0 .. |F|−1 pardo:
+    (sol_i, c_i, next_i) ← DFSLimitado(F[i], B)
+TASKWAIT()
+return la sol de menor c_i, y next = mín next_i
+```
+
+**Sin trabajo redundante**, pero el tiempo lo fija el subárbol **más grande**.
+
+## Búsqueda adaptiva por clusters (lámina 31)
+
+*Cook (1997).* Los p procesos se agrupan en clusters. **Cada cluster tiene su umbral** (como PWS) y **dentro del cluster se reparte el árbol** (como DTS).
+
+- 1 cluster con p procesos = DTS.
+- p clusters de 1 proceso = PWS.
+
+<BusqFig fig="pwsdts">
+**Cómo leerlo:** en PWS cada proceso tiene el árbol entero (gris) y su parte coloreada llega hasta su umbral B + iΔ: las partes de arriba se solapan, eso es trabajo repetido. En DTS el árbol se corta en franjas de colores, todas hasta el mismo umbral B. En clusters, cada triángulo es un cluster con su propio umbral, repartido entre sus 3 procesos.
+</BusqFig>
+
+## Complejidades (lámina 32)
+
+| Método | T(n, p) | E(n, p) |
+|---|---|---|
+| DTS | O(b<sup>d</sup>/p + b<sup>k</sup> + log p) | O( 1 / (1 + (p·b<sup>k</sup> + p·log p) / b<sup>d</sup>) ) |
+| PWS | O(b<sup>d</sup>/p + b<sup>m</sup> + log p) | O( 1 / (1 + (p·b<sup>m</sup> + p·log p) / b<sup>d</sup>) ) |
+| Clusters | O(b<sup>d</sup>/p + b<sup>k</sup> + b<sup>m</sup> + log p) | O( 1 / (1 + p·(b<sup>k</sup> + b<sup>m</sup> + log p) / b<sup>d</sup>) ) |
+
+**Qué es cada término:**
+
+- **b<sup>d</sup>/p**: el trabajo útil (el árbol) repartido.
+- **b<sup>k</sup>**: generar la frontera hasta el nivel de partición k, en secuencia (DTS).
+- **b<sup>m</sup>**: la parte que se repite por el umbral/ventana m (PWS). *Lectura propia: la lámina no define m; en la participación 9 los umbrales también se llaman m.*
+- **log p**: juntar los resultados al final (el `TASKWAIT` y quedarse con el mínimo es una reducción).
+
+Las tres eficiencias tienen la misma forma que vimos en el parcial: **E = 1 / (1 + overhead/trabajo)**. Se mantiene alta mientras b<sup>d</sup> (el árbol) crezca más rápido que p·(overhead).
+
+**Cuándo usar cada uno** (lámina 32):
+
+| Método | Bueno para… | Por qué |
+|---|---|---|
+| DTS | árboles **bien balanceados** | no repite trabajo; si los subárboles son parejos, todos terminan juntos |
+| PWS | búsquedas heurísticas **profundas** (IDA\* con muchas rondas) | ahorra rondas; la repetición pesa poco frente a lo que ahorra |
+| Clusters | máquinas **multinodo** | combina ambas ventajas: PWS entre nodos, DTS dentro |
+
+## Performance: depende de dónde está la meta (lámina 33)
+
+*Cook y Varnell (1998)*, con p = 10, b = 6, d = 10. Sea **a** la fracción de nodos que hay que expandir (en la última ronda) antes de encontrar la solución. El speedup de PWS es aproximadamente:
+
+$$
+S_\text{PWS} = 1 + \frac{1}{a\,(b-1)}
+$$
+
+- Si la meta aparece **pronto** (a pequeño), PWS gana mucho: con a = 0.05 y b = 6, S = 1 + 1/0.25 = **5**.
+- Si aparece **tarde** (a → 1), S → 1 + 1/5 = **1.2**: casi no gana.
+- En la figura de la lámina, la curva de PWS cae suavemente al moverse la meta a la derecha, mientras que la de DTS tiene **picos**: DTS gana mucho cuando la meta cae al **principio** del subárbol de algún proceso (ese proceso la encuentra enseguida) y poco en el resto.
+
+**Conclusión práctica:** ninguno domina siempre. Depende de la forma del árbol y de dónde esté la solución, y eso no se sabe antes de buscar.
+
+## Simulador: el árbol de la participación 9
+
+Prueba los cuatro modos. Fíjate en tres cosas: (1) cuánto tarda el **último** proceso, (2) cuántas aristas se repiten, (3) cuánto tiempo pasa ocioso cada proceso en el diagrama de abajo.
+
+<BusquedaArbol client:visible />
+
+La resolución completa, con todas las tablas, está en [Participación 9 resuelta](/final/busqueda/participacion9/).
+
+## Errores típicos
+
+- Decir que PWS reparte el árbol: **no**, cada proceso tiene el árbol **completo**; lo que se reparte son los **umbrales**.
+- Olvidar el tramo secuencial hasta el nivel k en DTS (b<sup>k</sup>).
+- Calcular el tiempo de DTS como trabajo/p: el tiempo es el del subárbol **más grande**, no el promedio.
+- Dar por hecho que más procesos en DTS siempre mejoran la eficiencia: partir más profundo aumenta p pero también el desbalance y el tramo secuencial.
+
+<Quiz
+	client:visible
+	id="u53-pws-dts"
+	preguntas={[
+		{ q: 'En PWS, cada proceso recibe…', opts: ['un subárbol distinto con el mismo umbral', 'una copia del árbol con un umbral de costo distinto', 'un nivel del árbol', 'una lista de hojas'], ok: 1 },
+		{ q: 'En DTS, ¿qué parte es secuencial?', opts: ['ninguna', 'la búsqueda en las hojas', 'generar la frontera hasta el nivel de partición k', 'el TASKWAIT'], ok: 2 },
+		{ q: 'Con b = 2 y p = 8 procesos en DTS, el nivel de partición es…', opts: ['k = 2', 'k = 3', 'k = 4', 'k = 8'], ok: 1, why: 'k = log₂ 8 = 3.' },
+		{ q: '¿Qué método repite trabajo?', opts: ['DTS', 'PWS', 'ninguno', 'los dos por igual'], ok: 1 },
+		{ q: '¿Cuál conviene para un árbol muy balanceado y un umbral conocido?', opts: ['PWS', 'DTS', 'búsqueda lineal', 'clusters con p clusters'], ok: 1 },
+		{ q: 'p clusters de 1 proceso cada uno equivale a…', opts: ['DTS', 'PWS', 'DFS secuencial', 'B&B'], ok: 1 },
+		{ q: 'S_PWS = 1 + 1/(a(b−1)). Con a = 0.1 y b = 3, S =', opts: ['1.5', '6', '3', '1.05'], ok: 1, why: '1 + 1/(0.1·2) = 1 + 5 = 6.' },
+	]}
+/>
+
+<Fuente archivos={['U5.3 Algoritmos-busqueda.pdf (láminas 24–33)']} />

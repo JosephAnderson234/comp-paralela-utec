@@ -2,6 +2,7 @@
 title: Escalabilidad de los ordenamientos
 description: "Isoeficiencia del bitónico en malla y en hipercubo y de Hyksort (ejercicio 3 de la PD5 resuelto paso a paso), el cruce en p = 2^16 y la tabla resumen de la lámina 36."
 ---
+import FinalFig from '../../../../components/FinalFig.astro';
 import IsoSort from '../../../../components/playgrounds/IsoSort.tsx';
 import EnSimple from '../../../../components/EnSimple.astro';
 import Quiz from '../../../../components/Quiz.tsx';
@@ -23,6 +24,10 @@ Viene de [Escalabilidad e isoeficiencia](/performance/escalabilidad/):
 3. **Eficiencia** E = W / (W + T<sub>o</sub>) = 1 / (1 + T<sub>o</sub>/W).
 4. **E constante ⇔ W = K·T<sub>o</sub>**, con K = E/(1 − E). Despejar n en función de p: esa es la **función de isoeficiencia**.
 5. **Menor crecimiento = más escalable.** Una isoeficiencia polinomial (p, p log p) es buena. Una exponencial (2<sup>√p</sup>) es mala.
+
+<FinalFig fig="isoef">
+**Cómo leerlo:** la receta en cinco pasos, con los números del bitónico en malla. Se parte del T<sub>p</sub> que da el enunciado, se multiplica por p, se resta el trabajo secuencial W para quedarse con el overhead T<sub>o</sub>, se iguala W = K·T<sub>o</sub> y se despeja n en función de p. Lo único que cambia de un ejercicio a otro es el T<sub>p</sub> de la caja 1.
+</FinalFig>
 
 ## PD05, ejercicio 3a: bitónico en malla vs hipercubo (1 pt)
 
@@ -107,6 +112,13 @@ K = E/(1 − E) = 0.8/0.2 = **4**.
 
 Hipercubo: log n = K·log² p = 4 · 6² = 144, así que **n = 2¹⁴⁴**, un número imposible. Mantener E = 0.8 con el bitónico es inviable aunque p sea pequeño: en la práctica se acepta una E menor. Con K = 1 (E = 0.5): log n = 36, n = 2³⁶ ≈ 6.9·10¹⁰, que sigue siendo enorme.
 </Solucion>
+
+## Errores típicos
+
+- Usar W = n para un ordenamiento. El mejor secuencial por comparaciones es **n log n**.
+- Restar W de T<sub>p</sub> en vez de p·T<sub>p</sub>: el overhead es p·T<sub>p</sub> − W.
+- Comparar dos isoeficiencias exponenciales sin fijar el rango de p: aquí el ganador cambia en p = 2¹⁶.
+- Olvidar la constante K = E/(1 − E): no cambia el orden de crecimiento, pero sí el valor de n.
 
 <Quiz
 	client:visible

@@ -2,6 +2,7 @@
 title: Tareas, dependencias e ICVs
 description: task, depend(in/out/inout), taskwait, taskgroup, taskyield; variables de control interno, paralelismo anidado y de grano grueso.
 ---
+import FinalFig from '../../../../components/FinalFig.astro';
 import OmpTasks from '../../../../components/playgrounds/OmpTasks.tsx';
 import EnSimple from '../../../../components/EnSimple.astro';
 import Quiz from '../../../../components/Quiz.tsx';
@@ -40,6 +41,10 @@ La tarea se ejecuta **de inmediato o se difiere**, según haya hilos libres. Pat
 ```
 
 El orden de `t1`, `t2`, `t3` y el hilo que ejecuta cada una **cambian** en cada corrida.
+
+<FinalFig fig="tareas">
+**Cómo leerlo:** el hilo 0, dentro de `single`, **crea** tres tareas y las deja en un pool. Los demás hilos las **toman** cuando están libres. La flecha roja es la dependencia `out(x)` → `in(x)`: T2 no puede empezar hasta que T1 termine. T3 no tiene `depend`, así que puede correr en cualquier momento. `taskwait` hace que el hilo 0 espere a sus tres tareas hijas.
+</FinalFig>
 
 ## `depend`: ordenar tareas
 
@@ -145,6 +150,26 @@ Las dos tareas que imprimen dependen de la primera (in después de out), así qu
 
 `x+1 = 2` **no** puede salir: requeriría leer x antes de que la primera tarea la cambie.
 
+</Solucion>
+
+## Errores típicos
+
+- Crear las tareas **fuera** de `single`: cada hilo del equipo las crea, y se ejecutan p veces.
+- Olvidar que las variables locales del creador son, por defecto, **`firstprivate`** en la tarea: si la tarea las modifica, el cambio no se ve fuera. Usa `shared` y luego `taskwait`.
+- Usar el resultado de una tarea sin `taskwait` (o `taskgroup`) antes.
+- Esperar que `depend` ordene tareas de **padres distintos**: solo ordena tareas hermanas (creadas por la misma tarea).
+
+## Práctica extra
+
+Se crean en este orden: T1 `depend(out: a)`, T2 `depend(in: a)`, T3 `depend(out: a)`, T4 `depend(in: b)`. ¿Qué órdenes son posibles?
+
+<Solucion>
+- T1 → T2 (T2 lee lo que T1 escribe).
+- T2 → T3 (T3 no puede escribir `a` antes de que T2 lo lea).
+- T1 → T3 (dos escrituras de `a` en orden).
+- T4 no comparte variables con nadie: va en cualquier lugar.
+
+Así que T1, T2, T3 siempre en ese orden, y T4 en cualquiera de las 4 posiciones: **4 órdenes posibles** (T4 T1 T2 T3, T1 T4 T2 T3, T1 T2 T4 T3, T1 T2 T3 T4), además de que T4 puede correr **a la vez** que cualquiera.
 </Solucion>
 
 <Quiz

@@ -2,6 +2,7 @@
 title: Sincronización — critical, atomic, ordered, flush
 description: Condiciones de carrera y cómo evitarlas en OpenMP; critical con nombre, atomic (read/write/update/capture), ordered y flush.
 ---
+import FinalFig from '../../../../components/FinalFig.astro';
 import OmpRace from '../../../../components/playgrounds/OmpRace.tsx';
 import EnSimple from '../../../../components/EnSimple.astro';
 import Quiz from '../../../../components/Quiz.tsx';
@@ -19,6 +20,10 @@ Una **condición de carrera** es como dos personas actualizando el mismo saldo b
 ## ¿Por qué `cnt++` falla?
 
 `cnt++` son **tres** pasos para la CPU: **leer** `cnt` a un registro, **sumar** 1, **escribir** el registro de vuelta. Si dos hilos intercalan esos pasos, uno pisa el resultado del otro.
+
+<FinalFig fig="carrera">
+**Cómo leerlo:** el tiempo baja fila por fila. A y B leen el **mismo** valor 5 antes de que cualquiera escriba; los dos calculan 6 y los dos escriben 6. Hubo dos incrementos y el contador solo subió uno: es un **lost update**. `atomic` o `critical` impiden que B lea entre la lectura y la escritura de A.
+</FinalFig>
 
 <OmpRace client:visible />
 
@@ -160,6 +165,30 @@ Compara las tres versiones para el máximo de `work(i)`, `i = 0 … 2²⁰−1`:
 for (int i = 0; i < n; i++) { int r = work(i); mx = (r > mx ? r : mx); }
 ```
 
+</Solucion>
+
+## Errores típicos
+
+- Usar `atomic` con algo que no es una actualización simple: protege solo la actualización de **una** variable (`x++`, `x += expr`); la expresión de la derecha se evalúa **sin** protección.
+- Olvidar que todas las `critical` **sin nombre** comparten el mismo lock: dos regiones que protegen datos distintos se bloquean entre sí. Ponles nombre: `critical(hist)`.
+- Usar `critical` para acumular una suma: `reduction` hace lo mismo cientos de veces más rápido (0.0002 s frente a 0.056 s en la tabla de arriba).
+- Escribir `#pragma omp ordered` sin la cláusula `ordered` en el `for`.
+
+## Práctica extra (reto)
+
+Dos hilos hacen `cnt++` **3 veces cada uno**, sin protección, empezando en 0. ¿Cuál es el valor final **mínimo** posible?
+
+<Solucion>
+**2** (no 3). Un intercalado que lo logra:
+
+1. A lee 0 y se detiene (lo tiene en su registro).
+2. B hace 2 incrementos completos: cnt = 2.
+3. A escribe 1 (pisa el 2).
+4. B lee 1 para su tercer incremento y se detiene.
+5. A hace sus 2 incrementos restantes: cnt = 2, luego 3.
+6. B escribe 2.
+
+Por eso las carreras no solo "pierden un poco": el resultado puede alejarse mucho del correcto.
 </Solucion>
 
 <Quiz

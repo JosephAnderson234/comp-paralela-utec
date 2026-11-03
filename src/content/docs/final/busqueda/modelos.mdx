@@ -1,0 +1,132 @@
+---
+title: "Búsqueda y optimización: modelos, lineal y binaria"
+description: "Qué es un problema de búsqueda y uno de optimización discreta, mínimo local vs global, búsqueda lineal paralela con REDUCE_OR y búsqueda binaria con p procesadores (log p de speedup)."
+---
+import BusqFig from '../../../../components/BusqFig.astro';
+import EnSimple from '../../../../components/EnSimple.astro';
+import Quiz from '../../../../components/Quiz.tsx';
+import Solucion from '../../../../components/Solucion.astro';
+import Fuente from '../../../../components/Fuente.astro';
+import BusquedaPAria from '../../../../components/playgrounds/BusquedaPAria.tsx';
+
+<EnSimple>
+**Buscar** es como revisar cajones hasta encontrar las llaves: te basta con **una** que cumpla. **Optimizar** es como elegir el vuelo más barato: tienes que estar seguro de que **ninguno** es mejor, así que en principio miras todos (o demuestras que los que no miraste no pueden ganar).
+
+En paralelo, la idea básica es **repartir los cajones** entre varias personas. El problema es que no todos los cajones tienen el mismo tamaño, y que cuando alguien encuentra las llaves los demás deberían **dejar de buscar**. De eso trata toda la unidad.
+</EnSimple>
+
+## Búsqueda vs optimización (láminas 2–5)
+
+| | Búsqueda (decisión) | Optimización discreta |
+|---|---|---|
+| Entrada | conjunto S = \{x₀, …, x<sub>n−1</sub>\} y un predicado P | tupla (S, f): soluciones y función de costo f : S → ℝ |
+| Qué se pide | **algún** x<sub>i</sub> con P(x<sub>i</sub>) = 1 | x<sub>opt</sub> con f(x<sub>opt</sub>) ≤ f(x) para **todo** x ∈ S, sujeto a g(x) ≥ 0 |
+| Cuándo para | al primer éxito | cuando se exploró (o se descartó) todo |
+| Ejemplo de la lámina | crucigrama (caso 2) | 8-puzzle con mínimo de movimientos (caso 1), programación lineal entera |
+
+**Variables de decisión** son las x₁, …, xₙ que el algoritmo elige; la **condición funcional** g(x) ≥ 0 son las restricciones que deben cumplir.
+
+### Mínimo local vs global (lámina 5)
+
+- y es **mínimo global** si f(y) < f(x) para todo x de S.
+- y es **mínimo local** si f(y) ≤ f(x) para todo x en una **vecindad** de y.
+
+La mayoría de métodos encuentran un mínimo **local**. Para aspirar al global, la lámina propone lanzar la búsqueda desde **varios puntos espaciados** y comparar los mínimos: eso es naturalmente paralelo, porque cada arranque es independiente (como el Montecarlo del parcial).
+
+### Qué estrategia paralela usa cada algoritmo (lámina 6)
+
+| Categoría | Algoritmo | Cómo se paraleliza |
+|---|---|---|
+| Búsqueda | lineal | particionar los **datos** |
+| Búsqueda | binaria | muchas **consultas** (pivotes) a la vez |
+| Optimización discreta | DFS | **subárboles** en paralelo |
+| Optimización discreta | branch and bound | repartir **subproblemas** |
+| Optimización discreta | backtracking | explorar **ramas** a la vez |
+| Optimización discreta | A\* | expandir **estados** a la vez |
+
+## Búsqueda lineal en paralelo (lámina 7)
+
+Secuencial: T₁(n) = Θ(n). En paralelo cada proceso revisa n/p elementos y al final se combinan las respuestas con un **OR** en árbol.
+
+<BusqFig fig="lineal">
+**Cómo leerlo:** cada color es el bloque de un proceso. Solo P2 tiene el 11, así que solo su bandera vale 1. Las flechas son la **reducción OR**: en cada nivel se juntan pares, así que con p procesos hay log p niveles. El tiempo es lo que tarda un bloque (n/p) más la reducción (log p). Ejemplo propio con n = 16 y p = 4.
+</BusqFig>
+
+**T<sub>p</sub> = O(n/p + log p)**, trabajo O(n + p). Con p = n (un elemento por procesador, como en el pseudocódigo con `pardo`) queda T = O(log n).
+
+En OpenMP es una línea, con la reducción lógica `||`:
+
+```cpp
+bool hay = false;
+#pragma omp parallel for reduction(||:hay)
+for (int i = 0; i < n; i++) hay = hay || (a[i] == x);
+```
+
+:::caution[Lo que este código no hace: parar al encontrar]
+Un `parallel for` recorre **todo** el arreglo aunque el elemento esté en la posición 0. Para cortar antes hay que usar una bandera compartida que cada hilo revise (`#pragma omp cancel for` necesita `OMP_CANCELLATION=true`) o, en MPI, avisar a los demás procesos. La lámina 38 lo dice para búsqueda en general: "si un proceso encuentra la solución, todos los procesos terminan".
+:::
+
+## Búsqueda binaria con p procesadores (láminas 8–9)
+
+Se tiene un arreglo **ordenado**. En vez de 1 pivote (la mitad), se ponen **p − 1 pivotes** que parten el intervalo en p regiones. Todos los procesadores comparan su pivote con x **en el mismo paso**, y queda solo la región que puede contener x.
+
+<BusquedaPAria client:visible />
+
+### El cálculo, paso a paso
+
+1. **Tamaño por iteración.** n → n/p → n/p² → … → 1. Tras k iteraciones queda n/p<sup>k</sup>.
+2. **Número de iteraciones.** n/p<sup>k</sup> = 1 ⇒ k = log<sub>p</sub> n = log n / log p.
+3. **Tiempo paralelo.** Cada iteración es O(1) (una comparación por procesador), así que T<sub>p</sub>(n) = Θ(log<sub>p</sub> n).
+4. **Speedup** frente a la binaria secuencial (Θ(log₂ n)):
+
+$$
+S_p = \frac{\log_2 n}{\log_p n} = \frac{\log_2 n}{\log_2 n / \log_2 p} = \log_2 p
+$$
+
+5. **Eficiencia:** E<sub>p</sub> = S<sub>p</sub>/p = **log p / p**, que tiende a 0 al crecer p.
+
+**Interpretación:** con 16 procesadores la búsqueda es solo 4 veces más rápida. Es un ejemplo claro de que **más procesadores no implica más rendimiento proporcional**: la búsqueda binaria ya es muy barata y no hay casi trabajo que repartir. Por eso la lámina 6 dice que su estrategia útil es atender **muchas consultas** a la vez (cada procesador resuelve una búsqueda distinta), no acelerar una sola.
+
+**Medido** con un programa propio (búsqueda p-aria con OpenMP, n = 2²⁰):
+
+| p | iteraciones | log<sub>p</sub> n |
+|---|---|---|
+| 2 | 20 | 20.00 |
+| 4 | 10 | 10.00 |
+| 8 | 7 | 6.67 → se redondea hacia arriba |
+| 16 | 5 | 5.00 |
+
+### Práctica
+
+1. Con n = 4096 y p = 8, ¿cuántas iteraciones hace la búsqueda p-aria? ¿Cuál es el speedup y la eficiencia?
+
+<Solucion>
+log₈ 4096 = 12/3 = **4** iteraciones (la binaria hace 12). S = 12/4 = **3** = log₂ 8. E = 3/8 = **0.375**.
+</Solucion>
+
+2. Tienes 1 000 consultas sobre el mismo arreglo ordenado y 8 procesadores. ¿Qué conviene más: 8 procesadores por consulta o 1 procesador por consulta?
+
+<Solucion>
+**1 por consulta.** Repartiendo las consultas, cada procesador hace 125 búsquedas binarias completas, sin comunicación: S ≈ 8, E ≈ 1. Usando los 8 en cada consulta, S = log₂ 8 = 3 y E = 0.375. Es la "estrategia de múltiples consultas" de la lámina 6.
+</Solucion>
+
+## Errores típicos
+
+- Decir que la binaria paralela tiene speedup p. Es **log p**.
+- Escribir T<sub>p</sub> = O(log n / p). Lo correcto es O(log n / **log p**).
+- Olvidar el término de **combinación** (log p de la reducción) en la búsqueda lineal.
+- Confundir mínimo local con global: un método que "baja" desde un punto se queda en el mínimo local más cercano.
+
+<Quiz
+	client:visible
+	id="u53-modelos"
+	preguntas={[
+		{ q: 'Un problema de optimización discreta se describe como…', opts: ['un vector y un predicado P', 'una tupla (S, f): conjunto de soluciones y función de costo', 'un grafo dirigido acíclico', 'una EDP discretizada'], ok: 1 },
+		{ q: 'Búsqueda lineal paralela con p procesos: T_p =', opts: ['O(n/p)', 'O(n/p + log p)', 'O(log n)', 'O(n log p)'], ok: 1, why: 'n/p de revisar el bloque más log p de la reducción OR.' },
+		{ q: 'Speedup de la búsqueda binaria con p procesadores:', opts: ['p', 'p / log p', 'log p', 'log n'], ok: 2 },
+		{ q: 'Eficiencia de la búsqueda binaria con p procesadores:', opts: ['1', 'log p / p', 'p / log p', '1/2'], ok: 1 },
+		{ q: '¿Qué es un mínimo local?', opts: ['el menor valor de todo S', 'un punto que es el menor solo dentro de su vecindad', 'el primer valor encontrado', 'una solución infactible'], ok: 1 },
+	]}
+/>
+
+<Fuente archivos={['U5.3 Algoritmos-busqueda.pdf (láminas 2–9)']} />

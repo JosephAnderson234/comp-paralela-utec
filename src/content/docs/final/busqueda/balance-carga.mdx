@@ -1,0 +1,120 @@
+---
+title: "Balance de carga dinámico en búsqueda"
+description: "Descomposición funcional e intercambio de tareas: untied y taskyield en OpenMP, procesos activos y ociosos, y los esquemas de pedir trabajo ARR, GRR y polling aleatorio con su costo de comunicación."
+---
+import BusqFig from '../../../../components/BusqFig.astro';
+import EnSimple from '../../../../components/EnSimple.astro';
+import Quiz from '../../../../components/Quiz.tsx';
+import Solucion from '../../../../components/Solucion.astro';
+import Fuente from '../../../../components/Fuente.astro';
+
+<EnSimple>
+En la búsqueda no se sabe de antemano qué rama es grande. Entonces se reparte "a ojo" y, **mientras se trabaja**, el que se queda sin nada **pide** trabajo a otro. Es como una cocina: si un cocinero termina sus platos, le pregunta a un compañero "¿te ayudo con algo?".
+
+La pregunta de diseño es **a quién preguntarle**: ¿por turnos? ¿a un jefe que lleva la cuenta? ¿a cualquiera al azar? Cada opción gasta distinto en "preguntas" (comunicación).
+</EnSimple>
+
+## Descomposición funcional e intercambio de tareas (lámina 38)
+
+Se asigna una **tarea** a cada procesador y se optimizan los tiempos locales. Sirve tanto en memoria distribuida como compartida (modelos de población, clima, imagen y sonido). En OpenMP ya vimos las herramientas: `taskwait`, `barrier`, `depend`, y se añade `taskyield`.
+
+**En problemas de búsqueda:**
+
+- Cada proceso tiene su **propia pila** (*stack*) de nodos por expandir.
+- Un proceso está **activo** si su pila tiene trabajo y **ocioso** (*idle*) si está vacía.
+- Un proceso ocioso **pide trabajo**: otro le da parte de su pila (normalmente nodos cercanos a la raíz, que son subárboles grandes).
+- Si un proceso **encuentra la solución**, **todos terminan**.
+
+## untied y taskyield en OpenMP (lámina 39)
+
+```cpp
+#pragma omp parallel
+#pragma omp single
+{
+    #pragma omp task untied
+    {
+        f1();
+        #pragma omp taskyield
+        f2();
+    }
+}
+```
+
+- **`taskyield`**: un punto donde la tarea **puede suspenderse** para que el hilo ejecute otra tarea (por ejemplo, una más urgente o una que libera un recurso).
+- **`untied`**: cuando la tarea se reanuda, **puede continuar en otro hilo**. Por defecto las tareas son *tied* (atadas): tras suspenderse, solo puede reanudarla el mismo hilo que la empezó.
+
+<BusqFig fig="untied">
+**Cómo leerlo:** la tarea T (celeste) ejecuta f1 en el hilo 0. En `taskyield` cede el hilo 0 a otra tarea (naranja). Como es `untied`, el hilo 1, que se liberó antes, retoma T y ejecuta f2. Con una tarea *tied*, f2 tendría que esperar a que el hilo 0 terminara la naranja.
+</BusqFig>
+
+:::caution[taskyield es una sugerencia]
+El estándar permite que `taskyield` no haga nada: la implementación **puede** cambiar de tarea, no está obligada. No lo uses para garantizar exclusión mutua ni un orden. Las tareas `untied` además no deben usar `threadprivate` ni `omp_get_thread_num()` para decidir nada, porque el hilo puede cambiar a mitad de la tarea (*conocimiento general del estándar OpenMP*).
+:::
+
+## ¿A quién pedirle trabajo? (láminas 40–41)
+
+Round robin es repartir turnos: cada uno tiene un periodo corto y luego se pasa al siguiente. Aplicado a pedir trabajo:
+
+| Esquema | Cómo elige a quién pedirle | T<sub>comm</sub> |
+|---|---|---|
+| **ARR** (round robin asíncrono) | cada procesador tiene **su propio contador** y pregunta al siguiente según él | O(p² log W) |
+| **GRR** (round robin global) | hay **un solo contador global**; todos lo consultan para saber a quién preguntar | O(p log W) |
+| **RP** (polling aleatorio) | cada uno elige **al azar** a quién preguntar | O(p log p log W) |
+
+W es el trabajo total. La idea (lámina 41): T<sub>comm</sub> = O(V(p)·log W), donde **V(p)** es el número mínimo de pedidos para que cada procesador haya recibido al menos uno. El factor log W aparece porque el trabajo se va partiendo: cada vez que alguien regala la mitad de su pila, el trabajo pendiente se divide.
+
+<BusqFig fig="balance">
+**Cómo leerlo:** P3 (verde) es el único con trabajo. En **ARR** los contadores son independientes y P0 puede preguntar a P1, que tampoco tiene nada: muchas llamadas inútiles. En **GRR** todos van primero al contador global (rojo), que se vuelve **cuello de botella**. En **RP** cada uno pregunta a alguien al azar: no hay punto central y, en promedio, se llega pronto a quien tiene trabajo.
+</BusqFig>
+
+**Comparación en una frase cada uno:**
+
+- **ARR**: hace **muchas** llamadas (p² en el peor caso), porque los contadores no se coordinan.
+- **GRR**: hace **pocas** llamadas (p), pero el procesador con el contador global es un **cuello de botella**.
+- **RP**: más llamadas que GRR y menos que ARR (p log p), y **sin cuello de botella**. Por eso suele ser el preferido en la práctica.
+
+La lámina 42 muestra el speedup medido en un problema SAT (árboles de 35 a 65 de profundidad) con hasta unos 1000 procesadores. Su conclusión es "**RP es el más escalable**": su curva sigue subiendo hasta un speedup cercano a 650, mientras que las de ARR y GRR se estancan por debajo de 300, y una de ellas incluso **baja** pasado p ≈ 250 (lo esperable en GRR cuando el contador global se satura). *Valores leídos de la figura, aproximados.*
+
+### Práctica
+
+Con p = 16 y W = 2²⁰, compara el número de "rondas de pedidos" (sin constantes) de cada esquema.
+
+<Solucion>
+log W = 20, log p = 4.
+
+- ARR: p² log W = 256 · 20 = **5120**
+- GRR: p log W = 16 · 20 = **320**, pero todos pasan por un mismo procesador.
+- RP: p log p log W = 16 · 4 · 20 = **1280**, repartidos entre todos.
+
+GRR es el menor en llamadas pero concentra la contención; RP es 4 veces GRR y 4 veces menos que ARR, sin cuello de botella.
+</Solucion>
+
+## Performance de A\* paralelo (lámina 43)
+
+La lámina cita el survey de Fukunaga et al. (2017) sobre A\* paralelo. La idea que deja: en búsqueda paralela el rendimiento depende de tres costos que compiten:
+
+1. **Overhead de búsqueda**: nodos que el paralelo expande y el secuencial no (trabajo redundante o especulativo).
+2. **Overhead de comunicación**: pedir y mandar trabajo, avisar la mejor cota.
+3. **Ociosidad**: procesos esperando trabajo o en una sincronización.
+
+Bajar uno suele subir otro (por ejemplo, repartir más fino baja la ociosidad y sube la comunicación).
+
+## Errores típicos
+
+- Pensar que `untied` hace la tarea más rápida: solo permite que **otro hilo** la continúe tras una suspensión.
+- Decir que GRR es el mejor porque tiene menos llamadas: ignora el cuello de botella.
+- Olvidar que al encontrar la solución hay que **avisar** a todos para que terminen (si no, siguen trabajando en vano).
+
+<Quiz
+	client:visible
+	id="u53-balance"
+	preguntas={[
+		{ q: '¿Qué permite `untied`?', opts: ['que la tarea no tenga dependencias', 'que, tras suspenderse, la tarea continúe en otro hilo', 'que la tarea se ejecute dos veces', 'que la tarea no espere a taskwait'], ok: 1 },
+		{ q: '`taskyield` …', opts: ['obliga a cambiar de tarea', 'es un punto donde la tarea puede ceder el hilo a otra', 'termina la tarea', 'equivale a una barrera'], ok: 1 },
+		{ q: '¿Qué esquema tiene un cuello de botella?', opts: ['ARR', 'GRR', 'RP', 'ninguno'], ok: 1 },
+		{ q: 'T_comm del polling aleatorio:', opts: ['O(p² log W)', 'O(p log W)', 'O(p log p log W)', 'O(log W)'], ok: 2 },
+		{ q: 'En búsqueda paralela, un proceso con la pila vacía está…', opts: ['activo', 'ocioso (idle) y debe pedir trabajo', 'terminado para siempre', 'bloqueado en un lock'], ok: 1 },
+	]}
+/>
+
+<Fuente archivos={['U5.3 Algoritmos-busqueda.pdf (láminas 38–43)']} />

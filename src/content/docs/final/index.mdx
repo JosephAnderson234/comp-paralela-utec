@@ -25,6 +25,7 @@ Ordenada por peso en el modelo 2026-I. Cada paso dice qué deberías poder **hac
 | 4 | [Simulacro PD05](/final/examen/simulacro-pd5/) | DAG con anti-dependencias, sections vs tasks, T∞ y S<sub>máx</sub> | 2.5 pts |
 | 5 | [Bases y ranking](/final/ordenamiento/bases/) → [Quicksort](/final/ordenamiento/quicksort/) → [Bitónico](/final/ordenamiento/merge-bitonico/) | explicar y trazar los algoritmos de ordenamiento paralelo | 1.5 pts |
 | 6 | [Escalabilidad de ordenamientos](/final/ordenamiento/escalabilidad/) | sacar la isoeficiencia de una T<sub>p</sub> dada y comparar | ↑ |
+| 7 | [Búsqueda: modelos](/final/busqueda/modelos/) → [DFS y B&B](/final/busqueda/dfs-bnb/) → [PWS y DTS](/final/busqueda/pws-dts/) → [Participación 9](/final/busqueda/participacion9/) | contar pasos en un árbol con PWS y DTS, y sacar S y E | nuevo (no estaba en la PD05 2026-I) |
 
 **Cómo comprobar que lo dominas:** sin mirar la solución, resuelve (a) la práctica 1 de *Jacobi en paralelo*, (b) el DAG del simulacro, y (c) la isoeficiencia de T<sub>p</sub> = (n/p) log n + log² p. Si los tres te salen solos, estás listo para la PD05.
 
@@ -37,7 +38,7 @@ Objetivos que da el profesor en las láminas de U5:
 | 1 | Algoritmos naturalmente ("vergonzosamente") paralelos | ya visto en el parcial: [Random y Montecarlo](/diseno/random/), [Mandelbrot](/diseno/particionamiento/) |
 | 2 | **Ecuaciones diferenciales parciales** | ✅ U5.1 (semana 11) |
 | 3 | **Algoritmos de ordenamiento en paralelo** | ✅ U5.2 (semanas 11–12) |
-| 4 | Algoritmos de búsqueda en paralelo | ⏳ todavía no hay material |
+| 4 | **Algoritmos de búsqueda en paralelo** | ✅ U5.3 (semana 13) + participación 9 |
 | 5 | Algoritmos de grafos en paralelo | ⏳ todavía no hay material |
 
 La lámina 36 de U5.2 menciona además una **Unidad 6: Performance** (minimizar la comunicación), que aún no ha llegado.
@@ -60,7 +61,8 @@ La lámina 36 de U5.2 menciona además una **Unidad 6: Performance** (minimizar 
 | 10 | U4.4 OpenMP (modelo de memoria, locks), U4.5 Paralelismo híbrido + 7 programas de teoría + simulacro PC4 (9 programas) | ✅ agregado |
 | 11 | U5.1 EDP (+ `laplace_sec/omp/mpi.cpp`), U5.2 Ordenamiento, `matvec_hibrido.cpp`, `peekaboo_mpi_omp.cpp` | ✅ agregado |
 | 12 | PD05 2026-I (modelo de examen), U5.2 (misma versión) | ✅ agregado: simulacro resuelto |
-| 13 en adelante | búsqueda, grafos, performance | ⏳ pendiente |
+| 13 | U5.3 Búsqueda + participación 9 (PWS vs DTS) | ✅ agregado: 5 páginas, simulador del árbol, código verificado |
+| 14 en adelante | grafos, performance | ⏳ pendiente |
 
 :::note[Sobre el código]
 Todos los programas se compilaron y ejecutaron: los de clase y las soluciones propias (onda con MPI, sections vs tasks, quicksort con tareas y bitónico con OpenMP). Las salidas y los tiempos de estas páginas son **medidos**, en una laptop de 8 núcleos (12 hilos), no en Khipu: los números absolutos cambiarán en otra máquina, las tendencias no. Donde un código de clase tiene un detalle que falla (por ejemplo, `laplace_mpi.cpp` con p = 3), está marcado.
@@ -83,6 +85,16 @@ Todos los programas se compilaron y ejecutaron: los de clase y las soluciones pr
 	<LinkCard title="Escalabilidad de ordenamientos" href="/final/ordenamiento/escalabilidad/" description="Isoeficiencia malla vs hipercubo vs Hyksort (PD05 ej. 3), cruce en p = 2¹⁶." />
 </CardGrid>
 
+## Búsqueda (semana 13)
+
+<CardGrid>
+	<LinkCard title="Modelos, lineal y binaria" href="/final/busqueda/modelos/" description="Búsqueda vs optimización, REDUCE_OR, búsqueda p-aria interactiva: S = log p." />
+	<LinkCard title="DFS, branch and bound e IDA*" href="/final/busqueda/dfs-bnb/" description="DFS con tareas, B&B en el ejemplo de PLE verificado (13 → 9 nodos), IDA*, tabla de la lámina 23." />
+	<LinkCard title="Repartir el árbol: PWS, DTS, clusters" href="/final/busqueda/pws-dts/" description="p = b^k, Powley-Korf vs Kumar-Rao, Cuadro 2, simulador del árbol." />
+	<LinkCard title="Balance de carga dinámico" href="/final/busqueda/balance-carga/" description="untied y taskyield, ARR vs GRR vs polling aleatorio." />
+	<LinkCard title="Participación 9 resuelta" href="/final/busqueda/participacion9/" description="PWS = 35, DTS = 13 pasos, S y E, análisis y variantes." />
+</CardGrid>
+
 ## Examen
 
 <CardGrid>
@@ -99,4 +111,4 @@ Todos los programas se compilaron y ejecutaron: los de clase y las soluciones pr
 	<LinkCard title="MPI + OpenMP" href="/final/hibrido/mpi-openmp/" description="Peekaboo, modos, Slurm en Khipu y el matriz × vector híbrido de la semana 11." />
 </CardGrid>
 
-<Fuente archivos={['U5.1 Algoritmos-EDP.pdf', 'U5.2 Algoritmos-ordenamiento.pdf', '2026I-CS4052-PD5.pdf', 'U4.1–U4.5', 'semana_9/', 'semana_10/', 'semana_11/']} />
+<Fuente archivos={['U5.1 Algoritmos-EDP.pdf', 'U5.2 Algoritmos-ordenamiento.pdf', 'U5.3 Algoritmos-busqueda.pdf', '2026I-CS4052-PD5.pdf', 'U4.1–U4.5', 'semana_9/', 'semana_10/', 'semana_11/']} />

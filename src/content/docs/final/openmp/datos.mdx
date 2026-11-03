@@ -2,6 +2,7 @@
 title: Alcance de datos — shared, private, firstprivate, lastprivate, threadprivate, reduction
 description: Qué copia de cada variable ve cada hilo, con las salidas reales de los ejemplos de la semana 9.
 ---
+import FinalFig from '../../../../components/FinalFig.astro';
 import OmpDataScope from '../../../../components/playgrounds/OmpDataScope.tsx';
 import EnSimple from '../../../../components/EnSimple.astro';
 import Quiz from '../../../../components/Quiz.tsx';
@@ -42,6 +43,10 @@ En OpenMP todo está en la misma memoria, así que **por defecto todo se compart
 | `copyprivate` (con `single`) | — | difunde el valor del hilo del `single` a las privadas de los demás | — |
 
 Restricción de `private`: un elemento que es **parte** de otra variable (un elemento de arreglo o un campo de struct) no puede ir en la lista.
+
+<FinalFig fig="alcance">
+**Cómo leerlo:** cada columna es una cláusula y cada círculo de color, un hilo con su copia. Con `shared` hay **una** caja para todos. Con `private` cada hilo recibe una copia **sin inicializar** (rojo). `firstprivate` copia el 10 del maestro. `lastprivate` devuelve al final el valor de la **última iteración** del orden secuencial. `reduction` empieza cada copia en el neutro (0 para +) y al final suma todo **más** el valor original.
+</FinalFig>
 
 ## Salidas reales (4 hilos)
 
@@ -171,6 +176,31 @@ Con `firstprivate`: cada copia empieza en 10 ⇒ imprime `10`, `11` y `12` en al
 
 Con `reduction(+:x)`: cada copia empieza en **0** ⇒ imprime `0`, `1` y `2` en algún orden; al final x = 10 + (0 + 1 + 2) ⇒ `| 13`.
 
+</Solucion>
+
+## Errores típicos
+
+- Suponer que `private` copia el valor original: la copia empieza con basura. Para eso está `firstprivate`.
+- Declarar una variable temporal **fuera** de la región y usarla dentro sin `private`: es compartida y hay carrera.
+- Olvidar que en `reduction` el valor original **participa**: si `s = 5` antes, el resultado es 5 + la suma.
+- Creer que `lastprivate` deja el valor del último hilo en **terminar**. Deja el de la última iteración **secuencial** (la de índice mayor).
+
+## Práctica extra
+
+```cpp
+int x = 10, s = 5;
+#pragma omp parallel for num_threads(2) schedule(static) firstprivate(x) lastprivate(x) reduction(+:s)
+for (int i = 0; i < 4; i++) { x += i; s += i; }
+```
+
+¿Cuánto valen `x` y `s` al final? ¿Y si se usan 4 hilos?
+
+<Solucion>
+Con 2 hilos: el hilo 0 hace i = 0, 1 → su x = 10 + 0 + 1 = 11. El hilo 1 hace i = 2, 3 → su x = 10 + 2 + 3 = 15. La última iteración (i = 3) es del hilo 1, así que **x = 15**. **s = 5 + (0 + 1 + 2 + 3) = 11**.
+
+Con 4 hilos cada uno hace una iteración: el hilo 3 hace i = 3 → x = 10 + 3 = **13**. s sigue siendo **11**.
+
+Moraleja: con `firstprivate` + `lastprivate` el resultado depende del reparto. `reduction` no.
 </Solucion>
 
 <Quiz

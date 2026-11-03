@@ -2,6 +2,7 @@
 title: Mergesort odd-even y ordenamiento bitónico
 description: "Merge paralelo, el odd-even merge de Batcher con un ejemplo completo, secuencias bitónicas, la red bitónica paso a paso, por qué T = log n (log n + 1)/2, y el bitónico con OpenMP medido contra std::sort."
 ---
+import FinalFig from '../../../../components/FinalFig.astro';
 import BitonicNet from '../../../../components/playgrounds/BitonicNet.tsx';
 import EnSimple from '../../../../components/EnSimple.astro';
 import Quiz from '../../../../components/Quiz.tsx';
@@ -52,6 +53,10 @@ Para mezclar dos secuencias de n:
 **Secuencia bitónica:** a₀ < a₁ < … < a<sub>i</sub> > a<sub>i+1</sub> > … > a<sub>n−1</sub>, es decir, primero crece y después decrece. También cuenta una rotación cíclica de una secuencia así.
 
 **Propiedad clave (half-cleaner):** si en una secuencia bitónica de n elementos se compara-intercambia **a<sub>i</sub> con a<sub>i+n/2</sub>** para todo i < n/2, se obtienen **dos secuencias bitónicas** de n/2, y **todo** elemento de la primera es ≤ que todo elemento de la segunda.
+
+<FinalFig fig="bitonico">
+**Cómo leerlo:** la entrada (3, 5, 8, 9, 7, 4, 2, 1) sube y luego baja: es bitónica. Se compara cada elemento de la mitad celeste con el que está 4 posiciones después (arcos) y se quedan los mínimos a la izquierda y los máximos a la derecha. Resultan (3, 4, 2, 1) y (7, 5, 8, 9): **las dos son bitónicas** y el mayor de los mínimos (4) es menor que el menor de los máximos (5), línea roja. Repetir esto en cada mitad ordena todo.
+</FinalFig>
 
 Aplicándolo recursivamente (n/2, n/4, …, 2) una secuencia bitónica queda ordenada en **log n** pasos paralelos: es la **mezcla bitónica**.
 
@@ -129,6 +134,24 @@ Queda (1, 4, 3, 2 | 6, 5, 7, 8). Primera mitad: 1 4 3 2, bitónica. Segunda: 6 5
 
 <Solucion>
 log n = 10, así que pasos = 10·11/2 = **55**. Comparaciones = 55 · 512 = **28 160**. Un secuencial necesita ≈ n log n = 10 240, así que la red hace 2.75 veces más trabajo.
+</Solucion>
+
+## Errores típicos
+
+- Aplicar el half-cleaner a una secuencia **no** bitónica: las mitades ya no quedan separadas (menores | mayores).
+- Decir que el bitónico tarda log n pasos: eso es solo **una** mezcla. El ordenamiento completo tarda log n (log n + 1)/2 = O(log² n).
+- Llamarlo óptimo en costo: su trabajo es O(n log² n), mayor que el O(n log n) secuencial.
+
+## Práctica extra (half-cleaner)
+
+Aplica un paso de half-cleaner a (2, 6, 7, 5, 4, 3, 1, 0). Comprueba las dos propiedades.
+
+<Solucion>
+Pares (a<sub>i</sub>, a<sub>i+4</sub>): (2, 4), (6, 3), (7, 1), (5, 0).
+
+- Mínimos: (2, 3, 1, 0) → sube y baja: bitónica ✓.
+- Máximos: (4, 6, 7, 5) → sube y baja: bitónica ✓.
+- máx de los mínimos = 3 ≤ 4 = mín de los máximos ✓.
 </Solucion>
 
 <Quiz

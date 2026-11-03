@@ -2,6 +2,7 @@
 title: Paralelismo híbrido MPI + OpenMP
 description: Por qué se combinan MPI y OpenMP, ventajas y desventajas, estructura de un programa híbrido, compilación, combinaciones procesos × hilos por nodo, scripts Slurm en Khipu y Perlmutter, y por qué el híbrido no siempre es más rápido.
 ---
+import FinalFig from '../../../../components/FinalFig.astro';
 import HybridConfig from '../../../../components/playgrounds/HybridConfig.tsx';
 import EnSimple from '../../../../components/EnSimple.astro';
 import Quiz from '../../../../components/Quiz.tsx';
@@ -63,6 +64,10 @@ Para un nodo de 16 núcleos hay un espectro:
 | SMP puro (*pure SMP node*) | 1 | 16 |
 
 En el híbrido, el **hilo maestro** de cada proceso es el que hace las llamadas MPI.
+
+<FinalFig fig="modos">
+**Cómo leerlo:** el mismo nodo de 16 núcleos en los tres modos de la tabla. A la izquierda cada núcleo es un proceso MPI distinto (r0…r15). En el centro hay 4 procesos (un color cada uno) y cada proceso tiene 4 hilos OpenMP (h0…h3) que comparten su memoria. A la derecha un solo proceso con 16 hilos. En los tres casos se usan los 16 núcleos; cambia **quién comparte memoria** y **cuántos mensajes** hacen falta.
+</FinalFig>
 
 <HybridConfig client:visible />
 
@@ -248,6 +253,21 @@ mpirun ./hibrido
 
 Sin `num_threads(4)`, cada proceso usa `OMP_NUM_THREADS = 8` hilos: 6 × 8 = **48 líneas**. Con `num_threads(4)` en el código, la cláusula gana sobre la variable de entorno: 6 × 4 = 24 líneas, y quedan 4 núcleos ociosos por proceso.
 
+</Solucion>
+
+## Errores típicos
+
+- Usar `MPI_Init` en un programa con hilos que llaman a MPI: hay que pedir el nivel con `MPI_Init_thread` (como mínimo `MPI_THREAD_FUNNELED` si solo el maestro llama a MPI).
+- Pedir más procesos × hilos que núcleos (**sobresuscripción**): los hilos se turnan el núcleo y el tiempo empeora.
+- No igualar `OMP_NUM_THREADS` a `--cpus-per-task` en Slurm: o sobran núcleos ociosos o hay sobresuscripción.
+- Suponer que el híbrido siempre gana al MPI puro (la lámina 26 explica por qué no).
+
+## Práctica extra
+
+Tienes 2 nodos de 16 núcleos y quieres 4 procesos MPI por nodo, con todos los núcleos ocupados. ¿Qué pides a Slurm y cuánto vale `OMP_NUM_THREADS`?
+
+<Solucion>
+`--nodes=2`, `--ntasks-per-node=4` (8 procesos en total), `--cpus-per-task=4` y `OMP_NUM_THREADS=4`. Total: 8 procesos × 4 hilos = 32 núcleos = 2 × 16. Es el modo híbrido 4 × 4 de la figura, en cada nodo.
 </Solucion>
 
 <Quiz

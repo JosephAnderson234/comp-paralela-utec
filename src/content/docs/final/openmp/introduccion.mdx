@@ -2,6 +2,7 @@
 title: OpenMP — memoria compartida y fork-join
 description: Qué es OpenMP, en qué máquinas corre, el modelo fork-join, OpenMP vs MPI y cómo compilar.
 ---
+import FinalFig from '../../../../components/FinalFig.astro';
 import { Steps } from '@astrojs/starlight/components';
 import OmpForkJoin from '../../../../components/playgrounds/OmpForkJoin.tsx';
 import EnSimple from '../../../../components/EnSimple.astro';
@@ -57,6 +58,10 @@ En `Ejemp01_hello_omp.cpp`, si `id` es **compartida**, todos los hilos escriben 
 | Techo de rendimiento | limitado por los núcleos de **un** nodo | escala a todo el clúster |
 | Riesgo típico | condiciones de carrera | deadlocks |
 
+<FinalFig fig="memoria">
+**Cómo leerlo:** a la izquierda los 4 hilos tienen cada uno su **pila** (ahí viven las variables privadas, como `id` o el índice `i`), pero todos apuntan a **la misma memoria**: si dos escriben a la vez la misma variable hay carrera. A la derecha cada proceso MPI tiene **su propia memoria**; para que otro vea un dato hay que mandarlo en un mensaje.
+</FinalFig>
+
 La lámina "OMP vs MPI" lo resume con una curva rendimiento vs esfuerzo: OpenMP sube rápido pero se aplana (se acaban los núcleos). MPI cuesta más al inicio ("el código no funciona" durante un tramo) pero llega más alto, y **OpenMP + MPI** (programación **híbrida**) llega todavía más arriba.
 
 :::tip[En el examen…]
@@ -100,6 +105,34 @@ Con 4 hilos imprime 4 líneas `Peekaboo desde el hilo = 0…3` **en un orden dis
 
 Sin `private(id)`, `id` es **compartida** (por defecto las variables declaradas fuera de la región son *shared*). Con el `sleep(1)`, todos los hilos escriben su número casi a la vez, duermen 1 s y luego leen: todos imprimen el valor del **último** que escribió (por ejemplo, cuatro veces `= 3`). Sin el `sleep` la carrera sigue existiendo, pero es más difícil de ver: a veces sale bien y a veces no. **Que funcione una vez no prueba que sea correcto.**
 
+</Solucion>
+
+## Errores típicos
+
+- Creer que `#pragma omp parallel` **reparte** el trabajo. Solo crea el equipo: **todos** los hilos ejecutan el bloque completo. Para repartir las iteraciones hace falta `for` (o `parallel for`).
+- Olvidar `-fopenmp`: compila sin error y corre con **un** hilo. Si el speedup es exactamente 1, revisa esto primero.
+- Esperar que los hilos impriman en orden. No hay orden garantizado entre hilos.
+- Querer usar OpenMP entre nodos de un clúster: ahí no hay memoria compartida, hace falta MPI.
+
+## Práctica extra
+
+Con este código, ¿cuántas veces sale cada letra y qué orden está garantizado?
+
+```cpp
+printf("A\n");
+#pragma omp parallel num_threads(3)
+{
+    printf("B\n");
+    #pragma omp single
+    printf("C\n");
+}
+printf("D\n");
+```
+
+<Solucion>
+**A** 1 vez (antes del fork, solo el maestro), **B** 3 veces (cada hilo), **C** 1 vez (`single`: un hilo cualquiera), **D** 1 vez (después del join).
+
+Garantizado: A es la primera y D la última (el join es una barrera). Las tres B y la C se mezclan, con una sola regla: la C sale después de la B **del hilo que la imprime**.
 </Solucion>
 
 <Quiz

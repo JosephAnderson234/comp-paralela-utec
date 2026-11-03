@@ -2,6 +2,7 @@
 title: ¿Puede fallar el assert? Modelo de memoria
 description: Intercalados entre hilos, demostración por contradicción, reordenamientos del compilador y del procesador, y el modelo de memoria (program order, consistencia, data race, happens-before).
 ---
+import FinalFig from '../../../../components/FinalFig.astro';
 import AssertInterleavings from '../../../../components/playgrounds/AssertInterleavings.tsx';
 import EnSimple from '../../../../components/EnSimple.astro';
 import Quiz from '../../../../components/Quiz.tsx';
@@ -101,6 +102,10 @@ El compilador **leyó `x` antes que `y`**: hizo D antes que C. En un programa se
 :::caution[La demostración no está mal, el supuesto sí]
 La demostración asume que cada hilo ejecuta en el orden del código fuente (*program order*). Eso **no está garantizado** cuando hay una condición de carrera: dos hilos tocan `x` e `y` sin sincronización. En C++ eso es un *data race* y el comportamiento es indefinido; el compilador puede reordenar libremente.
 :::
+
+<FinalFig fig="reorden">
+**Cómo leerlo:** arriba, el orden que escribiste: A antes que B en el hilo 1, C antes que D en el hilo 2. Abajo, el orden en que la **memoria compartida** ve esas operaciones en una ejecución que falla: la escritura de x (A) se hace visible **tarde**. El hilo 2 ve y = 1 pero todavía x = 0, así que a = 1, b = 0 y el `assert` falla. Ningún intercalado "en orden" da ese resultado; aparece porque el compilador o el hardware reordenan A y B, que no dependen entre sí.
+</FinalFig>
 
 ## Lo que hace el compilador (láminas 5–7)
 
@@ -204,6 +209,20 @@ void arrive() {
 
 O bien `#pragma omp flush(x)` antes de leer `x` en cada iteración (y después de escribir en `arrive`). En C++ moderno lo equivalente es `std::atomic<int> x`.
 
+</Solucion>
+
+## Errores típicos
+
+- "Revisé todos los intercalados y ninguno falla, entonces es correcto": sin sincronización, el compilador y el hardware pueden **reordenar** y aparecen resultados que ningún intercalado explica.
+- Creer que `volatile` sincroniza en C++: evita que el compilador guarde la variable en un registro, pero **no** crea *happens-before* ni impide el reordenamiento del hardware.
+- Tomar como prueba que un programa con carrera "pasó 10 000 veces": el error puede depender del optimizador, de la máquina o de la carga.
+
+## Práctica extra
+
+Con la versión `critical` (`f()` y `g()` cada una en su propia `critical`), ¿qué pares (a, b) son posibles?
+
+<Solucion>
+Solo dos: si `g()` corre antes que `f()`, **(0, 0)**; si `f()` corre antes, **(1, 1)**. `critical` hace que cada función corra **entera** sin mezclarse y pone `flush` al entrar y salir, así que cuando `g()` ve y = 1 también ve x = 1. El par (1, 0) es imposible, y el assert se cumple siempre.
 </Solucion>
 
 <Quiz

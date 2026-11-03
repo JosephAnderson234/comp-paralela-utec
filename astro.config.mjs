@@ -85,6 +85,17 @@ export default defineConfig({
 							],
 						},
 						{
+							label: '13 · Búsqueda (U5.3)',
+							badge: { text: 'sem 13', variant: 'note' },
+							items: [
+								{ label: 'Modelos, lineal y binaria', slug: 'final/busqueda/modelos' },
+								{ label: 'DFS, branch and bound e IDA*', slug: 'final/busqueda/dfs-bnb' },
+								{ label: 'Repartir el árbol: PWS, DTS, clusters', slug: 'final/busqueda/pws-dts' },
+								{ label: 'Balance de carga dinámico', slug: 'final/busqueda/balance-carga' },
+								{ label: 'Participación 9 resuelta', slug: 'final/busqueda/participacion9' },
+							],
+						},
+						{
 							label: '12 · Examen final',
 							badge: { text: 'PD05', variant: 'caution' },
 							items: [
