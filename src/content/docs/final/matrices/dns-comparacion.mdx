@@ -1,0 +1,109 @@
+---
+title: "DNS y comparación de métodos"
+description: "Dekel–Nassimi–Sahni con p = N³ procesos en un cubo, la tabla resumen de la lámina 33 y cuál escala mejor."
+---
+import MatFig from '../../../../components/MatFig.astro';
+import EnSimple from '../../../../components/EnSimple.astro';
+import Quiz from '../../../../components/Quiz.tsx';
+import Solucion from '../../../../components/Solucion.astro';
+import Fuente from '../../../../components/Fuente.astro';
+import MatCost from '../../../../components/playgrounds/MatCost.tsx';
+
+<EnSimple>
+Fox y Cannon usan un tablero plano: cada casilla repite q veces «multiplico y paso». DNS apila **N tableros** uno encima de otro, formando un cubo. Cada piso calcula **a la vez** un término distinto de la suma, y al final se suman los pisos de arriba abajo. Se gana tiempo porque todo pasa en paralelo, pero se paga en **memoria**: A y B se copian en muchos procesos.
+</EnSimple>
+
+## Algoritmo DNS (láminas 30–32)
+
+La lámina 30 vuelve a la idea de la PRAM (un proceso por cada terna i, k, j), pero con bloques: **p = N³** procesos en un cubo N×N×N y cada matriz partida en bloques de (n/N)×(n/N). El proceso p<sub>ikj</sub> se encarga del producto a<sub>ik</sub>·b<sub>kj</sub> (aquí a<sub>ik</sub> y b<sub>kj</sub> son bloques).
+
+Con la numeración de la lámina 31, desde 1:
+
+1. Al inicio, p<sub>ik1</sub> tiene a<sub>ik</sub> y p<sub>1kj</sub> tiene b<sub>kj</sub>.
+2. **Broadcast de A:** p<sub>ik1</sub> envía a<sub>ik</sub> a todos los p<sub>ikj</sub>, para j = 1…N.
+3. **Broadcast de B:** p<sub>1kj</sub> envía b<sub>kj</sub> a todos los p<sub>ikj</sub>, para i = 1…N.
+4. **Cómputo:** cada p<sub>ikj</sub> calcula c<sub>ikj</sub> = a<sub>ik</sub>·b<sub>kj</sub>, un solo producto de bloques.
+5. **Reducción por k:** c<sub>ij</sub> = Σ<sub>k</sub> c<sub>ikj</sub>, y el resultado queda en p<sub>i1j</sub>.
+
+<MatFig fig="dns">
+**Cómo leerlo:** cada recuadro de color es una capa k del cubo (N = 3). En la capa k, todos los procesos tienen la columna k de A y la fila k de B, gracias a los dos broadcasts. Cada capa produce un término de la suma; la reducción a lo largo de k suma las tres capas y deja C.
+</MatFig>
+
+## Tiempo (lámina 32)
+
+Cada broadcast y la reducción recorren una línea de N procesos con mensajes de (n/N)² números:
+
+$$2\,T_{BCast}\big((n/N)^2,N\big)+T_{Reduce}\big((n/N)^2,N\big)\approx 3\,T_{BCast}\big((n/N)^2,N\big)=3\log N\left(\alpha+\frac{n^2}{N^2}\beta\right).$$
+
+Como N = p<sup>1/3</sup>, 3 log N = log N³ = **log p** y N² = p<sup>2/3</sup>. El cómputo es un producto de bloques (n/N)³ = n³/p. Así:
+
+$$T_p(n,p)=O\!\left(\frac{n^3}{p}+\log p\left(\alpha+\frac{n^2}{p^{2/3}}\beta\right)\right).$$
+
+**Eficiencia e isoeficiencia (propias):** pT<sub>p</sub> = n³ + p log p·α + p<sup>1/3</sup>·n² log p·β, así que
+
+$$E=\frac{1}{1+\frac{p\log p}{n^3}\alpha+\frac{p^{1/3}\log p}{n}\beta}.$$
+
+El término β pide n = Θ(p<sup>1/3</sup> log p) ⇒ **W = Θ(p log³ p)**.
+
+**Límites:** DNS admite hasta **p = n³** (bloques de 1×1, T = O(log n), igual que la PRAM). A y B quedan copiados N veces, así que la memoria total es Θ(n²·p<sup>1/3</sup>) en vez de Θ(n²).
+
+### Ejemplo trabajado (modelo, propio)
+
+n = 1024, p = 4096 ⇒ N = 16, bloques de 64×64 = 4096 números. α = 1000 y β = 1, en unidades de una multiplicación-suma.
+
+| | DNS | Cannon |
+|---|---|---|
+| cómputo n³/p | 262 144 | 262 144 |
+| comunicación | log₂4096·(1000 + 4096) = 12·5096 = 61 152 | √4096·(1000 + 256) = 64·1256 = 80 384 |
+| E | 262 144 / 323 296 ≈ **0.81** | 262 144 / 342 528 ≈ **0.77** |
+
+DNS envía mensajes más grandes (4096 contra 256 números), pero **muchos menos** (12 contra 64). Con α grande gana DNS; si α baja, gana Cannon. Con los mismos datos, Fox da E ≈ 0.32.
+
+## Tabla resumen (lámina 33)
+
+| Algoritmo | (n,p) | Cómputo | Comunicación |
+|---|---|---|---|
+| Particionamiento total | n = p | O(1) | O(log n) |
+| Descomposición en bloques (filas/columnas) | n < p | O(n³/p) | O(log p·(α + (n²/p)β)) |
+| Fox | n < p | O(n³/p) | O(√p log√p·(α + (n²/p)β)) |
+| Cannon | n < p | O(n³/p) | O(√p·(α + (n²/p)β)) |
+| DNS | n < p | O(n³/p) | O(log p·(α + (n²/p<sup>2/3</sup>)β)) |
+
+La fila «particionamiento total» es el caso PRAM de la lámina 4 (un proceso por producto, p = n³), que cuesta O(1) en productos y O(log n) en sumas.
+
+### Lo que agrega esta web: isoeficiencia y límites
+
+| Algoritmo | W para E constante | p máximo | Memoria total | Patrón |
+|---|---|---|---|---|
+| Filas/columnas (anillo) | Θ(p³) | n | Θ(n²) | envío circular de franjas |
+| Fox | Θ(p<sup>1.5</sup> log³ p) | n² | Θ(n²) + buffer | broadcast por fila + shift |
+| Cannon | Θ(p<sup>1.5</sup>) | n² | Θ(n²) | solo shifts entre vecinos |
+| DNS | Θ(p log³ p) | n³ | Θ(n² p<sup>1/3</sup>) | 2 broadcasts + 1 reducción |
+
+**Cómo leerla:** un W pequeño significa que basta un problema chico para mantener E con muchos procesos. Asintóticamente DNS es el más escalable, pero paga memoria. Cannon es el mejor de los que usan memoria Θ(n²). El modelo de filas/columnas de la lámina (log p) daría Θ(p log p), demasiado optimista (ver la [nota de esa página](/final/matrices/filas-columnas/)).
+
+<MatCost client:visible />
+
+## Práctica
+
+1. **Guiado:** p = 512. ¿Cuánto vale N, qué tamaño tienen los bloques si n = 256, y cuántos pasos de comunicación cobra el modelo? <Solucion>N = 512<sup>1/3</sup> = **8**. Bloques de 256/8 = **32×32** = 1024 números. log₂512 = **9** (3 log N = 3·3).</Solucion>
+2. **Autónomo:** con n = 1024, p = 4096, α = 10 y β = 1, ¿quién gana, DNS o Cannon? <Solucion>DNS: 12·(10 + 4096) = 49 272 ⇒ E = 262 144/311 416 ≈ **0.84**. Cannon: 64·(10 + 256) = 17 024 ⇒ E = 262 144/279 168 ≈ **0.94**. Con α pequeño gana **Cannon**: el volumen pesa más que el número de mensajes. Resolución propia.</Solucion>
+3. **Variante:** ¿por qué DNS no sirve si cada nodo apenas tiene memoria para 3n²/p números? <Solucion>DNS replica A y B N = p<sup>1/3</sup> veces. Por proceso necesita bloques de n²/p<sup>2/3</sup> números, **p<sup>1/3</sup> veces más** que los n²/p de Cannon. Con poca memoria por nodo, Cannon es la opción.</Solucion>
+
+## Errores típicos
+
+- Creer que DNS usa p = N² como Fox y Cannon: usa un **cubo**, p = N³.
+- Escribir 3 log N y no convertirlo: 3 log p<sup>1/3</sup> = log p.
+- Olvidar la reducción: cada capa da solo **un término** de c<sub>ij</sub>.
+- Elegir siempre «el de mejor isoeficiencia»: con memoria limitada o α pequeño, Cannon puede ser mejor.
+
+<Quiz client:visible id="u63-dns" preguntas={[
+ {q:'¿Cuántos procesos usa DNS?',opts:['p = N','p = N²','p = N³','p = log N'],ok:2},
+ {q:'¿Qué operación cierra DNS?',opts:['un shift de B','una reducción por k','un all-to-all','nada'],ok:1},
+ {q:'3·T_BCast con N = ∛p da un factor…',opts:['3 log p','log p','√p','∛p'],ok:1},
+ {q:'Tamaño de mensaje en DNS:',opts:['n²/p','n²/p^(2/3)','n/p','n²'],ok:1},
+ {q:'Isoeficiencia de DNS (propia):',opts:['Θ(p log³ p)','Θ(p^1.5)','Θ(p³)','Θ(log p)'],ok:0},
+ {q:'¿Qué paga DNS a cambio de escalar mejor?',opts:['más cómputo','más memoria (copias de A y B)','más sincronización','nada'],ok:1}
+]} />
+
+<Fuente archivos={['U6.3 Performance-matrices.pdf (láminas 29–33)', 'tabla de isoeficiencias y ejemplos: cálculo propio con los modelos de las láminas']} />

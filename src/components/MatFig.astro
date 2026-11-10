@@ -1,0 +1,81 @@
+---
+import '../styles/svgfig.css';
+type Fig = 'producto' | 'anillo' | 'fox' | 'cannon' | 'dns';
+interface Props { fig: Fig }
+const { fig } = Astro.props;
+const A = `url(#mat-${fig})`;
+const defs = `<defs><marker id="mat-${fig}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head"/></marker></defs>`;
+const sb = (s: string | number) => String(s).replace(/[0-9]/g, (d) => '₀₁₂₃₄₅₆₇₈₉'[+d]);
+const q = 3;
+const r3 = [0, 1, 2];
+---
+<figure class="svgfig not-content">
+  <div class="svgfig__scroll">
+    {fig === 'producto' && <svg viewBox="0 0 760 230" role="img" aria-label="La fila i de A por la columna j de B da el elemento c i j de C">
+      {[0, 1, 2, 3].flatMap((i) => [0, 1, 2, 3].map((k) => <rect x={40 + k * 34} y={40 + i * 34} width="34" height="34" class={i === 1 ? 'c2' : 'box'} />))}
+      {[0, 1, 2, 3].flatMap((k) => [0, 1, 2, 3].map((j) => <rect x={300 + j * 34} y={40 + k * 34} width="34" height="34" class={j === 2 ? 'c1' : 'box'} />))}
+      {[0, 1, 2, 3].flatMap((i) => [0, 1, 2, 3].map((j) => <rect x={560 + j * 34} y={40 + i * 34} width="34" height="34" class={i === 1 && j === 2 ? 'c4' : 'box'} />))}
+      <text x="108" y="28" class="t b">A (m×n)</text><text x="368" y="28" class="t b">B (n×l)</text><text x="628" y="28" class="t b">C (m×l)</text>
+      <text x="230" y="113" class="t b">×</text><text x="490" y="113" class="t b">=</text>
+      <text x="22" y="108" class="t s r">i</text><text x="385" y="194" class="t s">j</text>
+      <text x="380" y="218" class="t s">c{sb('ij')} = a{sb('i0')}b{sb('0j')} + a{sb('i1')}b{sb('1j')} + … : n productos y n−1 sumas por elemento → T{sb('s')} = Θ(m·n·l)</text>
+    </svg>}
+    {fig === 'anillo' && <svg viewBox="0 0 760 240" role="img" aria-label="Cuatro procesos en anillo: cada uno fija su franja de A y pasa su franja de B al siguiente">
+      <Fragment set:html={defs} />
+      {[0, 1, 2, 3].map((m) => <>
+        <rect x={40 + m * 180} y="40" width="140" height="96" rx="8" class="box" />
+        <text x={110 + m * 180} y="62" class="t b">P{m}</text>
+        <rect x={52 + m * 180} y="74" width="116" height="22" rx="4" class="c2" />
+        <text x={110 + m * 180} y="90" class="t s">A franja {m} (fija)</text>
+        <rect x={52 + m * 180} y="102" width="116" height="22" rx="4" class="c1" />
+        <text x={110 + m * 180} y="118" class="t s">B franja {(m + 3) % 4} en paso 1</text>
+      </>)}
+      {[0, 1, 2].map((m) => <line x1={182 + m * 180} y1="88" x2={218 + m * 180} y2="88" class="ln" marker-end={A} />)}
+      <path d="M 650 136 Q 650 182 380 182 Q 110 182 110 140" class="ln dash" marker-end={A} />
+      <text x="380" y="200" class="t s mu">P3 devuelve su franja de B a P0 (envío circular a (m+1) mod p)</text>
+      <text x="380" y="224" class="t s">p pasos: en el paso s, P{sb('m')} multiplica su franja de A por la franja (m−s) mod p de B</text>
+    </svg>}
+    {fig === 'fox' && <svg viewBox="0 0 760 270" role="img" aria-label="Fox, paso l igual a 1 con q igual a 3: cada fila difunde un bloque de A y B sube una fila">
+      <Fragment set:html={defs} />
+      {r3.flatMap((i) => r3.map((j) => { const root = (i + 1) % q; return <>
+        <rect x={40 + j * 140} y={30 + i * 72} width="128" height="62" rx="7" class={j === root ? 'c2' : 'box'} />
+        <text x={104 + j * 140} y={56 + i * 72} class="t s b">A{sb(`${i}${root}`)}</text>
+        <text x={104 + j * 140} y={78 + i * 72} class="t s">× B{sb(`${root}${j}`)}</text>
+      </>; }))}
+      {r3.map((i) => <line x1="36" y1={61 + i * 72} x2="456" y2={61 + i * 72} class="ln dash" />)}
+      <line x1="478" y1="230" x2="478" y2="40" class="ln" marker-end={A} />
+      <text x="492" y="60" class="t s l b">Paso l = 1 (q = 3)</text>
+      <text x="492" y="88" class="t s l">naranja: P{sb('i,(i+l) mod q')} difunde</text>
+      <text x="492" y="108" class="t s l">su bloque de A a toda la fila i (línea punteada)</text>
+      <text x="492" y="140" class="t s l">todos multiplican: C{sb('ij')} += A{sb('i,s')} · B{sb('s,j')}</text>
+      <text x="492" y="172" class="t s l">luego B sube una fila (circular, flecha)</text>
+      <text x="492" y="204" class="t s l mu">tras q pasos, s recorrió 0…q−1</text>
+    </svg>}
+    {fig === 'cannon' && <svg viewBox="0 0 760 260" role="img" aria-label="Cannon: alineación inicial desplazando la fila i de A i posiciones a la izquierda y la columna j de B j posiciones hacia arriba">
+      <Fragment set:html={defs} />
+      {[0, 1].map((g) => <>
+        <text x={40 + g * 400 + 165} y="24" class="cap">{g === 0 ? 'al inicio' : 'tras la alineación'}</text>
+        {r3.flatMap((i) => r3.map((j) => { const s = g === 0 ? null : (i + j) % q; return <>
+          <rect x={40 + g * 400 + j * 112} y={36 + i * 66} width="104" height="58" rx="6" class={g === 1 ? 'c1' : 'box'} />
+          <text x={92 + g * 400 + j * 112} y={60 + i * 66} class="t s b">A{sb(s === null ? `${i}${j}` : `${i}${s}`)}</text>
+          <text x={92 + g * 400 + j * 112} y={80 + i * 66} class="t s">B{sb(s === null ? `${i}${j}` : `${s}${j}`)}</text>
+        </>; }))}
+      </>)}
+      <line x1="380" y1="133" x2="430" y2="133" class="ln" marker-end={A} />
+      <text x="380" y="250" class="t s">fila i de A: i pasos a la izquierda · columna j de B: j pasos hacia arriba → P{sb('ij')} tiene índices iguales: A{sb('i,s')} y B{sb('s,j')}, s=(i+j) mod q</text>
+    </svg>}
+    {fig === 'dns' && <svg viewBox="0 0 760 250" role="img" aria-label="DNS con N igual a 3: tres capas k, cada una calcula un producto parcial y la suma por k da C">
+      {r3.map((k) => <>
+        <text x={40 + k * 228 + 84} y="26" class="cap">capa k = {k}</text>
+        {r3.flatMap((i) => r3.map((j) => <>
+          <rect x={40 + k * 228 + j * 56} y={38 + i * 50} width="52" height="44" rx="5" class={`c${k + 1}`} />
+          <text x={66 + k * 228 + j * 56} y={64 + i * 50} class="t s mono">a{sb(`${i}${k}`)}b{sb(`${k}${j}`)}</text>
+        </>))}
+      </>)}
+      <text x="216" y="114" class="t b">+</text><text x="444" y="114" class="t b">+</text>
+      <text x="380" y="210" class="t s">capa k: a{sb('ik')} se difunde a lo largo de j y b{sb('kj')} a lo largo de i (2 broadcasts) → 1 producto por proceso</text>
+      <text x="380" y="232" class="t s">después se reduce por k: c{sb('ij')} = Σ{sb('k')} a{sb('ik')}b{sb('kj')} → p = N³ procesos, O(log N) pasos de comunicación</text>
+    </svg>}
+  </div>
+  <figcaption><slot /></figcaption>
+</figure>

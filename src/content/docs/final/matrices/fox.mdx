@@ -1,0 +1,120 @@
+---
+title: "Método de Fox"
+description: "Malla √p×√p: en cada paso una fila difunde un bloque de A, todos multiplican y B sube una fila."
+---
+import MatFig from '../../../../components/MatFig.astro';
+import EnSimple from '../../../../components/EnSimple.astro';
+import Quiz from '../../../../components/Quiz.tsx';
+import Solucion from '../../../../components/Solucion.astro';
+import Fuente from '../../../../components/Fuente.astro';
+import FoxCannon from '../../../../components/playgrounds/FoxCannon.tsx';
+
+<EnSimple>
+Ahora los procesos están en un tablero de ajedrez y cada casilla es dueña de **un bloque** de C. En cada ronda, en cada fila del tablero, una casilla «anuncia en voz alta» su pedazo de A a sus vecinos de fila (broadcast). Todos multiplican ese pedazo por el pedazo de B que tienen y lo suman a su C. Luego cada uno pasa su B a la casilla de arriba. Tras √p rondas, cada casilla vio todas las parejas que necesitaba.
+</EnSimple>
+
+## Reparto en tablero (láminas 10–11)
+
+Con p procesos en una malla q×q, **q = √p**. A, B y C se parten en bloques de (n/q)×(n/q) y P<sub>ij</sub> es dueño de A<sub>ij</sub>, B<sub>ij</sub> y del resultado
+
+$$C_{ij}=\sum_{s=0}^{q-1}A_{is}\,B_{sj}.$$
+
+Es la misma fórmula del producto, pero con **bloques** en vez de números. Cada proceso maneja 4 bloques: su C<sub>ij</sub>, su A<sub>ij</sub>, y los bloques de A y B que va recibiendo.
+
+En la iteración l = 0, 1, …, q−1:
+
+1. En cada fila i, el proceso de la columna **s = (i + l) mod q** difunde su bloque A<sub>is</sub> a toda la fila i.
+2. Cada P<sub>ij</sub> multiplica el bloque de A recibido por el de B que tiene y suma: C<sub>ij</sub> += A<sub>is</sub>·B<sub>sj</sub>.
+3. Cada P<sub>ij</sub> envía su bloque de B al vecino de arriba (la primera fila lo envía a la última).
+
+La lámina 11 escribe «transmite el bloque A<sub>ij</sub>»; el bloque concreto que se difunde en la iteración l es el de la columna (i + l) mod q. Por eso las láminas 12–16 dicen «usando la diagonal de A»: en l = 0 difunde la diagonal (A<sub>00</sub>, A<sub>11</sub>, A<sub>22</sub>), en l = 1 la siguiente diagonal, etc.
+
+<MatFig fig="fox">
+**Cómo leerlo:** paso l = 1 con q = 3. En la fila 0 difunde la columna 1, en la fila 1 la columna 2 y en la fila 2 la columna 0 (naranja). Cada celda multiplica el A difundido por el B que tiene: los índices internos coinciden (A<sub>i,s</sub>·B<sub>s,j</sub>). Al terminar, B sube una fila.
+</MatFig>
+
+### ¿Por qué el B que tengo es justo el que necesito?
+
+**Invariante:** al comienzo de la iteración l, P<sub>ij</sub> tiene **B<sub>(i+l) mod q, j</sub>**.
+
+- l = 0: P<sub>ij</sub> tiene B<sub>ij</sub> = B<sub>(i+0), j</sub>. ✓
+- Si vale en l, P<sub>ij</sub> recibe el B de su vecino de abajo P<sub>i+1,j</sub>, que tenía B<sub>(i+1+l), j</sub> = B<sub>(i+(l+1)), j</sub>. ✓
+
+Como el A difundido en la fila i es A<sub>i,(i+l) mod q</sub>, el producto es A<sub>is</sub>·B<sub>sj</sub> con s = (i + l) mod q. Al variar l de 0 a q−1, s recorre **todos** los valores 0…q−1 una vez: C<sub>ij</sub> queda completo.
+
+**Traza de P(1,2) con q = 3** (salida del programa propio de abajo):
+
+| l | s = (1+l) mod 3 | suma |
+|---|---|---|
+| 0 | 1 | A₁₁B₁₂ |
+| 1 | 2 | A₁₂B₂₂ |
+| 2 | 0 | A₁₀B₀₂ |
+
+<FoxCannon client:visible />
+
+## Complejidad (lámina 17)
+
+Con q = √p y bloques de n²/p números:
+
+- **Cómputo:** q iteraciones, cada una un producto de bloques (n/q)³ = n³/p^{3/2}: T<sub>comp</sub> = q·(n²/p)·(n/q) = **n³/p**.
+- **Broadcast por fila** en cada iteración: q procesos ⇒ T¹<sub>comm</sub> = log q·(α + (n²/p)β).
+- **Desplazamiento de B** en cada iteración: T²<sub>comm</sub> = α + (n²/p)β.
+
+$$T_p=O\!\left(\frac{n^3}{p}+\sqrt p\,(\log\sqrt p+1)\left(\alpha+\frac{n^2}{p}\beta\right)\right).$$
+
+Para la eficiencia, multiplica por p: pT<sub>p</sub> = n³ + p^{3/2}(log√p + 1)α + √p(log√p + 1)·n²β. Dividiendo n³ entre eso:
+
+$$E=O\!\left(\frac{1}{1+\frac{p^{3/2}\log\sqrt p}{n^3}\alpha+\frac{\sqrt p\,\log\sqrt p}{n}\beta}\right).$$
+
+:::caution[Posible error en la lámina 17]
+La lámina escribe el último término como **p<sup>3/2</sup>(log√p)/n**. Al multiplicar √p(log√p)·(n²/p)β por p queda √p·log√p·n²β, y al dividir entre n³ queda **√p·log√p/n**, no p<sup>3/2</sup>·log√p/n. La forma de T<sub>p</sub> de la lámina es correcta; el error está solo en el paso a E. Compáralo con Cannon (lámina 26), que sí escribe √p/n.
+:::
+
+### Isoeficiencia (propia)
+
+- Término β: √p log p / n constante ⇒ n = Θ(√p log p) ⇒ W = n³ = **Θ(p<sup>1.5</sup> log³ p)**.
+- Término α: n³ = Θ(p<sup>1.5</sup> log p), menor.
+
+Fox escala mejor que el anillo 1-D (Θ(p³)), pero paga un **log p** por los broadcasts. Cannon elimina ese factor.
+
+Las láminas 18–19 comparan el modelo con mediciones del profesor; no reproducimos sus cifras.
+
+## Código MPI (propio, verificado)
+
+Fragmento del bucle de Fox. El programa completo arma una malla cartesiana periódica q×q con `MPI_Cart_create`, un comunicador por fila con `MPI_Cart_sub` y compara cada bloque de C con el producto secuencial:
+
+```cpp
+for (int l = 0; l < q; l++) {
+  int root = (i + l) % q;
+  if (j == root) T = A;
+  MPI_Bcast(T.data(), nb*nb, MPI_DOUBLE, root, row);
+  mult(T, B, C, nb);
+  MPI_Sendrecv_replace(B.data(), nb*nb, MPI_DOUBLE, up, 0, down, 0, grid, MPI_STATUS_IGNORE);
+}
+```
+
+Se compiló y ejecutó con p = 4, 9 y 16 (n = 8, 6, 12, 16): **error máximo 0** frente al producto secuencial en todos los casos. Comprueba correctitud, **no mide rendimiento**.
+
+## Práctica
+
+1. **Guiado:** q = 4. En la iteración l = 3, ¿qué bloque difunde la fila 2? <Solucion>s = (2 + 3) mod 4 = 1 ⇒ difunde **A₂₁**.</Solucion>
+2. **Autónomo:** con q = 3, escribe los tres términos que suma P(0,1), en orden. <Solucion>s = (0 + l) mod 3 = 0, 1, 2: **A₀₀B₀₁ + A₀₁B₁₁ + A₀₂B₂₁**.</Solucion>
+3. **Variante:** con p = 64 y n = 1024, ¿cuántos números tiene cada bloque y cuántos mensajes envía cada proceso en total (contando cada broadcast como log q mensajes)? <Solucion>q = 8, bloques de 128×128 = **16 384** números. Por iteración: log₂8 = 3 del broadcast + 1 del shift = 4; en 8 iteraciones, **32 mensajes**. Resolución propia con el modelo de la lámina.</Solucion>
+
+## Errores típicos
+
+- Difundir siempre A<sub>ij</sub> en vez de A<sub>i,(i+l) mod q</sub>: el índice interno dejaría de coincidir con el de B.
+- Mover B hacia abajo: con el invariante (i + l), B sube una fila.
+- Copiar la eficiencia de la lámina 17 sin revisar el último término (√p, no p<sup>3/2</sup>).
+- Olvidar que p debe ser un cuadrado perfecto y que q debe dividir a n.
+
+<Quiz client:visible id="u63-fox" preguntas={[
+ {q:'En Fox, ¿qué se difunde por filas?',opts:['un bloque de B','un bloque de A','C completa','un escalar'],ok:1},
+ {q:'En la iteración l, la fila i difunde el bloque de la columna…',opts:['l','i','(i+l) mod q','(i−l) mod q'],ok:2},
+ {q:'Después de multiplicar, B se desplaza…',opts:['a la izquierda','una fila hacia arriba','a la diagonal','no se mueve'],ok:1},
+ {q:'Número de iteraciones con p procesos:',opts:['p','log p','√p','p²'],ok:2},
+ {q:'Término β correcto de E en Fox:',opts:['p^1.5·log√p / n','√p log√p / n','log p / n','p / n'],ok:1},
+ {q:'Isoeficiencia de Fox (propia):',opts:['Θ(p³)','Θ(p^1.5 log³ p)','Θ(p^1.5)','Θ(p)'],ok:1}
+]} />
+
+<Fuente archivos={['U6.3 Performance-matrices.pdf (láminas 10–19)', 'programa propio matmul_mpi.cpp (compilado y ejecutado con p = 4, 9, 16)']} />

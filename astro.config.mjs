@@ -115,6 +115,17 @@ export default defineConfig({
 							],
 						},
 						{
+							label: '16 · Matrices (U6.3)',
+							badge: { text: 'sem 14', variant: 'note' },
+							items: [
+								{ label: 'Secuencial, PRAM y Brent', slug: 'final/matrices/secuencial-pram' },
+								{ label: 'Filas y columnas', slug: 'final/matrices/filas-columnas' },
+								{ label: 'Método de Fox', slug: 'final/matrices/fox' },
+								{ label: 'Método de Cannon', slug: 'final/matrices/cannon' },
+								{ label: 'DNS y comparación', slug: 'final/matrices/dns-comparacion' },
+							],
+						},
+						{
 							label: '12 · Examen final',
 							badge: { text: 'PD05', variant: 'caution' },
 							items: [

@@ -1,0 +1,88 @@
+---
+title: "Producto de matrices: secuencial, PRAM y Brent"
+description: "Por qué C = A·B cuesta n³, cómo lo haría una PRAM con n³ procesos y qué cambia con p < n³."
+---
+import MatFig from '../../../../components/MatFig.astro';
+import EnSimple from '../../../../components/EnSimple.astro';
+import Quiz from '../../../../components/Quiz.tsx';
+import Solucion from '../../../../components/Solucion.astro';
+import Fuente from '../../../../components/Fuente.astro';
+
+<EnSimple>
+Piensa en una hoja de cálculo C donde cada casilla se llena «cruzando» una fila de A con una columna de B: multiplicas pareja por pareja y sumas todo. Si C tiene n×n casillas y cada una pide n multiplicaciones, son **n³** cuentas. Paralelizar es repartir esas cuentas; el problema real, que verás en las páginas siguientes, es **llevar los datos** a quien hace cada cuenta.
+</EnSimple>
+
+## El problema (láminas 2–3)
+
+C = A·B con A de m×n y B de n×l. Cada elemento es un producto interno:
+
+$$c_{ij}=\sum_{k=0}^{n-1} a_{ik}\,b_{kj},\qquad 0\le i<m,\ 0\le j<l.$$
+
+<MatFig fig="producto">
+**Cómo leerlo:** la fila i de A (naranja) y la columna j de B (celeste) producen una sola casilla de C (verde). Hay m·l casillas y cada una necesita n productos, de ahí Θ(m·n·l).
+</MatFig>
+
+El código secuencial de la lámina 3 son tres bucles anidados:
+
+```c
+for (int i = 0; i < m; i++)
+  for (int j = 0; j < l; j++) {
+    MC[i][j] = 0;
+    for (int k = 0; k < n; k++)
+      MC[i][j] += MA[i][k] * MB[k][j];
+  }
+```
+
+**T<sub>s</sub> = O(m·n·l)**; para matrices cuadradas, **T<sub>s</sub> = Θ(n³)**. Ejemplo: n = 1000 son 10⁹ multiplicaciones-suma. Este n³ es el **W** (trabajo útil) que usarás en todas las eficiencias de esta sección.
+
+## PRAM con p = n³ (lámina 4)
+
+Si hay un proceso por cada terna (i, k, j):
+
+1. **Un paso:** el proceso (i,k,j) calcula c<sub>ikj</sub> = a<sub>ik</sub>·b<sub>kj</sub>. Las n³ multiplicaciones ocurren a la vez.
+2. **log n pasos:** para cada (i,j), los n productos c<sub>i0j</sub>,…,c<sub>i,n−1,j</sub> se suman en un árbol de reducción.
+
+Entonces:
+
+| Medida | Fórmula | Por qué |
+|---|---|---|
+| T(n) | Θ(log n) | 1 paso de productos + log n niveles de suma |
+| S(n) | n³ / log n | T<sub>s</sub>/T<sub>p</sub> |
+| E(n) | 1 / log n | S/p = (n³/log n)/n³ |
+
+**Ejemplo trabajado (propio):** n = 8 ⇒ p = 512 procesos, T = 1 + log₂8 = 4 pasos (la lámina cuenta solo el término log n = 3). Con T = log n: S = 512/3 ≈ 171 y E = 1/3 ≈ 0.33. Es rapidísimo, pero dos de cada tres procesos están ociosos en promedio: la reducción en árbol apaga la mitad de los sumadores en cada nivel.
+
+## Brent: p < n³ (lámina 5)
+
+Con menos procesos, cada uno simula varios de la PRAM. Por el principio de Brent:
+
+$$T_p(n)=O\!\left(\frac{n^3}{p}+\log n\right),$$
+
+y a cada proceso le tocan n²/p elementos de C. Si p ≤ n³/log n, el término n³/p domina y **E ≈ 1**: en la PRAM la eficiencia se recupera usando menos procesos.
+
+:::note[¿Por qué la lámina dice «escalabilidad limitada»?]
+La PRAM supone que todos leen cualquier a<sub>ik</sub> o b<sub>kj</sub> sin costo. En memoria distribuida, cada dato vive en **un** proceso y moverlo cuesta α + mβ (arranque + tamaño, ver [Broadcast](/final/performance-u6/broadcast/)). Las páginas siguientes son exactamente eso: distintas formas de organizar ese movimiento.
+:::
+
+## Práctica
+
+1. **Guiado:** con n = 16 en la PRAM, ¿cuántos procesos, cuántos pasos y qué eficiencia? <Solucion>p = 16³ = **4096**. T = log₂16 = **4** (más 1 paso de productos si lo cuentas). E = 1/log n = **1/4 = 0.25**.</Solucion>
+2. **Autónomo:** con Brent y p = n², ¿cuánto vale T<sub>p</sub> y a qué tiende E? <Solucion>T<sub>p</sub> = n³/n² + log n = n + log n. E = n³/(n²·(n + log n)) = 1/(1 + log n / n) → **1** cuando n crece. Resolución propia.</Solucion>
+3. **Variante:** si m = 2000, n = 10, l = 2000, ¿cuántas multiplicaciones hace el código secuencial? <Solucion>m·n·l = 2000·10·2000 = **4·10⁷**. Ojo: no es «n³»; con matrices rectangulares cuenta las tres dimensiones.</Solucion>
+
+## Errores típicos
+
+- Escribir T<sub>s</sub> = n² porque C tiene n² elementos: cada elemento cuesta n, así que son n³.
+- Creer que E = 1/log n es «buena» porque el tiempo es pequeño: con p = n³ casi todos los procesos esperan durante la suma.
+- Olvidar que la PRAM no cobra comunicación; sus tiempos son una cota ideal, no un tiempo de cluster.
+- Confundir c<sub>ikj</sub> (un producto parcial) con c<sub>ij</sub> (la suma de los n productos parciales).
+
+<Quiz client:visible id="u63-pram" preguntas={[
+ {q:'¿Cuánto trabajo secuencial tiene C = A·B con matrices n×n?',opts:['Θ(n²)','Θ(n³)','Θ(n log n)','Θ(n²log n)'],ok:1},
+ {q:'En la PRAM con p = n³, ¿qué parte cuesta log n?',opts:['los productos','la suma de los n productos de cada c_ij','leer A','escribir C'],ok:1},
+ {q:'Eficiencia de la PRAM con p = n³:',opts:['1','1/n','1/log n','log n'],ok:2},
+ {q:'Con Brent, Tp(n) es…',opts:['O(n³/p + log n)','O(n³)','O(log n)','O(n²/p)'],ok:0},
+ {q:'¿Qué ignora la PRAM y vuelve «limitada» su escalabilidad real?',opts:['las sumas','el costo de mover datos','los productos','la memoria de C'],ok:1}
+]} />
+
+<Fuente archivos={['U6.3 Performance-matrices.pdf (láminas 2–5)']} />

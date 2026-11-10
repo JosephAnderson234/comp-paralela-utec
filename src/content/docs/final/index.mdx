@@ -27,6 +27,7 @@ Ordenada por peso en el modelo 2026-I. Cada paso dice qué deberías poder **hac
 | 6 | [Escalabilidad de ordenamientos](/final/ordenamiento/escalabilidad/) | sacar la isoeficiencia de una T<sub>p</sub> dada y comparar | ↑ |
 | 7 | [Búsqueda: modelos](/final/busqueda/modelos/) → [DFS y B&B](/final/busqueda/dfs-bnb/) → [PWS y DTS](/final/busqueda/pws-dts/) → [Participación 9](/final/busqueda/participacion9/) | contar pasos en un árbol con PWS y DTS, y sacar S y E | nuevo (no estaba en la PD05 2026-I) |
 | 8 | [Grafos](/final/grafos/tecnicas/) → [Prim y Dijkstra](/final/grafos/prim-dijkstra/) → [Floyd](/final/grafos/floyd/) → [Broadcast](/final/performance-u6/broadcast/) → [Métricas](/final/performance-u6/metricas/) → [Topologías](/final/performance-u6/topologias/) → [Participación 10](/final/performance-u6/participacion10/) | trazar algoritmos de grafos y justificar comunicación, eficiencia y p óptimo | nuevo (semanas 13–14) |
+| 9 | [Matrices: PRAM](/final/matrices/secuencial-pram/) → [Filas/columnas](/final/matrices/filas-columnas/) → [Fox](/final/matrices/fox/) → [Cannon](/final/matrices/cannon/) → [DNS y comparación](/final/matrices/dns-comparacion/) | trazar Fox/Cannon en una malla 3×3 y derivar T<sub>p</sub>, E e isoeficiencia de cada método | nuevo (semana 14) |
 
 **Cómo comprobar que lo dominas:** sin mirar la solución, resuelve (a) la práctica 1 de *Jacobi en paralelo*, (b) el DAG del simulacro, y (c) la isoeficiencia de T<sub>p</sub> = (n/p) log n + log² p. Si los tres te salen solos, estás listo para la PD05.
 
@@ -48,7 +49,8 @@ Objetivos que da el profesor en las láminas de U5:
 |---|---|---|
 | 1 | Broadcast y reducción (comunicación global) | ✅ [U6.1: Broadcast](/final/performance-u6/broadcast/) |
 | 2 | Performance y escalabilidad | ✅ [U6.2: Métricas](/final/performance-u6/metricas/) · [Topologías](/final/performance-u6/topologias/) · [Participación 10](/final/performance-u6/participacion10/) |
-| 3 | GPUs/CUDA | ⏳ pendiente |
+| 3 | Multiplicación de matrices | ✅ [U6.3: PRAM](/final/matrices/secuencial-pram/) · [Filas/columnas](/final/matrices/filas-columnas/) · [Fox](/final/matrices/fox/) · [Cannon](/final/matrices/cannon/) · [DNS](/final/matrices/dns-comparacion/) |
+| 4 | CUDA | ⏳ pendiente |
 
 ## Unidad 4: Comunicación y coordinación
 
@@ -118,6 +120,16 @@ Todos los programas se compilaron y ejecutaron: los de clase y las soluciones pr
 	<LinkCard title="Métricas y escalabilidad" href="/final/performance-u6/metricas/" description="MIPS, FLOPS, overhead, eficiencia e isoeficiencia paso a paso." />
 	<LinkCard title="Patrones y topologías" href="/final/performance-u6/topologias/" description="MPI, array, anillo, malla e hipercubo con broadcast interactivo." />
 	<LinkCard title="Participación 10" href="/final/performance-u6/participacion10/" description="Guía para intentar el problema y resolución propia oculta." />
+</CardGrid>
+
+## Multiplicación de matrices (U6.3)
+
+<CardGrid>
+	<LinkCard title="Secuencial, PRAM y Brent" href="/final/matrices/secuencial-pram/" description="Por qué n³, la PRAM con p = n³ y E = 1/log n." />
+	<LinkCard title="Filas y columnas" href="/final/matrices/filas-columnas/" description="A fija, B gira en anillo; el log p de la lámina frente a p−1 envíos." />
+	<LinkCard title="Método de Fox" href="/final/matrices/fox/" description="Broadcast por fila + shift de B, invariante y código MPI verificado." />
+	<LinkCard title="Método de Cannon" href="/final/matrices/cannon/" description="Alineación inicial y solo desplazamientos; W = Θ(p^1.5)." />
+	<LinkCard title="DNS y comparación" href="/final/matrices/dns-comparacion/" description="Cubo de p = N³ procesos, tabla resumen y calculadora de eficiencia." />
 </CardGrid>
 
 ## Examen

@@ -1,0 +1,102 @@
+---
+title: "Método de Cannon"
+description: "Alinear una vez y luego solo desplazar: sin broadcasts, comunicación circular y E ≈ 1/(1 + p^1.5/n³ + √p/n)."
+---
+import MatFig from '../../../../components/MatFig.astro';
+import EnSimple from '../../../../components/EnSimple.astro';
+import Quiz from '../../../../components/Quiz.tsx';
+import Solucion from '../../../../components/Solucion.astro';
+import Fuente from '../../../../components/Fuente.astro';
+import FoxCannon from '../../../../components/playgrounds/FoxCannon.tsx';
+
+<EnSimple>
+Cannon es como una **rueda de baile**: antes de empezar, cada fila de A se corre unos puestos a la izquierda y cada columna de B unos puestos hacia arriba, para que cada pareja quede bien emparejada. Desde ahí nadie grita a toda la fila (no hay broadcast): en cada compás todos multiplican y pasan su A a la izquierda y su B hacia arriba. Solo se habla con vecinos.
+</EnSimple>
+
+## Mismo tablero, otra coreografía (láminas 20–21)
+
+El reparto es igual que en Fox: malla q×q con **q = √p**, bloques de (n/q)×(n/q), y P<sub>ij</sub> calcula C<sub>ij</sub> = Σ<sub>s</sub> A<sub>is</sub>B<sub>sj</sub>. La diferencia es cómo llegan los bloques:
+
+1. **Alineación inicial** (una vez): la fila i de A se desplaza **i** posiciones a la izquierda y la columna j de B **j** posiciones hacia arriba, de forma circular.
+2. **q iteraciones:** cada P<sub>ij</sub> hace C<sub>ij</sub> += A·B con los bloques que tiene; luego A se desplaza 1 a la izquierda y B 1 hacia arriba.
+
+La lámina 21 dice «(i−1) posiciones» y «(j−1) posiciones» porque numera filas y columnas desde 1. Con numeración desde 0, como en el código, son **i** y **j**: la fila 0 no se mueve.
+
+<MatFig fig="cannon">
+**Cómo leerlo:** a la izquierda, cada P<sub>ij</sub> tiene A<sub>ij</sub> y B<sub>ij</sub>, y solo la diagonal tiene índices internos que coinciden. A la derecha, tras la alineación, todas las celdas tienen A<sub>i,s</sub> y B<sub>s,j</sub> con el mismo s = (i+j) mod 3, así que el primer producto ya es útil **sin comunicar más**.
+</MatFig>
+
+### Invariante y traza
+
+**Invariante:** al comienzo de la iteración l, P<sub>ij</sub> tiene **A<sub>i,s</sub>** y **B<sub>s,j</sub>** con **s = (i + j + l) mod q**.
+
+- Tras la alineación (l = 0): A de la fila i se movió i lugares, así que P<sub>ij</sub> tiene A<sub>i,(j+i)</sub>; B de la columna j se movió j lugares, así que tiene B<sub>(i+j),j</sub>. ✓
+- Desplazar A a la izquierda y B hacia arriba suma 1 a ambos índices internos. ✓
+
+Como s recorre todos los valores mod q en q iteraciones, C<sub>ij</sub> queda completo. **P(1,2) con q = 3** (salida del programa propio):
+
+| l | s = (1+2+l) mod 3 | suma |
+|---|---|---|
+| 0 | 0 | A₁₀B₀₂ |
+| 1 | 1 | A₁₁B₁₂ |
+| 2 | 2 | A₁₂B₂₂ |
+
+Compara con Fox: P(1,2) suma **los mismos tres productos**, solo que en otro orden. Las láminas 22–25 muestran ese mismo recorrido en una malla 4×4.
+
+<FoxCannon client:visible />
+
+## Complejidad (lámina 26)
+
+- **Cómputo:** T<sub>comp</sub> = q·(n²/p)·(n/q) = **n³/p**.
+- **Alineación:** T¹<sub>comm</sub> = O(α + (n²/p)β), un envío directo por matriz en una malla con conexiones circulares.
+- **Cada iteración:** dos desplazamientos con vecinos, T²<sub>comm</sub> = O(α + (n²/p)β).
+
+$$T_p=O\!\left(\frac{n^3}{p}+\sqrt p\left(\alpha+\frac{n^2}{p}\beta\right)\right),\qquad E=O\!\left(\frac{1}{1+\frac{p^{3/2}}{n^3}\alpha+\frac{\sqrt p}{n}\beta}\right).$$
+
+Comprobación: pT<sub>p</sub> = n³ + p<sup>3/2</sup>α + √p·n²β; al dividir n³ entre eso sale la E de la lámina (que omite α y β).
+
+**Isoeficiencia (propia):** el término β pide n = Θ(√p) ⇒ **W = n³ = Θ(p<sup>1.5</sup>)**; el término α da lo mismo. Es mejor que Fox (Θ(p<sup>1.5</sup> log³ p)) porque cambia cada broadcast de log q pasos por un único envío a un vecino.
+
+**Memoria:** cada proceso guarda siempre solo un bloque de A, uno de B y uno de C (3n²/p números). Fox necesita además un buffer para el A difundido.
+
+Las láminas 27–28 comparan con mediciones y la 29 concluye que los tres algoritmos (1-D, Fox y Cannon) **son comparables en performance** en el rango que midió el profesor. El modelo dice lo mismo para p pequeño. Las diferencias aparecen al crecer p con n fijo (ver [DNS y comparación](/final/matrices/dns-comparacion/)).
+
+## Código MPI (propio, verificado)
+
+```cpp
+MPI_Cart_shift(grid, 1, -i, &src, &dst);
+MPI_Sendrecv_replace(A.data(), nb*nb, MPI_DOUBLE, dst, 1, src, 1, grid, MPI_STATUS_IGNORE);
+MPI_Cart_shift(grid, 0, -j, &src, &dst);
+MPI_Sendrecv_replace(B.data(), nb*nb, MPI_DOUBLE, dst, 2, src, 2, grid, MPI_STATUS_IGNORE);
+for (int l = 0; l < q; l++) {
+  mult(A, B, C, nb);
+  MPI_Sendrecv_replace(A.data(), nb*nb, MPI_DOUBLE, left, 3, right, 3, grid, MPI_STATUS_IGNORE);
+  MPI_Sendrecv_replace(B.data(), nb*nb, MPI_DOUBLE, up, 4, down, 4, grid, MPI_STATUS_IGNORE);
+}
+```
+
+`MPI_Sendrecv_replace` envía y recibe en el mismo buffer en una sola llamada, así no hay *deadlock* aunque todos envíen a la vez. Con la malla periódica (`periods = {1,1}`), `MPI_Cart_shift` devuelve el vecino circular. Se ejecutó con p = 4, 9 y 16: **error máximo 0** frente al producto secuencial. No mide rendimiento.
+
+## Práctica
+
+1. **Guiado:** q = 4. Tras la alineación, ¿qué bloques tiene P(2,3)? <Solucion>s = (2+3) mod 4 = 1 ⇒ **A₂₁** y **B₁₃**.</Solucion>
+2. **Autónomo:** q = 4, P(3,1), iteración l = 2: ¿qué producto suma? <Solucion>s = (3+1+2) mod 4 = 2 ⇒ **A₃₂B₂₁**.</Solucion>
+3. **Variante:** si p se cuadruplica, ¿cuánto debe crecer n para mantener E en Cannon? ¿Y W? <Solucion>√p se duplica ⇒ n debe **duplicarse** (término √p/n). W = n³ crece **8 veces**, coherente con W = Θ(p<sup>1.5</sup>): 4<sup>1.5</sup> = 8.</Solucion>
+
+## Errores típicos
+
+- Saltarse la alineación: sin ella, solo la diagonal multiplica bloques compatibles en el primer paso.
+- Desplazar A hacia arriba y B a la izquierda (al revés): A viaja por **filas**, B por **columnas**.
+- Usar (i−1) con índices desde 0: la regla de la lámina asume numeración desde 1.
+- Decir que Cannon usa broadcast: solo usa envíos punto a punto entre vecinos.
+
+<Quiz client:visible id="u63-cannon" preguntas={[
+ {q:'¿Qué hace Cannon antes de la primera multiplicación?',opts:['un broadcast de A','alinear A y B con desplazamientos','reducir C','nada'],ok:1},
+ {q:'Con índices desde 0, la fila i de A se desplaza a la izquierda…',opts:['i−1 posiciones','i posiciones','1 posición','q posiciones'],ok:1},
+ {q:'Tras alinear, P_ij tiene A(i,s) y B(s,j) con s =',opts:['i','j','(i+j) mod q','(i−j) mod q'],ok:2},
+ {q:'Comunicación total de Cannon:',opts:['O(√p log√p (α+n²β/p))','O(√p (α+n²β/p))','O(log p (α+n²β/p))','O(p (α+n²β/p))'],ok:1},
+ {q:'Isoeficiencia de Cannon:',opts:['Θ(p^1.5)','Θ(p^1.5 log³ p)','Θ(p³)','Θ(p log p)'],ok:0},
+ {q:'Ventaja de Cannon frente a Fox:',opts:['menos cómputo','sin broadcasts ni buffer extra de A','admite p = n³','no necesita malla'],ok:1}
+]} />
+
+<Fuente archivos={['U6.3 Performance-matrices.pdf (láminas 20–29)', 'programa propio matmul_mpi.cpp (compilado y ejecutado con p = 4, 9, 16)']} />

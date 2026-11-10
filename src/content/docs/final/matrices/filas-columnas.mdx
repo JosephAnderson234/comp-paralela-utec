@@ -1,0 +1,84 @@
+---
+title: "Descomposición en filas y columnas"
+description: "A en franjas horizontales fijas, B en franjas verticales que giran en anillo: tiempo, eficiencia e isoeficiencia."
+---
+import MatFig from '../../../../components/MatFig.astro';
+import EnSimple from '../../../../components/EnSimple.astro';
+import Quiz from '../../../../components/Quiz.tsx';
+import Solucion from '../../../../components/Solucion.astro';
+import Fuente from '../../../../components/Fuente.astro';
+
+<EnSimple>
+Imagina p cocineros sentados en ronda. Cada uno tiene **su** receta fija (franja de A) y en el centro gira una bandeja de ingredientes (franjas de B). En cada vuelta, cada cocinero usa el ingrediente que tiene delante y pasa la bandeja al vecino. Después de p vueltas, todos usaron todos los ingredientes. Es simple, pero la bandeja da **p** vueltas: con muchos cocineros, se pasa más tiempo girando que cocinando.
+</EnSimple>
+
+## La idea (lámina 6)
+
+Con p = n: el proceso m tiene la **fila m de A** y una **columna de B**. En cada iteración hace un producto interno (un elemento de C) y envía su columna de B al proceso **(m+1) mod n**. Tras n iteraciones cada proceso calculó toda su fila de C.
+
+Con p < n (lámina 7): A se parte en **p franjas horizontales** de n/p filas y B en **p franjas verticales** de n/p columnas. En cada iteración, el proceso calcula un bloque (n/p)×(n/p) de C, que cuesta (n/p)·(n/p)·n = n³/p² operaciones; tras p iteraciones lleva **n³/p**.
+
+<MatFig fig="anillo">
+**Cómo leerlo:** A no se mueve nunca (naranja). La franja de B (celeste) avanza un proceso a la derecha en cada paso y la del último vuelve al primero. En el paso s, P<sub>m</sub> tiene la franja (m−s) mod p y calcula el bloque C<sub>m,(m−s) mod p</sub>.
+</MatFig>
+
+### Traza con p = n = 3 (propia)
+
+| paso s | P0 calcula | P1 calcula | P2 calcula |
+|---|---|---|---|
+| 0 | c₀₀ | c₁₁ | c₂₂ |
+| 1 | c₀₂ | c₁₀ | c₂₁ |
+| 2 | c₀₁ | c₁₂ | c₂₀ |
+
+Cada fila de la tabla es un **paso en paralelo**; cada columna, el trabajo de un proceso. Al final cada P<sub>m</sub> completó su fila m de C. Las diagonales de C se llenan una por paso.
+
+## Tiempo y eficiencia del modelo de la lámina 7
+
+Cómputo: **T<sub>comp</sub> = O(n³/p)**. La lámina cobra la comunicación como **T<sub>comm</sub> = O(log p·(α + (n²/p)β))**, porque cada mensaje lleva una franja de n·(n/p) = n²/p números. Entonces:
+
+$$T_p=O\!\left(\frac{n^3}{p}+\log p\left(\alpha+\frac{n^2}{p}\beta\right)\right),\qquad E=O\!\left(\frac{1}{1+\frac{p\log p}{n^3}\alpha+\frac{\log p}{n}\beta}\right).$$
+
+Para obtener E: pT<sub>p</sub> = n³ + p log p·α + n² log p·β, y E = n³/(pT<sub>p</sub>). La lámina omite α y β en E; aquí se dejan para ver qué término viene de cada costo.
+
+:::caution[Ojo con el log p de la lámina 7]
+El anillo que describe la lámina 6 hace **p−1 envíos sucesivos** de n²/p números, así que el conteo directo es T<sub>comm</sub> = (p−1)(α + (n²/p)β) ≈ pα + n²β. Incluso un *all-gather* en árbol, que junta las p franjas en log p rondas, transfiere en total n²(p−1)/p números por proceso: el término β no puede bajar de ≈ n²β. Con el anillo, pT<sub>p</sub> ≈ n³ + p²α + p·n²β y **E ≈ 1/(1 + p²α/n³ + pβ/n)**. Si el examen pide la fórmula de la lámina, úsala y menciona este matiz.
+:::
+
+Las láminas 8 y 9 comparan la complejidad teórica con mediciones del profesor; la forma de las curvas coincide, pero los números corresponden a su equipo y no se reproducen aquí.
+
+### Isoeficiencia (propia)
+
+Para E constante, cada término extra del denominador debe quedar acotado:
+
+| Modelo | Término que manda | Condición | W = n³ |
+|---|---|---|---|
+| Lámina (log p) | p log p·α/n³ | n³ ∝ p log p | **Θ(p log p)** |
+| Anillo (p−1 envíos) | pβ/n | n ∝ p | **Θ(p³)** |
+
+Con el conteo del anillo, **W = Θ(p³)**: la peor isoeficiencia de la sección (conteo propio). Además exige p ≤ n (no hay franjas vacías).
+
+**Ejemplo numérico (modelo de anillo, propio):** n = 1024, p = 64, α = 1000, β = 1 (en unidades de una multiplicación-suma). Cómputo n³/p = 16 777 216. Comunicación 63·(1000 + 1024²/64) = 63·17 384 = 1 095 192. E = 16 777 216 / 17 872 408 ≈ **0.94**. Con p = 1024: cómputo 1 048 576, comunicación 1023·(1000 + 1024) = 2 070 552, E ≈ **0.34**.
+
+## Práctica
+
+1. **Guiado:** n = 6, p = 3. ¿Cuántas filas tiene cada franja de A, cuántos números lleva cada mensaje y cuántos envíos hay? <Solucion>Franjas de n/p = **2** filas. Cada franja de B tiene 6·2 = **12** números. Hay p = 3 fases de cómputo y **p−1 = 2** envíos (el tercero solo devolvería las franjas a su dueño).</Solucion>
+2. **Autónomo:** en la traza con p = 3, ¿qué elemento calcula P1 en el paso 2 y por qué? <Solucion>P1 tiene la franja (1−2) mod 3 = 2 de B, así que calcula **c₁₂**. Regla: P<sub>m</sub> en el paso s tiene (m−s) mod p.</Solucion>
+3. **Variante:** con el modelo de anillo, si p se duplica, ¿cuánto debe crecer n para mantener E? <Solucion>El término pβ/n debe quedar igual: n debe **duplicarse**, así que W = n³ crece **8 veces**. Eso es W = Θ(p³). Resolución propia.</Solucion>
+
+## Errores típicos
+
+- Mover A y B a la vez: en esta descomposición A queda fija y solo gira B.
+- Contar el cómputo por paso como n²/p: un bloque (n/p)×(n/p) con productos internos de largo n cuesta n³/p².
+- Usar log p para el anillo sin decir que es el modelo de la lámina: el anillo hace p−1 envíos.
+- Olvidar la restricción p ≤ n.
+
+<Quiz client:visible id="u63-filas" preguntas={[
+ {q:'En la descomposición 1-D, ¿qué matriz se mueve?',opts:['A','B','C','ninguna'],ok:1},
+ {q:'¿Cuántos números lleva cada mensaje con p < n?',opts:['n','n/p','n²/p','n²'],ok:2},
+ {q:'Con p = 4, en el paso s = 3, ¿qué franja de B tiene P1?',opts:['0','1','2','3'],ok:2},
+ {q:'T_comm del anillo con p−1 envíos:',opts:['log p(α+n²β/p)','(p−1)(α+n²β/p)','√p(α+n²β/p)','α+n²β'],ok:1},
+ {q:'Isoeficiencia del anillo 1-D:',opts:['Θ(p log p)','Θ(p^1.5)','Θ(p³)','Θ(p log³ p)'],ok:2},
+ {q:'Límite de procesos en esta descomposición:',opts:['p ≤ n','p ≤ n²','p ≤ n³','sin límite'],ok:0}
+]} />
+
+<Fuente archivos={['U6.3 Performance-matrices.pdf (láminas 6–9)']} />
