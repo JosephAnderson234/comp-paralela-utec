@@ -1,0 +1,108 @@
+---
+title: "Broadcast y reducción"
+description: "Reducción PRAM, árboles y pipelines de broadcast, tamaños óptimos de trozo y comparación interactiva."
+---
+import U6Fig from '../../../../components/U6Fig.astro';
+import EnSimple from '../../../../components/EnSimple.astro';
+import Quiz from '../../../../components/Quiz.tsx';
+import Solucion from '../../../../components/Solucion.astro';
+import Fuente from '../../../../components/Fuente.astro';
+import BroadcastCompare from '../../../../components/playgrounds/BroadcastCompare.tsx';
+
+<EnSimple>
+Una persona avisa una noticia a todos: eso es *broadcast* (difusión). Si todos entregan un resultado para juntarlo, es **reducción**. Para mensajes cortos conviene pasar la noticia por un árbol; para uno grande conviene cortarlo en partes y pasar las partes como una cadena de baldes.
+</EnSimple>
+
+## Reducción y su árbol (láminas 2–5)
+
+Una **operación asociativa** permite agrupar sin cambiar el resultado, como suma, máximo o mínimo. Por eso una reducción puede usar un árbol inverso al del broadcast: la información se junta en vez de repartirse. Supuesto: una combinación de dos escalares cuesta un paso.
+
+En PRAM con n=p=8, números 1…8, los bits del índice deciden quién envía en cada nivel:
+
+| Ronda | Parejas que se combinan | Valor que queda en índice 0 |
+|---|---|---:|
+| Inicial | 1,2,3,4,5,6,7,8 | 1 |
+| bit 0 | (1+2)=3, (3+4)=7, (5+6)=11, (7+8)=15 | 3 |
+| bit 1 | (3+7)=10, (11+15)=26 | 10 |
+| bit 2 | (10+26)=36 | 36 |
+
+T=log₂8=3 rondas; el trabajo de sumas es 7. Si n>p, cada proceso primero suma n/p elementos y luego reduce p resultados: **T<sub>p</sub>≈n/p+log p**, W≈n y **E≈1/(1+p log p/n)**. En memoria distribuida, para un vector de n elementos enviado completo por cada nivel, T≈log p(α+nβ). Aquí **α=Tstart** es costo fijo de iniciar un mensaje y **β=Tbyte** es costo por elemento transmitido; T(m)=α+mβ. Las constantes de cómputo se omiten en este modelo.
+
+## Broadcast lineal y binomial (láminas 6–7)
+
+En el lineal, el origen envía la copia completa, una tras otra, a p−1 procesos: **T=(p−1)(α+nβ)**. En el **árbol binomial**, los procesos que ya tienen el mensaje lo reenvían; el número de copias se duplica por ronda: **T=log₂p(α+nβ)** para p potencia de dos.
+
+<U6Fig fig="binomial">
+**Cómo leerlo:** el proceso 0 parte con el mensaje. Sigue el número pequeño de cada arista: en las rondas 1, 2 y 3 aparecen 1, 2 y 4 nuevos receptores. Con p=8, el camino más largo tiene log₂8=3 envíos.
+</U6Fig>
+
+## Pipeline lineal: dividir para solapar (láminas 8–10)
+
+Se divide el mensaje de n elementos en k trozos. Un enlace tarda α+nβ/k por trozo. El primer trozo necesita p−1 enlaces; cada trozo posterior añade una etapa: **T(k)=(p+k−2)(α+nβ/k)**.
+
+<U6Fig fig="pipeline">
+**Cómo leerlo:** filas son procesos P0–P3 y la derecha es tiempo. Cada color es un trozo; la diagonal del mismo color baja una fila por paso. Mientras P1 envía el trozo 1, P0 ya puede enviarle el 2. Ejemplo propio con k=3.
+</U6Fig>
+
+**Derivación del tamaño óptimo:** sea a=nβ. Expande T(k)=a(p−2)/k+a+α(p−2)+αk. La derivada es −a(p−2)/k²+α. Igualarla a cero da **k\*=√(n(p−2)β/α)**; se redondea a un entero ≥1. Sustituir la raíz produce T\*≈nβ+pα+2√(npαβ) cuando p es grande (la expresión exacta conserva p−2 en la raíz y en el término α). Ejemplo propio calculado: n=10⁶, p=64, α=10⁻⁵, β=10⁻⁹ ⇒ k\*=√6200≈78.74; comparar enteros cercanos da **k=79**.
+
+## Árboles con trozos (láminas 11–21)
+
+Para un árbol binario de profundidad d, la lámina 12 modela **T(k)=(2d+3(k−1))(α+nβ/k)**. Expandiendo los términos que dependen de k: nβ(2d−3)/k+3αk; la derivada da **k\*=√(n(2d−3)β/(3α))**. Su forma dominante es T\*≈2dα+3nβ+O(√(ndαβ)).
+
+El árbol Fibonacci de la lámina 15 da **T≈dα+2nβ+O(√(ndαβ))**; la clase presenta esa aproximación sin derivarla. En la variante de la lámina 16 se da una expresión parecida con un término que depende de p; aquí se conserva la fórmula de la lámina, sin atribuirle una derivación nueva.
+
+En el **2-3 broadcast** dos árboles trabajan a la vez: los nodos internos de A son hojas de B y viceversa. Así se usa mejor la capacidad de envío de cada proceso. Su modelo es **T(k)=(2d+k−1)(α+nβ/k)**. Al expandir, los términos variables son nβ(2d−1)/k+αk: **k\*=√(n(2d−1)β/α)**, y T\*≈2 log p·α+nβ+O(√(n log p·αβ)).
+
+<U6Fig fig="dosarboles">
+**Cómo leerlo:** compara los dos dibujos: un nodo que reenvía en A (celeste) es hoja en B (naranja). Los árboles complementarios reparten el envío del mensaje en vez de dejar a las hojas inactivas. Es un esquema propio de la idea de la lámina 18.
+</U6Fig>
+
+## Hipercubo y ESBT (láminas 22–27)
+
+Un **hipercubo** de dimensión d tiene p=2<sup>d</sup> procesos identificados por d bits. Los *edge-disjoint spanning binomial trees* (ESBT, árboles binomiales de expansión sin aristas compartidas) permiten modelar **T(k)=(d+k)(α+nβ/k)**. La parte variable es ndβ/k+αk; por derivación, **k\*=√(ndβ/α)** y **T\*=dα+nβ+2√(ndαβ)** en este modelo continuo.
+
+:::caution[Factor en la aproximación de la lámina 26]
+La tabla de la lámina resume el término de raíz sin escribir el factor 2. La derivación exacta de (d+k)(α+nβ/k) sí da **2√(ndαβ)**. En notación O, ambos tienen el mismo orden; al comparar valores del modelo conviene conservar el 2.
+:::
+
+| Método | Modelo dominante | Conviene cuando… |
+|---|---|---|
+| Lineal | (p−1)(α+nβ) | p pequeño |
+| Binomial | log p(α+nβ) | mensajes cortos |
+| Pipeline lineal | nβ+pα+2√(npαβ) | mensajes largos |
+| Árbol binario pipeline | 2dα+3nβ+O(√(ndαβ)) | trozos en árbol |
+| Fibonacci | dα+2nβ+O(√(ndαβ)) | mensajes largos, según modelo de clase |
+| 2-3 | 2log p·α+nβ+O(√(n log p·αβ)) | mensajes largos |
+| ESBT | log p·α+nβ+2√(n log p·αβ) | mensajes largos en hipercubo |
+
+Para **n pequeño** manda el término de arranque: el binomial paga solo log p·α. Para **n grande** manda transferir los datos: pipeline, 2-3 y ESBT alcanzan un término principal nβ, sin multiplicarlo por log p. Estos son modelos idealizados, no tiempos medidos.
+
+<BroadcastCompare client:visible />
+
+## MPI y práctica real (láminas 28–32)
+
+MPI puede elegir distintos algoritmos según n y p mediante funciones de decisión (MPICH/Open MPI), y la interfaz **MPI_T** permite consultar o ajustar variables de la implementación. La lámina 31 advierte que esas decisiones **no garantizan el óptimo**. Para mensajes cortos, la lámina usa un árbol mínimo/binomial y T≈log p(α+nβ). Para *scatter/gather* (repartir y reunir), el texto de la fórmula de la lámina 32 es difícil de leer; como **conocimiento general**, un scatter binomial idealizado cuesta aproximadamente α log p+βn(p−1)/p. En Big Data, la lámina aproxima un broadcast como 2nβ si α es pequeño; Hadoop transmite mediante HDFS. Esas expresiones dependen de plataforma, topología y tamaño.
+
+## Práctica
+
+1. **Guiado:** con p=8, ¿cuántos pasos de un mensaje completo necesita el binomial? <Solucion>log₂8=**3**, frente a p−1=7 en el lineal. Cada paso cuesta α+nβ.</Solucion>
+2. **Autónomo:** calcula k\* del pipeline para n=10⁶, p=64, α=10⁻⁵, β=10⁻⁹. <Solucion>n(p−2)β/α=10⁶·62·10⁻⁹/10⁻⁵=6200; √6200≈78.74; prueba 78 y 79 y escoge **79**. Resolución propia.</Solucion>
+3. **Variante:** si n crece mucho con p fijo, ¿qué término domina en binomial y ESBT? <Solucion>Binomial: nβ log p. ESBT: nβ (más un término de raíz que crece como √n). Por ello ESBT tiene mejor término principal en este modelo.</Solucion>
+
+## Errores típicos
+
+- Tratar α como costo por elemento: es costo **por mensaje**; β sí multiplica n.
+- Creer que «pipelined» elimina toda latencia: cada trozo inicia un mensaje y paga α.
+- Usar k\* fraccionario como número de trozos: se redondea y se compara vecinos.
+- Presentar las curvas del modelo como mediciones de MPI.
+
+<Quiz client:visible id="u61-bcast" preguntas={[
+ {q:'¿Qué requiere una reducción en árbol?',opts:['operador asociativo','operador no asociativo','un solo proceso','n=p siempre'],ok:0},
+ {q:'T de broadcast binomial con p potencia de 2:',opts:['p(α+nβ)','log p(α+nβ)','n/p','α+nβ/p'],ok:1},
+ {q:'¿Qué representa α?',opts:['tiempo por elemento','inicio de un mensaje','número de procesos','profundidad'],ok:1},
+ {q:'k* del pipeline lineal:',opts:['√(n(p−2)β/α)','n/p','log p','p−1'],ok:0},
+ {q:'¿Cuál tiene término principal nβ para mensajes largos?',opts:['binomial','lineal','ESBT','ninguno'],ok:2},
+ {q:'El modelo de ESBT tras optimizar k contiene…',opts:['√(ndαβ)','2√(ndαβ)','p√n','ninguna raíz'],ok:1}
+]} />
+<Fuente archivos={['U6.1 Performance-BCast.pdf (láminas 2–32)']} />

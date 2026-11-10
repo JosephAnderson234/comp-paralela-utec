@@ -1,0 +1,91 @@
+---
+title: "Participación 10: producto escalar y matriz-vector"
+description: "Guía para plantear Tₚ y el número óptimo de procesos en línea e hipercubo; solución propia oculta."
+---
+import U6Fig from '../../../../components/U6Fig.astro';
+import EnSimple from '../../../../components/EnSimple.astro';
+import Quiz from '../../../../components/Quiz.tsx';
+import Solucion from '../../../../components/Solucion.astro';
+import Fuente from '../../../../components/Fuente.astro';
+import P10Calc from '../../../../components/playgrounds/P10Calc.tsx';
+
+<EnSimple>
+Antes de abrir la solución, piensa en dos gastos: **hacer cuentas** y **pasar resultados**. Con más procesos, el primero baja, pero el segundo sube. El número óptimo está donde la suma de ambos gastos es menor. La participación todavía es un ejercicio para intentar: usa las pistas y abre la solución después.
+</EnSimple>
+
+## Enunciado y supuestos (lámina 33)
+
+> «Calcule T<sub>p</sub>, y la cantidad óptima de procesos para una topología lineal y de hipercubo en los siguientes casos: Caso 1: producto escalar de vectores. El producto escalar de dos vectores a, b ∈ ℝⁿ es la suma de los productos de los correspondientes elementos de cada vector. Idealmente, r=n/p. Caso 2: producto matriz-vector. El producto A×b=c, con A∈ℝⁿˣⁿ y b∈ℝⁿ, puede realizarse particionando la matriz por fila o por columna. Consideramos que n es múltiplo de p…»
+
+El símbolo final del tiempo de cómputo se perdió en la lámina; aquí llamamos **τ** al tiempo de **una suma o multiplicación**. Un mensaje de m elementos cuesta **α+mβ**, donde α es arranque y β transferencia por elemento. Suponemos p divide n, procesos sincronizados, sin solapamiento de cómputo y mensajes, y una reducción de escalares que suma en cada salto (costo τ). Estas son **suposiciones del modelo** y lo que sigue es **resolución propia**, no una solución oficial ni tiempos medidos.
+
+<U6Fig fig="reduccion">
+**Cómo leerlo:** el dibujo de la izquierda representa ocho procesos identificados por bits; la red permite combinar resultados por dimensiones en tres rondas. Compara con una cadena, que necesita siete enlaces secuenciales si la raíz está en un extremo. La figura sirve para el producto escalar, donde cada proceso aporta un escalar.
+</U6Fig>
+
+### Pistas antes de abrir
+
+1. En producto escalar, cuenta aproximadamente n/p productos y n/p sumas por proceso: ¿qué término de T<sub>p</sub> baja como 1/p?
+2. Para juntar **un escalar por proceso**, escribe el costo de p−1 saltos en cadena y de log₂p rondas en hipercubo.
+3. Para matriz-vector por **filas**, cada proceso produce n/p salidas pero necesita todo b. Por **columnas**, cada uno produce un vector parcial de longitud n que debe sumarse.
+4. En cada T<sub>p</sub>(p), deriva con p continuo; al final compara enteros permitidos con p≤n y p divisor de n.
+
+<Solucion titulo="Resolución propia completa: caso 1, producto escalar">
+Cada proceso recibe n/p pares; hace aproximadamente **2n/p operaciones**. El cómputo local cuesta 2nτ/p. Sea c=α+β+τ el costo de pasar y combinar un escalar.
+
+**Reducción lineal hacia el maestro en un extremo:** la cadena necesita p−1 saltos secuenciales, así que **T<sub>p</sub>=2nτ/p+(p−1)c**. Derivada −2nτ/p²+c=0 ⇒ **p\*=√(2nτ/c)**. La segunda derivada 4nτ/p³>0 confirma mínimo.
+
+**Hipercubo:** log₂p rondas ⇒ **T<sub>p</sub>=2nτ/p+log₂p·c**. Derivada −2nτ/p²+c/(p ln2)=0 ⇒ **p\*=2nτ ln2/c**. El hipercubo permite más procesos porque la comunicación crece con log p en lugar de p.
+
+**Ejemplo numérico propio, solo del modelo:** n=10⁷, τ=10⁻⁹, α=10⁻⁶, β=8·10⁻⁹ ⇒ c=1.009·10⁻⁶. Sustitución: p\*<sub>lineal</sub>=√(0.02/1.009·10⁻⁶)=**140.789**, mejor entero cercano **141**; p\*<sub>hipercubo</sub>=0.02 ln2/(1.009·10⁻⁶)=**13 739.290**, mejor entero cercano **13 739**. Se evaluaron los dos enteros vecinos de cada mínimo; para un reparto exacto se escogería entre divisores de n y, en hipercubo físico, potencias de dos.
+</Solucion>
+
+<Solucion titulo="Resolución propia completa: caso 2, por filas y columnas">
+El trabajo local de matriz-vector es **2n²τ/p** (n²/p productos y aproximadamente n²/p sumas). Supongamos que cada proceso empieza con su trozo de b.
+
+**Partición por filas:** necesita el b completo. En una comunicación lineal de los trozos de n/p elementos, aproximamos **T<sub>p</sub>=2n²τ/p+(p−1)(α+nβ/p)**. Al expandir: (2n²τ−nβ)/p+αp−α+nβ. Derivada −(2n²τ−nβ)/p²+α=0 ⇒ **p\*=√((2n²τ−nβ)/α)**, si el numerador es positivo. Cuando 2n²τ≫nβ, p\*≈n√(2τ/α).
+
+En hipercubo, el *allgather* de trozos cuesta α log₂p+nβ(p−1)/p en este modelo: **T<sub>p</sub>=2n²τ/p+α log₂p+nβ(p−1)/p**. Reordenar da (2n²τ−nβ)/p+α log₂p+nβ; derivada −(2n²τ−nβ)/p²+α/(p ln2)=0 ⇒ **p\*=(2n²τ−nβ)ln2/α**.
+
+**Partición por columnas:** cada proceso ya tiene su trozo de b y calcula un vector parcial de n elementos. Los vectores parciales se reducen sumando n elementos por salto. En línea, **T<sub>p</sub>≈2n²τ/p+(p−1)(α+n(β+τ))**, así que **p\*=√(2n²τ/[α+n(β+τ)])**. En hipercubo, **T<sub>p</sub>≈2n²τ/p+log₂p[α+n(β+τ)]**, así que **p\*=2n²τ ln2/[α+n(β+τ)]**. Aquí el mensaje de cada ronda mide n elementos, y por ello la comunicación suele ser mayor que en el reparto por filas; la comparación concreta depende de α,β,τ,n y p.
+
+**Comprobación numérica propia:** n=1000, τ=10⁻⁹, α=10⁻⁶, β=10⁻⁹. Se evaluó T<sub>p</sub> en enteros 2…1000 y luego solo en divisores de 1000. Son **valores del modelo**, no un benchmark:
+
+| Caso | p\* continuo | mejor entero 2…1000 | mejor divisor de 1000 | T del divisor (s modelados) |
+|---|---:|---:|---:|---:|
+| filas, línea | 44.710 | 45 | 40 | 8.9975·10⁻⁵ |
+| filas, hipercubo | 1385.601 | 1000 (límite p≤n) | 1000 | 1.296478·10⁻⁵ |
+| columnas, línea | 25.820 | 26 | 25 | 1.52·10⁻⁴ |
+| columnas, hipercubo | 462.098 | 462 | 500 | 3.089735·10⁻⁵ |
+
+El valor «mejor divisor» solo impone p|n; para un hipercubo **estricto** también habría que imponer p potencia de dos, y 1000 no lo es. El óptimo matemático de un modelo no siempre coincide con una configuración física disponible.
+</Solucion>
+
+## Explora el modelo
+
+El simulador permite cambiar los supuestos numéricos y ver cómo se mueve el mínimo. Las curvas son **cálculos idealizados**; no representan ejecuciones.
+
+<P10Calc client:visible />
+
+## Práctica
+
+1. **Guiado:** con p=8, ¿cuántos saltos de reducción escalar tiene la cadena y cuántas rondas el hipercubo? <Solucion>Cadena: p−1=**7**; hipercubo: log₂8=**3**.</Solucion>
+2. **Autónomo:** deriva p\* del producto escalar lineal desde T=A/p+c(p−1). <Solucion>dT/dp=−A/p²+c. Igualar a cero da p²=A/c y **p\*=√(A/c)**, con A=2nτ. Resolución propia.</Solucion>
+3. **Variante:** ¿por qué reducir vectores parciales por columnas puede costar más que comunicar b por filas? <Solucion>Por columnas se envían **n valores en cada ronda** de reducción. Por filas, el allgather transmite trozos de b y el volumen total por proceso queda aproximadamente n(p−1)/p. Las constantes y la topología pueden cambiar el resultado real.</Solucion>
+
+## Errores típicos
+
+- Presentar p\* continuo como número válido sin revisar p≤n, p|n y, para hipercubo físico, p potencia de dos.
+- Olvidar la suma local: un producto escalar necesita productos **y** sumas.
+- En columnas, reducir un escalar cuando cada proceso produjo un vector de n valores.
+- Llamar «medición» a la evaluación de T<sub>p</sub> del modelo.
+
+<Quiz client:visible id="u62-p10" preguntas={[
+ {q:'¿Cuántas operaciones locales aproximadas hace el producto escalar por proceso?',opts:['n','2n/p','n²/p','log p'],ok:1},
+ {q:'Costo de reducir un escalar por cadena hacia un extremo:',opts:['log p·c','(p−1)c','pc²','nβ'],ok:1},
+ {q:'p* del escalar lineal:',opts:['√(2nτ/c)','2nτ/c','log p','n/p'],ok:0},
+ {q:'En matriz-vector por filas, ¿qué dato necesita cada proceso?',opts:['todo b','solo su salida c','toda A','un escalar'],ok:0},
+ {q:'En partición por columnas, ¿qué se reduce?',opts:['un bit','un escalar','vectores parciales de n valores','solo índices'],ok:2},
+ {q:'El p* continuo de filas/hipercubo puede superar n. Entonces…',opts:['se usa igual','se limita a procesos factibles y se compara T','se borra la comunicación','la fórmula es una medición'],ok:1}
+]} />
+<Fuente archivos={['U6.2 Performance-escalabilidad.pdf (lámina 33)', 'resolución propia: modelos y comprobación numérica']} />

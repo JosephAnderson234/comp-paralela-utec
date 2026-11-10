@@ -1,0 +1,104 @@
+---
+title: "Técnicas: pointer jumping, prefijos y coloreo"
+description: "Bosques, saltos de punteros, suma de caminos y coloreo Cole–Vishkin con el ciclo de las láminas."
+---
+import GrafosFig from '../../../../components/GrafosFig.astro';
+import EnSimple from '../../../../components/EnSimple.astro';
+import Quiz from '../../../../components/Quiz.tsx';
+import Solucion from '../../../../components/Solucion.astro';
+import Fuente from '../../../../components/Fuente.astro';
+import PointerJumping from '../../../../components/playgrounds/PointerJumping.tsx';
+
+<EnSimple>
+Un grafo es como un mapa del metro: estaciones son **vértices** y conexiones son **aristas**. Si cada estación apunta a la siguiente hacia una terminal, puedes encontrar la terminal mucho más rápido preguntando al «siguiente del siguiente» en cada ronda. Esa es la idea de *pointer jumping* (salto de punteros): **cada ronda duplica lo que alcanza un puntero**.
+</EnSimple>
+
+## Grafos y componentes (láminas 2–5)
+
+Una **componente conexa** es un grupo donde se puede ir entre cualquier par de vértices siguiendo aristas. Una *supercomponente* es una componente que contiene una fracción grande del grafo. En redes reales, dos componentes grandes que se conectan pasan a ser una sola. Los ejemplos de las láminas son redes de internet, metro, vuelos y electricidad.
+
+## Pointer jumping en un bosque (láminas 6–7)
+
+Un *bosque* es un conjunto de árboles. Cada nodo i tiene un sucesor P(i) hacia la raíz r; P(r)=r. Inicializa S(i)=P(i) y actualiza **simultáneamente** S(i)←S(S(i)). Una ronda lleva el puntero a dos aristas, la siguiente a cuatro. Con altura máxima h: **T=O(log h)** rondas y **W=O(n log h)** operaciones si trabajan n procesadores por ronda.
+
+<GrafosFig fig="saltos">
+**Cómo leerlo:** empieza en el nodo 0; cada arco curvo muestra adónde apunta tras la ronda 0, 1, 2 y 3. En la cadena de ocho nodos, el último salto se detiene en la raíz 7. Ejemplo propio.
+</GrafosFig>
+
+**Ejemplo propio, cadena 0→1→…→7.** Todos leen el S anterior al escribir el nuevo:
+
+| Ronda | S(0), S(1), S(2), S(3), S(4), S(5), S(6), S(7) | Distancia máxima cubierta |
+|---|---|---|
+| 0 | 1, 2, 3, 4, 5, 6, 7, 7 | 1 arista |
+| 1 | 2, 3, 4, 5, 6, 7, 7, 7 | 2 |
+| 2 | 4, 5, 6, 7, 7, 7, 7, 7 | 4 |
+| 3 | 7, 7, 7, 7, 7, 7, 7, 7 | hasta 8 |
+
+Por ejemplo, en la ronda 2: S₂(0)=S₁(S₁(0))=S₁(2)=4. En la ronda 3: S₃(0)=S₂(4)=7.
+
+<PointerJumping client:visible />
+
+## Prefijos paralelos sobre caminos (lámina 8)
+
+*Parallel prefix* (suma de prefijos paralela) acumula pesos desde cada nodo hasta la raíz. Si W(i) es el peso de la arista i→P(i) y W(r)=0, se actualizan **a la vez** W(i)←W(i)+W(S(i)) y S(i)←S(S(i)). El W a la derecha debe ser el de la ronda anterior.
+
+Ejemplo propio: en 0→1→2→3 con pesos 2, 3, 4 y 0, al inicio W(0)=2. Primera ronda: W(0)=2+3=5 y S(0)=2. Segunda: W(0)=5+4=9 y S(0)=3. El peso del camino completo es 9. Igual que antes: T=O(log h), W=O(n log h).
+
+## Coloreo Cole–Vishkin (láminas 9–15)
+
+Un **coloreo propio** da colores distintos a los extremos de cada arista. En un ciclo dirigido, S(i) es el vecino siguiente; comenzamos con c(i)=i, así todos son distintos. Escribimos c(i) en binario, tomamos el índice k del **bit menos significativo** donde c(i) y c(S(i)) difieren (el bit derecho es 0), y hacemos c'(i)=2k+c(i)<sub>k</sub>. Todos los nodos hacen esto en paralelo.
+
+<GrafosFig fig="ciclo">
+**Cómo leerlo:** sigue las flechas desde 1 hasta 3, 7, 14 y de vuelta a 1. El relleno representa c' tras una ronda: hay seis colores, pero dos nodos vecinos nunca comparten color. Los datos son los de la lámina 12.
+</GrafosFig>
+
+| v | c (bin) | k | c' | c'' |
+|---|---|---:|---:|---:|
+| 1 | 0001 | 1 | 2 | 2 |
+| 3 | 0011 | 2 | 4 | 0 |
+| 7 | 0111 | 0 | 1 | 1 |
+| 14 | 1110 | 2 | 5 | 2 |
+| 2 | 0010 | 0 | 0 | 0 |
+| 15 | 1111 | 0 | 1 | 1 |
+| 4 | 0100 | 0 | 0 | 0 |
+| 5 | 0101 | 0 | 1 | 1 |
+| 6 | 0110 | 1 | 3 | 0 |
+| 8 | 1000 | 1 | 2 | 2 |
+| 10 | 1010 | 0 | 0 | 0 |
+| 11 | 1011 | 0 | 1 | 1 |
+| 12 | 1100 | 0 | 0 | 0 |
+| 9 | 1001 | 2 | 4 | 1 |
+| 13 | 1101 | 2 | 5 | 0 |
+
+**Ejemplo trabajado:** 1 apunta a 3: 0001 y 0011 difieren primero en k=1; el bit 1 de 0001 es 0; por tanto c'(1)=2·1+0=2. El 3 apunta a 7: 0011 y 0111 difieren primero en k=2; bit 2 de 0011 es 0; c'(3)=4.
+
+**Por qué sigue siendo válido:** si dos vecinos tuvieran el mismo c', tendrían el mismo k y el mismo bit c(i)<sub>k</sub>. Pero k se escogió precisamente donde esos dos bits difieren: contradicción. La tabla pasa de 15 colores a 6 (0–5). Luego se recolorean los colores 5, 4 y 3, en ese orden, con el menor de 0, 1, 2 distinto de los dos vecinos; resulta el c'' de tres colores de la lámina 14.
+
+Repetir la reducción de bits hasta tres colores toma **O(log\* n)** rondas y O(n log\* n) trabajo (*teorema* de la lámina 13). *Logaritmo iterado* log\* n cuenta cuántos logaritmos base 2 hay que aplicar hasta obtener ≤1: 65536→16→4→2→1, así **log\* 65536=4**.
+
+:::caution[Notación en las láminas]
+En las láminas 10–11 la extracción del PDF pierde signos de desigualdad. Para un coloreo propio se exige **c(i) ≠ c(S(i))**, y k es el primer bit donde **difieren**. La tabla de las láminas 12 y 14 confirma esta lectura.
+:::
+
+## Práctica
+
+1. **Guiado:** en una cadena de 16 nodos, ¿cuántas rondas de salto bastan desde el primero? <Solucion>La distancia a la raíz es 15: 1→2→4→8→16 aristas cubiertas. Bastan **4 actualizaciones**.</Solucion>
+2. **Autónomo:** con pesos 5, 2, 7 en una cadena de cuatro nodos, calcula W del primero tras cada ronda. <Solucion>Inicio 5; ronda 1: 5+2=7; ronda 2: 7+7=14. **Resolución propia.**</Solucion>
+3. **Variante:** para 6→8 de la tabla, calcula k y c'(6). <Solucion>0110 frente a 1000: el bit 0 coincide (0), el bit 1 difiere (1 frente a 0); k=1 y c'(6)=2·1+1=**3**.</Solucion>
+
+## Errores típicos
+
+- Actualizar S en orden y reutilizar valores nuevos: la ronda paralela debe leer una copia del estado anterior.
+- Contar h rondas: la distancia se duplica, así que son O(log h).
+- Confundir c(i)<sub>k</sub> (un bit 0 o 1) con el número c(i) completo.
+- Dar el mismo color a vecinos al recolorear: comprueba los dos vecinos del ciclo.
+
+<Quiz client:visible id="u54-tecnicas" preguntas={[
+ {q:'¿Qué representa una arista?',opts:['un servidor','una conexión entre vértices','una componente','un color'],ok:1},
+ {q:'Tras dos rondas de pointer jumping, un puntero cubre hasta…',opts:['2','3','4','8'],ok:2},
+ {q:'Trabajo con n nodos y altura h:',opts:['O(log h)','O(n log h)','O(h²)','O(n²)'],ok:1},
+ {q:'En prefijos, W(i) representa…',opts:['número de colores','peso acumulado hacia la raíz','grado del nodo','índice del bit'],ok:1},
+ {q:'Si k=2 y el bit es 1, c’ vale…',opts:['2','3','4','5'],ok:3,why:'2k+bit = 4+1.'},
+ {q:'log* 65536 en base 2 es…',opts:['2','3','4','16'],ok:2}
+]} />
+<Fuente archivos={['U5.4 Algoritmos-grafos.pdf (láminas 2–15)']} />

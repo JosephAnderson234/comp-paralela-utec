@@ -1,0 +1,35 @@
+---
+import '../styles/svgfig.css';
+type Fig = 'binomial' | 'pipeline' | 'dosarboles' | 'overhead' | 'topologias' | 'hipercubo' | 'reduccion';
+interface Props { fig: Fig }
+const { fig } = Astro.props;
+const A = `url(#u6a-${fig})`;
+const defs = `<defs><marker id="u6a-${fig}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head"/></marker></defs>`;
+const cube = [[0,1],[0,2],[0,4],[1,3],[1,5],[2,3],[2,6],[3,7],[4,5],[4,6],[5,7],[6,7]];
+const xy = (i:number) => [160+(i&1)*90+((i>>2)&1)*45, 45+((i>>1)&1)*90+((i>>2)&1)*35];
+---
+<figure class="svgfig not-content"><div class="svgfig__scroll">
+{fig === 'binomial' && <svg viewBox="0 0 760 260" role="img" aria-label="Broadcast binomial con ocho procesos en tres rondas"><Fragment set:html={defs}/>
+{[[0,1,1],[0,2,2],[1,3,2],[0,4,3],[1,5,3],[2,6,3],[3,7,3]].map(([a,b,k]) => { const x1=65+a*90, x2=65+b*90, cy=[0,150,90,10][k]; return <><path d={`M ${x1} 190 Q ${(x1+x2)/2} ${cy} ${x2} 190`} class={k===3?'ln dash':'ln'} marker-end={A}/><text x={(x1+x2)/2} y={(190+cy)/2-4} class="t s mono">r{k}</text></> })}
+{Array.from({length:8},(_,i)=><><circle cx={65+i*90} cy="207" r="17" class={i===0?'c4':i===1?'c1':i<4?'c2':'c3'}/><text x={65+i*90} y="212" class="t s b">{i}</text></>)}<text x="380" y="250" class="t s">ronda 1: 1 copia nueva · ronda 2: 2 · ronda 3: 4 → 8 procesos en log₂ 8 = 3 rondas</text></svg>}
+{fig === 'pipeline' && <svg viewBox="0 0 760 220" role="img" aria-label="Pipeline de tres trozos por cuatro procesos"><Fragment set:html={defs}/>
+{[0,1,2,3].map(i=><text x="35" y={54+i*43} class="t s r">P{i}</text>)}
+{[0,1,2,3].flatMap(i=>[0,1,2].map(j=><><rect x={85+(i+j)*92} y={35+i*43} width="82" height="29" rx="5" class={`c${j+1}`}/><text x={126+(i+j)*92} y={55+i*43} class="t s b">trozo {j+1}</text></>))}<text x="470" y="205" class="t s">tiempo → · cada diagonal propaga un trozo</text></svg>}
+{fig === 'dosarboles' && <svg viewBox="0 0 760 210" role="img" aria-label="Dos árboles complementarios de 2-3 broadcast"><Fragment set:html={defs}/>
+{[0,1].map(g=><><text x={190+380*g} y="27" class="cap">árbol {g?'B':'A'}</text>{[[0,1],[0,2],[1,3],[1,4],[2,5],[2,6]].map(([a,b])=><line x1={190+380*g+(a===0?0:(a%2?-1:1)*80)} y1={a===0?55:a<3?105:158} x2={190+380*g+(b===1||b===3||b===4?-1:1)*(b<3?80:b===3||b===5?120:40)} y2={b<3?105:158} class="ln" marker-end={A}/>)}{[0,1,2,3,4,5,6].map(i=><circle cx={190+380*g+(i===0?0:(i===1||i===3||i===4?-1:1)*(i<3?80:i===3||i===5?120:40))} cy={i===0?55:i<3?105:158} r="12" class={(i<3)!==Boolean(g)?'c1':'c2'}/>)}</>)}<text x="380" y="198" class="t s">internos de A = hojas de B; se reparte el envío</text></svg>}
+{fig === 'overhead' && <svg viewBox="0 0 760 155" role="img" aria-label="Descomposición del costo p por Tp en trabajo W y overhead T0"><rect x="45" y="45" width="480" height="56" class="c1"/><rect x="525" y="45" width="190" height="56" class="c4"/><text x="285" y="79" class="t b">W = Tₛ (trabajo útil)</text><text x="620" y="79" class="t b">T₀ (overhead)</text><text x="380" y="133" class="t s b">pTₚ = W + T₀</text></svg>}
+{fig === 'topologias' && <svg viewBox="0 0 760 220" role="img" aria-label="Array, anillo, malla de dos por cuatro e hipercubo con ocho procesos"><Fragment set:html={defs}/>
+{['array','anillo','malla 2×4','hipercubo'].map((t,g)=><text x={95+190*g} y="25" class="cap">{t}</text>)}
+{[0,1,2,3].map(g=><>
+ {g===0&&Array.from({length:7},(_,i)=><line x1={30+i*19} y1="108" x2={49+i*19} y2="108" class="ln"/>)}
+ {g===1&&Array.from({length:8},(_,i)=>{const a=2*Math.PI*i/8,b=2*Math.PI*((i+1)%8)/8;return <line x1={285+65*Math.cos(a)} y1={108+65*Math.sin(a)} x2={285+65*Math.cos(b)} y2={108+65*Math.sin(b)} class="ln"/>})}
+ {g===2&&<>{Array.from({length:6},(_,i)=><line x1={420+(i%3)*43} y1={70+Math.floor(i/3)*77} x2={463+(i%3)*43} y2={70+Math.floor(i/3)*77} class="ln"/>)}{Array.from({length:4},(_,i)=><line x1={420+i*43} y1="70" x2={420+i*43} y2="147" class="ln"/>)}</>}
+ {g===3&&cube.map(([a,b])=>{const px=(i:number)=>620+(i&1)*47+((i>>2)&1)*25,py=(i:number)=>65+((i>>1)&1)*75+((i>>2)&1)*25;return <line x1={px(a)} y1={py(a)} x2={px(b)} y2={py(b)} class="ln"/>})}
+ {Array.from({length:8},(_,i)=>{const x=g===0?30+i*19:g===1?285+65*Math.cos(2*Math.PI*i/8):g===2?420+(i%4)*43:620+(i&1)*47+((i>>2)&1)*25;const y=g===0?108:g===1?108+65*Math.sin(2*Math.PI*i/8):g===2?70+Math.floor(i/4)*77:65+((i>>1)&1)*75+((i>>2)&1)*25;return <><circle cx={x} cy={y} r="10" class={i===0?'c4':'box'}/><text x={x} y={y+4} class="t s">{i}</text></>})}
+</>)}
+<text x="380" y="205" class="t s">8 procesos: cada enlace permite pasar un mensaje por ronda</text></svg>}
+{(fig === 'hipercubo' || fig === 'reduccion') && <svg viewBox="0 0 760 220" role="img" aria-label={fig==='hipercubo'?'Broadcast en hipercubo de tres dimensiones':'Reducción en cadena frente a hipercubo'}><Fragment set:html={defs}/>
+{cube.map(([a,b])=><line x1={xy(a)[0]} y1={xy(a)[1]} x2={xy(b)[0]} y2={xy(b)[1]} class="ln"/>)}
+{Array.from({length:8},(_,i)=><><circle cx={xy(i)[0]} cy={xy(i)[1]} r="17" class={i===0?'c4':`c${1+Math.floor(Math.log2(i))}`}/><text x={xy(i)[0]} y={xy(i)[1]+4} class="t s b">{i.toString(2).padStart(3,'0')}</text></>)}
+<text x="440" y="65" class="t s l">{fig==='hipercubo'?'000 → 001 → 011 → 111':'lineal: 7 enlaces sucesivos'}</text><text x="440" y="98" class="t s l">{fig==='hipercubo'?'1, 2 y 4 procesos reciben por ronda':'hipercubo: 3 rondas en árbol'}</text><text x="440" y="148" class="t s l b">p = 8 ⇒ log₂ p = 3</text></svg>}
+</div><figcaption><slot /></figcaption></figure>

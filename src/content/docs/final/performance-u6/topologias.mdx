@@ -1,0 +1,88 @@
+---
+title: "Patrones de comunicación y topologías"
+description: "Colectivas MPI y costo de broadcast, scatter, multibroadcast y prefijos en array, anillo, malla e hipercubo."
+---
+import U6Fig from '../../../../components/U6Fig.astro';
+import EnSimple from '../../../../components/EnSimple.astro';
+import Quiz from '../../../../components/Quiz.tsx';
+import Solucion from '../../../../components/Solucion.astro';
+import Fuente from '../../../../components/Fuente.astro';
+import TopoBroadcast from '../../../../components/playgrounds/TopoBroadcast.tsx';
+
+<EnSimple>
+Pasar un aviso por una fila de personas tarda más que repartirlo por una red donde cada persona puede avisar a varias. La **topología** dice quién puede hablar directamente con quién. Un mismo algoritmo puede usar un anillo «dibujado» por software aunque las máquinas estén conectadas de otra manera.
+</EnSimple>
+
+## Modelo y colectivas (láminas 19–23)
+
+La lámina modela un mensaje de m elementos como **T(m)=α+mβ**, donde α es la latencia fija de arranque y β el tiempo por elemento. Aquí suponemos enlaces bidireccionales y un mensaje por enlace en cada ronda; el tiempo también depende de la distancia y la contención. Una **topología física** son los cables y switches reales; una **lógica** son las relaciones de comunicación elegidas por el programa.
+
+| Patrón | Operaciones MPI | Qué hacen |
+|---|---|---|
+| Todos → uno | `Gather`, `Reduce` | reúnen datos o combinan valores en una raíz |
+| Uno → todos | `Bcast`, `Scatter` | difunden una copia o reparten partes |
+| Todos ↔ todos | `Allgather`, `Alltoall`, `Allreduce`, `Barrier` | todos reciben datos, intercambian, reducen para todos o sincronizan |
+
+Las variantes `I*` (`Ibcast`, `Ireduce`, etc.) son **no bloqueantes**: devuelven una petición que se completa después. Las variantes `*v` (`Gatherv`, `Scatterv`, `Alltoallv`) permiten tamaños variables por proceso. Una barrera sincroniza, no reparte datos.
+
+## Cuatro formas de conectar p procesos (láminas 24–32)
+
+Un *single broadcast* difunde un mensaje de una raíz; *multi-broadcast* difunde los datos de todos; *scatter* entrega partes distintas; una **suma de prefijos** da a cada posición la suma hasta ella.
+
+<U6Fig fig="topologias">
+**Cómo leerlo:** en cada grupo P0 está coloreado como origen. Sigue los enlaces entre círculos: el array tiene dos extremos; el anillo cierra sus extremos; la malla 2×4 añade enlaces verticales; el hipercubo añade conexiones por bits. Ejemplo propio con p=8.
+</U6Fig>
+
+| Topología | Diámetro / difusión de una raíz | Multibroadcast | Scatter | Prefijos |
+|---|---|---|---|---|
+| Array lineal | p−1 desde un extremo; ≈p/2 desde el centro, O(p) | O(p) rondas en el modelo de la lámina 24 | O(p) por la cadena (*conocimiento general*) | O(p) |
+| Anillo | ⌊p/2⌋, O(p) | ≈p/2 rondas de propagación, O(p) | O(p) | O(p) (*conocimiento general*) |
+| Malla d-dimensional | d(p<sup>1/d</sup>−1), O(p<sup>1/d</sup>) para d fijo | O(p) como cota de la lámina | O(p) por camino lineal | O(p) |
+| Hipercubo, p=2<sup>d</sup> | d=log₂p | log p rondas; datos transmitidos crecen | O(log p) rondas, con volumen total n (*conocimiento general*) | O(log p) |
+
+Estas son **rondas** asintóticas, no segundos. Cuando un paso mueve m elementos se suma α+mβ. La malla 2×4 del dibujo no es cuadrada: desde una esquina su distancia máxima es (2−1)+(4−1)=4; la fórmula d(p<sup>1/d</sup>−1) se aplica a una malla equilibrada con igual lado.
+
+**Array:** desde el extremo P0 el aviso viaja P0→P1→…→P7: 7 pasos. Desde un proceso central puede avanzar a ambos lados: 4 pasos para p=8. Los prefijos de 1,2,3,4, por ejemplo, se forman 1→3→6→10: cada nodo agrega su valor antes de reenviar.
+
+**Anillo:** desde P0 se propaga en dos direcciones; P4, el opuesto, recibe tras 4 pasos. En multi-broadcast cada proceso inicia con su dato y en cada ronda reenvía los que recibió por el lado contrario. El volumen de datos importa además de las rondas.
+
+**Malla:** en una malla cuadrada √p×√p, del extremo a la esquina opuesta hay 2(√p−1) enlaces. Un broadcast que avanza por filas y columnas alcanza todos en ese número de rondas. Para prefijos se pueden sumar filas, propagar los totales de fila y corregir cada fila: O(p) según la lámina 28.
+
+## Hipercubo: el bit que cambia (láminas 29–31)
+
+Los p=2<sup>d</sup> procesos tienen etiquetas de d bits. Dos son vecinos si sus etiquetas difieren en **un bit**. En p=8, P000 envía a P001 (dimensión 0); los dos informados envían a P010 y P011 (dimensión 1); los cuatro envían a P100–P111 (dimensión 2). Tras log₂8=3 rondas, todos tienen la copia.
+
+<U6Fig fig="hipercubo">
+**Cómo leerlo:** empieza en 000 y compara cada par de etiquetas conectadas: cambia un solo bit. Las tres dimensiones permiten duplicar el número de procesos informados en cada ronda. Ejemplo propio con p=8.
+</U6Fig>
+
+**Multibroadcast:** en la ronda i cada proceso intercambia con su vecino un bloque que ya contiene 2<sup>i−1</sup> mensajes originales de m elementos. La ronda cuesta α+2<sup>i−1</sup>mβ. Para d=log₂p:
+
+$$T=\sum_{i=1}^{d}(\alpha+2^{i-1}m\beta)=d\alpha+m\beta(1+2+\cdots+2^{d-1})=\alpha\log_2p+m\beta(2^d-1)=\alpha\log_2p+m\beta(p-1).$$
+
+Ejemplo propio p=8, m=2: se transmiten 2, 4 y 8 elementos por proceso en las tres rondas; T=3α+14β. La suma de prefijos usa una subida de totales y una bajada para distribuir prefijos: O(log p) rondas (lámina 31).
+
+<TopoBroadcast client:visible />
+
+## Práctica
+
+1. **Guiado:** p=8, origen al extremo de un array: ¿cuántas rondas hasta P7? <Solucion>Distancia entre P0 y P7: **7 enlaces**, así que 7 rondas con un salto por ronda.</Solucion>
+2. **Autónomo:** p=16 en hipercubo: ¿cuántos bits y rondas de broadcast? <Solucion>d=log₂16=**4** bits y 4 rondas. Los informados crecen 1→2→4→8→16.</Solucion>
+3. **Variante:** p=8,m=3, calcula la parte β del multi-broadcast. <Solucion>mβ(p−1)=3β·7=**21β**. La latencia suma 3α. Resolución propia.</Solucion>
+
+## Errores típicos
+
+- Llamar «física» a una topología MPI construida por el algoritmo: esa es lógica.
+- Confundir broadcast con scatter: el primero entrega la misma copia; el segundo, partes distintas.
+- Contar solo rondas y olvidar que el mensaje crece durante multi-broadcast.
+- Usar p pasos en hipercubo: para single broadcast son log₂p.
+
+<Quiz client:visible id="u62-topologias" preguntas={[
+ {q:'¿Qué operación envía una copia igual a todos?',opts:['Scatter','Bcast','Gather','Reduce'],ok:1},
+ {q:'¿Qué indica la V en Gatherv?',opts:['velocidad','tamaños variables','vector de tiempo','versión sin bloqueo'],ok:1},
+ {q:'Diámetro de un anillo de p=8:',opts:['2','3','4','7'],ok:2},
+ {q:'Broadcast de p=8 en hipercubo:',opts:['3 rondas','4 rondas','7 rondas','8 rondas'],ok:0},
+ {q:'En multi-broadcast de hipercubo, el volumen acumulado es…',opts:['mβ log p','mβ(p−1)','p²β','αp'],ok:1},
+ {q:'Dos vecinos del hipercubo difieren en…',opts:['todos los bits','un bit','dos bits','ninguno'],ok:1}
+]} />
+<Fuente archivos={['U6.2 Performance-escalabilidad.pdf (láminas 19–32)']} />

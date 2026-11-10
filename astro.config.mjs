@@ -96,6 +96,25 @@ export default defineConfig({
 							],
 						},
 						{
+							label: '14 · Grafos (U5.4)',
+							badge: { text: 'sem 13', variant: 'note' },
+							items: [
+								{ label: 'Técnicas: pointer jumping, prefijos y coloreo', slug: 'final/grafos/tecnicas' },
+								{ label: 'Prim y Dijkstra en paralelo', slug: 'final/grafos/prim-dijkstra' },
+								{ label: 'Floyd: todas las rutas más cortas', slug: 'final/grafos/floyd' },
+							],
+						},
+						{
+							label: '15 · Performance (U6)',
+							badge: { text: 'sem 14', variant: 'note' },
+							items: [
+								{ label: 'Broadcast y reducción', slug: 'final/performance-u6/broadcast' },
+								{ label: 'Métricas y escalabilidad', slug: 'final/performance-u6/metricas' },
+								{ label: 'Patrones y topologías', slug: 'final/performance-u6/topologias' },
+								{ label: 'Participación 10', slug: 'final/performance-u6/participacion10' },
+							],
+						},
+						{
 							label: '12 · Examen final',
 							badge: { text: 'PD05', variant: 'caution' },
 							items: [

@@ -1,0 +1,106 @@
+---
+title: "Prim y Dijkstra en paralelo"
+description: "Partición de vértices, mínimos locales y globales, costos e isoeficiencia con una traza de Prim."
+---
+import GrafosFig from '../../../../components/GrafosFig.astro';
+import EnSimple from '../../../../components/EnSimple.astro';
+import Quiz from '../../../../components/Quiz.tsx';
+import Solucion from '../../../../components/Solucion.astro';
+import Fuente from '../../../../components/Fuente.astro';
+import PrimParalelo from '../../../../components/playgrounds/PrimParalelo.tsx';
+
+<EnSimple>
+Imagina construir una red de cables entre cinco casas. **Prim** elige siempre el cable más barato que conecta una casa nueva a la red. **Dijkstra** busca el viaje más corto desde una casa inicial. En paralelo, cada equipo vigila parte de las casas, propone su mejor opción y todos acuerdan cuál agregar.
+</EnSimple>
+
+## Prim: árbol recubridor mínimo (láminas 16–19)
+
+Un *árbol recubridor mínimo* (MST) une todos los vértices de un grafo no dirigido con el menor peso total y sin ciclos. Prim guarda un conjunto VT de vértices ya agregados. Para cada v fuera de VT, d[v] es la arista más barata desde VT y parent[v] es el extremo que la ofrece. Con **matriz de adyacencia**, buscar y actualizar los n candidatos durante n rondas cuesta Θ(n²) en secuencia.
+
+Se divide el vector d y las columnas de la matriz A en p bloques de n/p vértices: cada proceso guarda sus candidatos. En cada ronda: (1) mínimo local, (2) reducción global del par (distancia, vértice), (3) comunicar el elegido, (4) actualizar d local. `MPI_Allreduce` con `MINLOC` implementa la elección global (*conocimiento general*); si todos reciben el resultado, el índice ya queda difundido, y un broadcast adicional solo hace falta si el diseño separa ambas etapas. Los empates se resuelven por índice para reproducir la traza.
+
+<GrafosFig fig="prim">
+**Cómo leerlo:** P0 guarda 0, 1 y 2 (celeste), P1 guarda 3 y 4 (naranja). Los números sobre las aristas son pesos de un ejemplo propio. En cada ronda cada color propone su d mínimo; la reducción elige uno para ambos.
+</GrafosFig>
+
+### Traza completa del ejemplo propio, p=2
+
+Aristas: 0–1:2, 0–2:3, 1–2:1, 1–3:4, 2–3:5, 2–4:6, 3–4:2. Empieza en 0. ∞ significa «aún no hay conexión conocida». La tabla muestra d **antes** de elegir y las propuestas de cada proceso.
+
+| Ronda | d[0..4] antes | P0 (0–2) | P1 (3–4) | Elegido | Actualización posterior |
+|---|---|---|---|---|---|
+| 0 | 0,∞,∞,∞,∞ | 0:0 | 3:∞ | 0 | d1=2, d2=3 |
+| 1 | —,2,3,∞,∞ | 1:2 | 3:∞ | 1 | d2=min(3,1)=1; d3=4 |
+| 2 | —,—,1,4,∞ | 2:1 | 3:4 | 2 | d4=6; d3=min(4,5)=4 |
+| 3 | —,—,—,4,6 | — | 3:4 | 3 | d4=min(6,2)=2 |
+| 4 | —,—,—,—,2 | — | 4:2 | 4 | termina |
+
+Padres: −1, 0, 1, 1, 3. Peso del MST: 2+1+4+2=**9**. Los «—» son vértices ya agregados.
+
+<PrimParalelo client:visible />
+
+Programa propio **compilado y ejecutado** con OpenMP, con `parallel for` para mínimos por bloque y actualización; salida real:
+
+```text
+paso 0: P0=0(0) P1=3(999) elige=0
+paso 1: P0=1(2) P1=3(999) elige=1
+paso 2: P0=2(1) P1=3(4) elige=2
+paso 3: P0=-1(999) P1=3(4) elige=3
+paso 4: P0=-1(999) P1=4(2) elige=4
+padres: -1 0 1 1 3
+peso=9
+```
+
+Aquí `999` es el centinela que representa ∞; `-1` significa que el proceso no tiene candidato. El programa verifica el resultado, **no mide rendimiento**.
+
+## Tiempo y eficiencia (láminas 20–21)
+
+Sea n el número de vértices, p≤n procesos y cada comparación/actualización local un paso; una reducción entre p procesos cuesta O(log p) pasos en este modelo idealizado, sin contar latencia real de red.
+
+1. **Trabajo útil:** n rondas × n candidatos = W=Θ(n²).
+2. **Una ronda:** revisar n/p candidatos cuesta O(n/p), reducción O(log p), actualización local O(n/p). Entonces T<sub>ronda</sub>=O(n/p+log p).
+3. **n rondas:** T<sub>p</sub>=O(n²/p+n log p).
+4. **Speedup:** S≈n²/(n²/p+n log p)=p/(1+p log p/n).
+5. **Eficiencia:** E=S/p≈**1/(1+p log p/n)**.
+6. **E constante:** p log p/n debe ser constante, luego n=Θ(p log p); como W=n², la **isoeficiencia en trabajo** es W=Θ(p² log² p). Esa última expresión es sobre W, no sobre n.
+
+:::caution[Notación de crecimiento en la lámina 20]
+La lámina concluye «para E=O(1), n=O(p log p)». Si se quiere **mantener E acotada por debajo** al crecer p, la condición es n=Ω(p log p); en la frontera de isoeficiencia se escribe n=Θ(p log p). La O sola solo da una cota superior y no garantiza eficiencia constante.
+:::
+
+Con listas de adyacencia y un *heap* (cola de prioridad) binario, el costo secuencial es O(m log n); con heap de Fibonacci, O(m+n log n), donde m es número de aristas (*conocimiento general*, también indicado en lámina 21). Prim con matriz es especialmente razonable en grafos densos, donde m≈n².
+
+## Dijkstra: cambia la actualización (láminas 22–24)
+
+Dijkstra calcula la ruta más corta **desde un origen** a todos los vértices cuando los pesos son no negativos. También elige el d mínimo global en cada ronda; aquí d[v] es la **distancia total desde el origen**, no una arista. La partición y la reducción pueden ser las mismas que en Prim.
+
+| | Prim | Dijkstra |
+|---|---|---|
+| Qué guarda d[v] | arista mínima desde el árbol a v | distancia total desde el origen a v |
+| Tras elegir u | d[v]←min(d[v], **w(u,v)**) | d[v]←min(d[v], **d[u]+w(u,v)**) |
+| Resultado | MST, padres del árbol | rutas más cortas desde origen |
+
+**Ejemplo propio:** si d[u]=7, w(u,v)=2 y d[v]=12, Prim compara 12 con 2 y deja 2; Dijkstra compara 12 con 7+2=9 y deja 9. Se usa el mismo patrón de comunicaciones pero se responde una pregunta distinta. Para matrices, el análisis paralelo idealizado coincide con el de Prim.
+
+## Práctica
+
+1. **Guiado:** en la ronda 2 de la tabla, ¿por qué P0 gana a P1? <Solucion>P0 propone (1,2) y P1 (4,3); la reducción compara distancias: 1&lt;4, así que entra el vértice 2.</Solucion>
+2. **Autónomo:** con n=64 y p=4, evalúa p log₂p/n y E del modelo. <Solucion>p log₂p/n=4·2/64=1/8; E=1/(1+1/8)=**8/9≈0.889**. Resolución propia del modelo idealizado.</Solucion>
+3. **Variante:** d[u]=5, w(u,v)=3, d[v]=10: actualiza para Prim y Dijkstra. <Solucion>Prim: min(10,3)=3. Dijkstra: min(10,5+3)=8. No intercambies sus significados.</Solucion>
+
+## Errores típicos
+
+- Usar d[u]+w(u,v) en Prim: eso calcula distancia de ruta, no la arista de entrada al MST.
+- Omitir la reducción global: los mínimos locales por sí solos no eligen un único vértice.
+- Confundir n=Θ(p log p) con W=Θ(p² log² p).
+- Aplicar Dijkstra con aristas negativas: su elección voraz ya no está justificada.
+
+<Quiz client:visible id="u54-prim" preguntas={[
+ {q:'¿Qué elige Prim en cada ronda?',opts:['la ruta total más corta','la arista mínima que conecta un vértice nuevo','el grado mayor','cualquier vértice'],ok:1},
+ {q:'¿Qué combina la reducción global?',opts:['todos los padres','los mínimos locales (distancia,vértice)','todas las matrices','los pesos totales'],ok:1},
+ {q:'Actualización de Dijkstra:',opts:['min(d[v],w(u,v))','min(d[v],d[u]+w(u,v))','d[v]+w(u,v)','d[u]'],ok:1},
+ {q:'Tₚ idealizado de Prim con matriz:',opts:['O(n/p)','O(n²/p+n log p)','O(log n)','O(n³/p)'],ok:1},
+ {q:'Para E constante, n debe crecer al menos como…',opts:['log p','p','p log p','p² log² p'],ok:2},
+ {q:'Peso del MST del ejemplo:',opts:['7','8','9','10'],ok:2}
+]} />
+<Fuente archivos={['U5.4 Algoritmos-grafos.pdf (láminas 16–24)', 'programa propio: prim_omp.cpp (compilado y ejecutado)']} />

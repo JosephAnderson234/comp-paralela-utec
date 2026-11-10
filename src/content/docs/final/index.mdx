@@ -26,6 +26,7 @@ Ordenada por peso en el modelo 2026-I. Cada paso dice qué deberías poder **hac
 | 5 | [Bases y ranking](/final/ordenamiento/bases/) → [Quicksort](/final/ordenamiento/quicksort/) → [Bitónico](/final/ordenamiento/merge-bitonico/) | explicar y trazar los algoritmos de ordenamiento paralelo | 1.5 pts |
 | 6 | [Escalabilidad de ordenamientos](/final/ordenamiento/escalabilidad/) | sacar la isoeficiencia de una T<sub>p</sub> dada y comparar | ↑ |
 | 7 | [Búsqueda: modelos](/final/busqueda/modelos/) → [DFS y B&B](/final/busqueda/dfs-bnb/) → [PWS y DTS](/final/busqueda/pws-dts/) → [Participación 9](/final/busqueda/participacion9/) | contar pasos en un árbol con PWS y DTS, y sacar S y E | nuevo (no estaba en la PD05 2026-I) |
+| 8 | [Grafos](/final/grafos/tecnicas/) → [Prim y Dijkstra](/final/grafos/prim-dijkstra/) → [Floyd](/final/grafos/floyd/) → [Broadcast](/final/performance-u6/broadcast/) → [Métricas](/final/performance-u6/metricas/) → [Topologías](/final/performance-u6/topologias/) → [Participación 10](/final/performance-u6/participacion10/) | trazar algoritmos de grafos y justificar comunicación, eficiencia y p óptimo | nuevo (semanas 13–14) |
 
 **Cómo comprobar que lo dominas:** sin mirar la solución, resuelve (a) la práctica 1 de *Jacobi en paralelo*, (b) el DAG del simulacro, y (c) la isoeficiencia de T<sub>p</sub> = (n/p) log n + log² p. Si los tres te salen solos, estás listo para la PD05.
 
@@ -39,9 +40,15 @@ Objetivos que da el profesor en las láminas de U5:
 | 2 | **Ecuaciones diferenciales parciales** | ✅ U5.1 (semana 11) |
 | 3 | **Algoritmos de ordenamiento en paralelo** | ✅ U5.2 (semanas 11–12) |
 | 4 | **Algoritmos de búsqueda en paralelo** | ✅ U5.3 (semana 13) + participación 9 |
-| 5 | Algoritmos de grafos en paralelo | ⏳ todavía no hay material |
+| 5 | Algoritmos de grafos en paralelo | ✅ U5.4 (semana 13) |
 
-La lámina 36 de U5.2 menciona además una **Unidad 6: Performance** (minimizar la comunicación), que aún no ha llegado.
+## Unidad 6: Desempeño en paralelo
+
+| # | Objetivo | Estado |
+|---|---|---|
+| 1 | Broadcast y reducción (comunicación global) | ✅ [U6.1: Broadcast](/final/performance-u6/broadcast/) |
+| 2 | Performance y escalabilidad | ✅ [U6.2: Métricas](/final/performance-u6/metricas/) · [Topologías](/final/performance-u6/topologias/) · [Participación 10](/final/performance-u6/participacion10/) |
+| 3 | GPUs/CUDA | ⏳ pendiente |
 
 ## Unidad 4: Comunicación y coordinación
 
@@ -61,8 +68,9 @@ La lámina 36 de U5.2 menciona además una **Unidad 6: Performance** (minimizar 
 | 10 | U4.4 OpenMP (modelo de memoria, locks), U4.5 Paralelismo híbrido + 7 programas de teoría + simulacro PC4 (9 programas) | ✅ agregado |
 | 11 | U5.1 EDP (+ `laplace_sec/omp/mpi.cpp`), U5.2 Ordenamiento, `matvec_hibrido.cpp`, `peekaboo_mpi_omp.cpp` | ✅ agregado |
 | 12 | PD05 2026-I (modelo de examen), U5.2 (misma versión) | ✅ agregado: simulacro resuelto |
-| 13 | U5.3 Búsqueda + participación 9 (PWS vs DTS) | ✅ agregado: 5 páginas, simulador del árbol, código verificado |
-| 14 en adelante | grafos, performance | ⏳ pendiente |
+| 13 | U5.3 Búsqueda + participación 9 (PWS vs DTS); U5.4 Grafos | ✅ agregado |
+| 14 | U6.1 Broadcast, U6.2 Performance y escalabilidad, participación 10 | ✅ agregado |
+| 15 en adelante | GPUs/CUDA | ⏳ pendiente |
 
 :::note[Sobre el código]
 Todos los programas se compilaron y ejecutaron: los de clase y las soluciones propias (onda con MPI, sections vs tasks, quicksort con tareas y bitónico con OpenMP). Las salidas y los tiempos de estas páginas son **medidos**, en una laptop de 8 núcleos (12 hilos), no en Khipu: los números absolutos cambiarán en otra máquina, las tendencias no. Donde un código de clase tiene un detalle que falla (por ejemplo, `laplace_mpi.cpp` con p = 3), está marcado.
@@ -95,6 +103,23 @@ Todos los programas se compilaron y ejecutaron: los de clase y las soluciones pr
 	<LinkCard title="Participación 9 resuelta" href="/final/busqueda/participacion9/" description="PWS = 35, DTS = 13 pasos, S y E, análisis y variantes." />
 </CardGrid>
 
+## Grafos (semana 13)
+
+<CardGrid>
+	<LinkCard title="Técnicas: pointer jumping, prefijos y coloreo" href="/final/grafos/tecnicas/" description="Saltos de punteros, pesos de caminos y reducción de colores Cole–Vishkin." />
+	<LinkCard title="Prim y Dijkstra en paralelo" href="/final/grafos/prim-dijkstra/" description="Mínimos locales y globales, traza de Prim y diferencia en la actualización." />
+	<LinkCard title="Floyd: todas las rutas más cortas" href="/final/grafos/floyd/" description="Dos ejemplos verificados, PRAM y bloques 2-D con análisis de comunicación." />
+</CardGrid>
+
+## Performance (semana 14)
+
+<CardGrid>
+	<LinkCard title="Broadcast y reducción" href="/final/performance-u6/broadcast/" description="Árboles, pipeline y comparación de modelos de comunicación." />
+	<LinkCard title="Métricas y escalabilidad" href="/final/performance-u6/metricas/" description="MIPS, FLOPS, overhead, eficiencia e isoeficiencia paso a paso." />
+	<LinkCard title="Patrones y topologías" href="/final/performance-u6/topologias/" description="MPI, array, anillo, malla e hipercubo con broadcast interactivo." />
+	<LinkCard title="Participación 10" href="/final/performance-u6/participacion10/" description="Guía para intentar el problema y resolución propia oculta." />
+</CardGrid>
+
 ## Examen
 
 <CardGrid>
@@ -111,4 +136,4 @@ Todos los programas se compilaron y ejecutaron: los de clase y las soluciones pr
 	<LinkCard title="MPI + OpenMP" href="/final/hibrido/mpi-openmp/" description="Peekaboo, modos, Slurm en Khipu y el matriz × vector híbrido de la semana 11." />
 </CardGrid>
 
-<Fuente archivos={['U5.1 Algoritmos-EDP.pdf', 'U5.2 Algoritmos-ordenamiento.pdf', 'U5.3 Algoritmos-busqueda.pdf', '2026I-CS4052-PD5.pdf', 'U4.1–U4.5', 'semana_9/', 'semana_10/', 'semana_11/']} />
+<Fuente archivos={['U5.1 Algoritmos-EDP.pdf', 'U5.2 Algoritmos-ordenamiento.pdf', 'U5.3 Algoritmos-busqueda.pdf', 'U5.4 Algoritmos-grafos.pdf', 'U6.1 Performance-BCast.pdf', 'U6.2 Performance-escalabilidad.pdf', '2026I-CS4052-PD5.pdf', 'U4.1–U4.5', 'semana_9/', 'semana_10/', 'semana_11/']} />

@@ -1,0 +1,9 @@
+import { useMemo, useState } from 'react';
+import PlayerControls, { usePlayer } from '../ui/Player';
+
+export default function PointerJumping() {
+ const [n,setN]=useState(8);
+ const states=useMemo(()=>{let s=Array.from({length:n},(_,i)=>Math.min(n-1,i+1));const out=[s];while(s[0]!==n-1){s=s.map(v=>s[v]);out.push(s)}return out},[n]);
+ const pl=usePlayer(states.length-1,1200), cur=states[pl.k];
+ return <div className="pg not-content"><h4>Salta punteros hasta la raíz</h4><p className="pg-sub">Cada nodo apunta al siguiente; el último es la raíz y se apunta a sí mismo. Todas las actualizaciones de una ronda usan el estado anterior.</p><div className="pg-row"><label className="pg-field"><span>n = {n} nodos</span><input type="range" min="4" max="12" value={n} onChange={e=>{setN(+e.target.value);pl.reset()}} /></label></div><PlayerControls pl={pl} label="ronda"/><div style={{overflowX:'auto'}}><svg viewBox="0 0 760 150" style={{width:'100%',minWidth:540}} role="img" aria-label="Punteros que saltan hacia la raíz">{cur.map((to,i)=>{const x=45+i*60;return <g key={i}><path d={`M${x} 65 Q${(x+45+to*60)/2} ${i===to?75:15-i%2*8} ${45+to*60} 65`} fill="none" stroke="var(--pg-c2)" strokeWidth="2"/><circle cx={x} cy="75" r="15" fill={i===n-1?'var(--pg-ok)':'var(--pg-c1)'}/><text x={x} y="80" fontSize="12" textAnchor="middle">{i}</text><text x={x} y="125" fontSize="11" textAnchor="middle">→{to}</text></g>})}</svg></div><div className="pg-stats"><div className="pg-stat"><span className="k">S(0)</span><span className="v">{cur[0]}</span></div><div className="pg-stat"><span className="k">Distancia cubierta</span><span className="v">hasta {Math.min(2**pl.k,n-1)} aristas</span></div></div><div className="pg-note">Ronda {pl.k}: {pl.k?`S(i) toma S(S(i)) de la ronda ${pl.k-1}.`:'cada S(i) empieza en el sucesor inmediato.'}</div></div>
+}

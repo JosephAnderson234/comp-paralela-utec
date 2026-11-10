@@ -1,0 +1,42 @@
+---
+import '../styles/svgfig.css';
+type Fig = 'saltos' | 'ciclo' | 'prim' | 'floyd';
+interface Props { fig: Fig }
+const { fig } = Astro.props;
+const A = `url(#gra-${fig})`;
+const defs = `<defs><marker id="gra-${fig}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head"/></marker></defs>`;
+const ciclo = [1,3,7,14,2,15,4,5,6,8,10,11,12,9,13];
+const color = [2,4,1,5,0,1,0,1,3,2,0,1,0,4,5];
+const P = [0,1,2,3,4,5];
+---
+<figure class="svgfig not-content">
+  <div class="svgfig__scroll">
+    {fig === 'saltos' && <svg viewBox="0 0 760 220" role="img" aria-label="Pointer jumping: un puntero salta 1, 2 y 4 posiciones hasta llegar al final (7)">
+      <Fragment set:html={defs} />
+      {[0,1,2,3,4,5,6,7].map(i => <><circle cx={54+i*90} cy="105" r="19" class={i===7?'c4':'box'}/><text x={54+i*90} y="110" class="t s b">{i}</text></>)}
+      {[1,2,4,7].map((t,k) => <><path d={`M 54 84 Q ${(108+90*t)/2} ${56-k*14} ${54+90*t} 84`} class="ln" marker-end={A}/><text x={54+90*t} y="146" class="t s mu">S{k}</text></>)}
+      <text x="24" y="27" class="t s l b">Cadena 0→1→2→…→7: puntero de 0 tras cada ronda</text>
+      <text x="380" y="182" class="t s">S₀(0)=1  →  S₁(0)=2  →  S₂(0)=4  →  S₃(0)=7</text>
+    </svg>}
+    {fig === 'ciclo' && <svg viewBox="0 0 760 250" role="img" aria-label="Ciclo dirigido de quince vértices y seis colores tras Cole Vishkin">
+      <Fragment set:html={defs} />
+      {ciclo.map((v,i) => { const x=380+300*Math.cos(2*Math.PI*i/15-Math.PI/2), y=124+92*Math.sin(2*Math.PI*i/15-Math.PI/2); const j=(i+1)%15, xx=380+300*Math.cos(2*Math.PI*j/15-Math.PI/2), yy=124+92*Math.sin(2*Math.PI*j/15-Math.PI/2); const d=Math.hypot(xx-x,yy-y), ux=(xx-x)/d, uy=(yy-y)/d; return <><line x1={x+ux*19} y1={y+uy*19} x2={xx-ux*20} y2={yy-uy*20} class="ln" marker-end={A}/><circle cx={x} cy={y} r="17" class={`c${color[i]+1}`}/><text x={x} y={y+4} class="t s b">{v}</text></> })}
+      <text x="380" y="130" class="t s b">c' usa 0–5</text>
+    </svg>}
+    {fig === 'prim' && <svg viewBox="0 0 760 230" role="img" aria-label="Grafo ponderado de Prim con partición de vértices entre dos procesos">
+      <Fragment set:html={defs} />
+      {[[0,1,2],[0,2,3],[1,2,1],[1,3,4],[2,3,5],[2,4,6],[3,4,2]].map(([a,b,w]) => <><line x1={75+a*135} y1={a%2?120:66} x2={75+b*135} y2={b%2?120:66} class="ln"/><text x={75+(a+b)*67.5} y={(a%2?120:66)/2+(b%2?120:66)/2-7} class="t s b">{w}</text></>)}
+      {[0,1,2,3,4].map(i => <><circle cx={75+i*135} cy={i%2?120:66} r="21" class={i<3?'c1':'c2'}/><text x={75+i*135} y={(i%2?120:66)+5} class="t b">{i}</text></>)}
+      <text x="170" y="196" class="t s b">P0: 0, 1, 2</text><text x="550" y="196" class="t s b">P1: 3, 4</text>
+    </svg>}
+    {fig === 'floyd' && <svg viewBox="0 0 760 230" role="img" aria-label="Matriz de Floyd distribuida en cuatro bloques: fila y columna de k se comunican">
+      <Fragment set:html={defs} />
+      {[0,1,2,3].map(i => <rect x={160+(i%2)*170} y={30+Math.floor(i/2)*85} width="160" height="75" rx="7" class={i===0?'c4':'box'}/>)}
+      <text x="240" y="73" class="t b">P00 · k</text><text x="410" y="73" class="t b">P01</text><text x="240" y="158" class="t b">P10</text><text x="410" y="158" class="t b">P11</text>
+      <line x1="322" y1="67" x2="330" y2="67" class="ln" marker-end={A}/><line x1="240" y1="105" x2="240" y2="115" class="ln" marker-end={A}/>
+      <text x="575" y="78" class="t s l">fila k → columnas</text><text x="575" y="112" class="t s l">columna k → filas</text>
+      <text x="380" y="215" class="t s">cada proceso actualiza su bloque con los segmentos recibidos</text>
+    </svg>}
+  </div>
+  <figcaption><slot /></figcaption>
+</figure>
