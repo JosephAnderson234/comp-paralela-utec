@@ -126,10 +126,19 @@ export default defineConfig({
 							],
 						},
 						{
+							label: '17 · CUDA (U6.4)',
+							badge: { text: 'sem 15', variant: 'note' },
+							items: [
+								{ label: 'GPU y modelo CUDA', slug: 'final/cuda/gpu-modelo' },
+								{ label: 'Suma de vectores paso a paso', slug: 'final/cuda/suma-vectores' },
+							],
+						},
+						{
 							label: '12 · Examen final',
 							badge: { text: 'PD05', variant: 'caution' },
 							items: [
 								{ label: 'Simulacro PD05 (2026-I resuelta)', slug: 'final/examen/simulacro-pd5' },
+								{ label: 'PD06 resuelta (DFS + isoeficiencia)', slug: 'final/examen/pd6' },
 							],
 						},
 					],

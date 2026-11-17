@@ -28,6 +28,8 @@ Ordenada por peso en el modelo 2026-I. Cada paso dice qué deberías poder **hac
 | 7 | [Búsqueda: modelos](/final/busqueda/modelos/) → [DFS y B&B](/final/busqueda/dfs-bnb/) → [PWS y DTS](/final/busqueda/pws-dts/) → [Participación 9](/final/busqueda/participacion9/) | contar pasos en un árbol con PWS y DTS, y sacar S y E | nuevo (no estaba en la PD05 2026-I) |
 | 8 | [Grafos](/final/grafos/tecnicas/) → [Prim y Dijkstra](/final/grafos/prim-dijkstra/) → [Floyd](/final/grafos/floyd/) → [Broadcast](/final/performance-u6/broadcast/) → [Métricas](/final/performance-u6/metricas/) → [Topologías](/final/performance-u6/topologias/) → [Participación 10](/final/performance-u6/participacion10/) | trazar algoritmos de grafos y justificar comunicación, eficiencia y p óptimo | nuevo (semanas 13–14) |
 | 9 | [Matrices: PRAM](/final/matrices/secuencial-pram/) → [Filas/columnas](/final/matrices/filas-columnas/) → [Fox](/final/matrices/fox/) → [Cannon](/final/matrices/cannon/) → [DNS y comparación](/final/matrices/dns-comparacion/) | trazar Fox/Cannon en una malla 3×3 y derivar T<sub>p</sub>, E e isoeficiencia de cada método | nuevo (semana 14) |
+| 10 | [CUDA: modelo](/final/cuda/gpu-modelo/) → [Suma de vectores](/final/cuda/suma-vectores/) | leer `<<<B,H>>>`, calcular tid y elegir bloques sin perder elementos | nuevo (semana 15) |
+| 11 | [PD06 resuelta](/final/examen/pd6/) | árbol con umbral m, W/T<sub>p</sub>, e isoeficiencia término por término | práctica dirigida 2026-II |
 
 **Cómo comprobar que lo dominas:** sin mirar la solución, resuelve (a) la práctica 1 de *Jacobi en paralelo*, (b) el DAG del simulacro, y (c) la isoeficiencia de T<sub>p</sub> = (n/p) log n + log² p. Si los tres te salen solos, estás listo para la PD05.
 
@@ -50,7 +52,7 @@ Objetivos que da el profesor en las láminas de U5:
 | 1 | Broadcast y reducción (comunicación global) | ✅ [U6.1: Broadcast](/final/performance-u6/broadcast/) |
 | 2 | Performance y escalabilidad | ✅ [U6.2: Métricas](/final/performance-u6/metricas/) · [Topologías](/final/performance-u6/topologias/) · [Participación 10](/final/performance-u6/participacion10/) |
 | 3 | Multiplicación de matrices | ✅ [U6.3: PRAM](/final/matrices/secuencial-pram/) · [Filas/columnas](/final/matrices/filas-columnas/) · [Fox](/final/matrices/fox/) · [Cannon](/final/matrices/cannon/) · [DNS](/final/matrices/dns-comparacion/) |
-| 4 | CUDA | ⏳ pendiente |
+| 4 | CUDA | ✅ [U6.4: GPU y modelo](/final/cuda/gpu-modelo/) · [Suma de vectores](/final/cuda/suma-vectores/) |
 
 ## Unidad 4: Comunicación y coordinación
 
@@ -71,8 +73,8 @@ Objetivos que da el profesor en las láminas de U5:
 | 11 | U5.1 EDP (+ `laplace_sec/omp/mpi.cpp`), U5.2 Ordenamiento, `matvec_hibrido.cpp`, `peekaboo_mpi_omp.cpp` | ✅ agregado |
 | 12 | PD05 2026-I (modelo de examen), U5.2 (misma versión) | ✅ agregado: simulacro resuelto |
 | 13 | U5.3 Búsqueda + participación 9 (PWS vs DTS); U5.4 Grafos | ✅ agregado |
-| 14 | U6.1 Broadcast, U6.2 Performance y escalabilidad, participación 10 | ✅ agregado |
-| 15 en adelante | GPUs/CUDA | ⏳ pendiente |
+| 14 | U6.1 Broadcast, U6.2 Performance y escalabilidad, participación 10, U6.3 Multiplicación de matrices, PD06 2026-II | ✅ agregado |
+| 15 | U6.4 CUDA | ✅ agregado (código de las láminas, sin ejecutar: no había compilador CUDA) |
 
 :::note[Sobre el código]
 Todos los programas se compilaron y ejecutaron: los de clase y las soluciones propias (onda con MPI, sections vs tasks, quicksort con tareas y bitónico con OpenMP). Las salidas y los tiempos de estas páginas son **medidos**, en una laptop de 8 núcleos (12 hilos), no en Khipu: los números absolutos cambiarán en otra máquina, las tendencias no. Donde un código de clase tiene un detalle que falla (por ejemplo, `laplace_mpi.cpp` con p = 3), está marcado.
@@ -132,9 +134,17 @@ Todos los programas se compilaron y ejecutaron: los de clase y las soluciones pr
 	<LinkCard title="DNS y comparación" href="/final/matrices/dns-comparacion/" description="Cubo de p = N³ procesos, tabla resumen y calculadora de eficiencia." />
 </CardGrid>
 
+## CUDA (U6.4)
+
+<CardGrid>
+	<LinkCard title="GPU y modelo CUDA" href="/final/cuda/gpu-modelo/" description="Host y device, SMs, kernels, hilos, bloques y grid." />
+	<LinkCard title="Suma de vectores paso a paso" href="/final/cuda/suma-vectores/" description="Receta de 6 pasos, índice tid y bucle para cualquier N, con simulador." />
+</CardGrid>
+
 ## Examen
 
 <CardGrid>
+	<LinkCard title="PD06 resuelta (2026-II)" href="/final/examen/pd6/" description="DFS con tareas y umbral m (código verificado) + isoeficiencia 3D con n mínimo para E ≥ 75 %." />
 	<LinkCard title="Simulacro PD05 (2026-I resuelta)" href="/final/examen/simulacro-pd5/" description="Los 3 ejercicios: tsunami, DAG + sections vs tasks medido, bitónico y Hyksort. Checklist." />
 	<LinkCard title="Simulacro PC4 (OpenMP)" href="/final/openmp-avanzado/simulacro-pc4/" description="Histograma, palo roto, critical/atomic/reduction." />
 </CardGrid>

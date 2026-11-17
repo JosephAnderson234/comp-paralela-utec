@@ -1,0 +1,163 @@
+---
+title: "Suma de vectores en CUDA, paso a paso"
+description: "La receta de 6 pasos, el kernel con blockIdx, el índice tid y el bucle que permite vectores de cualquier tamaño."
+---
+import CudaFig from '../../../../components/CudaFig.astro';
+import EnSimple from '../../../../components/EnSimple.astro';
+import Quiz from '../../../../components/Quiz.tsx';
+import Solucion from '../../../../components/Solucion.astro';
+import Fuente from '../../../../components/Fuente.astro';
+import CudaIndex from '../../../../components/playgrounds/CudaIndex.tsx';
+
+<EnSimple>
+Sumar dos vectores es como corregir un examen de N preguntas con N ayudantes: cada uno revisa **una** pregunta. Antes hay que **fotocopiar** el examen y llevarlo a la sala de ayudantes (copiar a la GPU), y al final **traer** las notas de vuelta (copiar a la CPU). Si hay más preguntas que ayudantes, cada ayudante revisa una, salta N ayudantes más adelante y revisa otra.
+</EnSimple>
+
+## Qué aprendes aquí
+
+Escribir un programa CUDA completo que sume `c = a + b`, calcular a mano qué elemento procesa cada hilo y elegir `<<<bloques, hilos>>>` sin dejar elementos fuera.
+
+## 1. La receta de siempre (lámina 20)
+
+<CudaFig fig="pasos">
+**Cómo leerlo:** casi todo programa CUDA de examen sigue estos 6 pasos. Solo el paso 4 corre en la GPU. Los pasos 3 y 5 copian por el bus y son los que suelen dominar el tiempo cuando el cálculo es poco (como en una suma).
+</CudaFig>
+
+## 2. Versión en C (lámina 22)
+
+```c
+void add(int *a, int *b, int *c) {
+  int tid = 0;
+  while (tid < N) {
+    c[tid] = a[tid] + b[tid];
+    tid += 1;
+  }
+}
+```
+
+Con a[i] = −i y b[i] = i², la salida es 0, 0, 2, 6, 12, 20, 30, 42, 56, 72 (i² − i). Un solo «trabajador» recorre todo el vector.
+
+## 3. Versión CUDA completa (láminas 23–26)
+
+```cpp
+#include <cstdio>
+#define N 10
+
+__global__ void add(int *a, int *b, int *c) {
+  int tid = blockIdx.x;
+  if (tid < N)
+    c[tid] = a[tid] + b[tid];
+}
+
+int main(void) {
+  int a[N], b[N], c[N];
+  int *dev_a, *dev_b, *dev_c;
+
+  cudaMalloc((void**)&dev_a, N * sizeof(int));
+  cudaMalloc((void**)&dev_b, N * sizeof(int));
+  cudaMalloc((void**)&dev_c, N * sizeof(int));
+
+  for (int i = 0; i < N; i++) { a[i] = -i; b[i] = i * i; }
+
+  cudaMemcpy(dev_a, a, N * sizeof(int), cudaMemcpyHostToDevice);
+  cudaMemcpy(dev_b, b, N * sizeof(int), cudaMemcpyHostToDevice);
+
+  add<<<N, 1>>>(dev_a, dev_b, dev_c);
+
+  cudaMemcpy(c, dev_c, N * sizeof(int), cudaMemcpyDeviceToHost);
+  for (int i = 0; i < N; i++) printf("%d + %d = %d\n", a[i], b[i], c[i]);
+
+  cudaFree(dev_a); cudaFree(dev_b); cudaFree(dev_c);
+  return 0;
+}
+```
+
+Léelo con la receta:
+
+| Paso | Línea | Qué hace |
+|---|---|---|
+| 1 | `int a[N], b[N], c[N]` + el `for` | datos en la CPU |
+| 2 | `cudaMalloc(&dev_a, bytes)` | reserva en la GPU; `dev_a` es un puntero **de la GPU** |
+| 3 | `cudaMemcpy(dev_a, a, bytes, cudaMemcpyHostToDevice)` | copia CPU → GPU (destino primero) |
+| 4 | `add<<<N, 1>>>(...)` | **N bloques de 1 hilo**: N copias del kernel |
+| 5 | `cudaMemcpy(c, dev_c, bytes, cudaMemcpyDeviceToHost)` | copia GPU → CPU |
+| 6 | `cudaFree` | libera la memoria de la GPU |
+
+Dentro del kernel, `tid = blockIdx.x`: como cada bloque tiene un solo hilo, **el número de bloque es el elemento**. La lámina 27 lo muestra con N = 4: el bloque 0 suma el elemento 0, el bloque 1 el 1, etc., todos a la vez. El `if (tid < N)` protege por si se lanzan más bloques que elementos.
+
+:::note[Código de las láminas, no ejecutado aquí]
+Este código es el de las láminas (del libro *CUDA by Example*). No se compiló en esta web porque no había un compilador CUDA disponible. Si tienes `nvcc`: `nvcc -o suma suma.cu && ./suma` debe imprimir las 10 sumas de la sección 2. Los programas reales también deberían revisar el `cudaError_t` que devuelve cada llamada.
+:::
+
+## 4. Hilos **y** bloques: el índice global (lámina 28)
+
+Un bloque tiene un límite de hilos (`maxThreadsPerBlock`) y el grid un límite de bloques (`maxGridSize`). Para usar muchos hilos se combinan:
+
+$$\texttt{tid} = \texttt{threadIdx.x} + \texttt{blockIdx.x}\cdot\texttt{blockDim.x}$$
+
+<CudaFig fig="indice">
+**Cómo leerlo:** filas = bloques, columnas = hilos dentro del bloque, con blockDim.x = 4. Recorriendo por filas, cada celda recibe un número distinto de 0 a 15. Es la cuenta de la lámina 28: el hilo 2 del bloque 2 tiene tid = 2 + 2·4 = **10**.
+</CudaFig>
+
+**Truco para el examen:** es la misma fórmula que convierte (fila, columna) en posición de un arreglo guardado por filas: posición = columna + fila · ancho.
+
+## 5. Vectores de cualquier tamaño (láminas 29–30)
+
+Si lanzas N/128 bloques de 128 hilos, el máximo es 65 535 bloques (límite de la lámina) y te quedas en 65 535 · 128 = **8 388 480** elementos. La solución es que cada hilo **salte** el total de hilos del grid y procese varios elementos:
+
+```cpp
+__global__ void add(int *a, int *b, int *c) {
+  int tid = threadIdx.x + blockIdx.x * blockDim.x;
+  while (tid < N) {
+    c[tid] = a[tid] + b[tid];
+    tid += blockDim.x * gridDim.x;
+  }
+}
+```
+
+<CudaFig fig="gridstride">
+**Cómo leerlo:** con 2 bloques de 4 hilos hay 8 hilos y el salto es 8. El hilo h3 empieza en 3, salta a 11 y luego a 19. El color indica qué hilo hace cada suma: ningún elemento se repite ni queda vacío. Sin el `while`, los 8 hilos solo cubrirían 0…7.
+</CudaFig>
+
+Con este kernel se puede lanzar un número **fijo** de hilos, por ejemplo `add<<<128, 128>>>`, para cualquier N.
+
+:::caution[Cómo leer la lámina 30]
+La lámina dice que con `add<<<128,128>>>` «la única condición es que N/128 no sea mayor a 65535». Con el bucle `while` de la lámina 29 esa condición **ya no hace falta**: 128 bloques fijos cubren cualquier N saltando de 16 384 en 16 384. La condición N/128 ≤ 65 535 corresponde a la versión **sin** bucle, que lanza N/128 bloques. Además, en GPUs modernas el límite de `gridDim.x` es 2³¹−1, no 65 535 (conocimiento general).
+:::
+
+**¡Cuidado con la división entera!** Si N = 1000 y lanzas `N/128 = 7` bloques sin bucle, cubres solo 7·128 = 896 elementos. La forma correcta de redondear hacia arriba es:
+
+```cpp
+int bloques = (N + 127) / 128;    // = 8 para N = 1000
+add<<<bloques, 128>>>(dev_a, dev_b, dev_c);
+```
+
+Ahí sobran 1024 − 1000 = 24 hilos, y el `if (tid < N)` evita que escriban fuera del vector.
+
+<CudaIndex client:visible />
+
+## Práctica
+
+1. **Guiado:** blockDim.x = 256. ¿Qué tid tiene el hilo 5 del bloque 3? <Solucion>tid = 5 + 3·256 = **773**.</Solucion>
+2. **Autónomo:** N = 5000 y 256 hilos por bloque, sin bucle. ¿Cuántos bloques lanzas y cuántos hilos sobran? <Solucion>(5000 + 255)/256 = 5255/256 = **20** bloques (división entera). Hilos: 20·256 = 5120, sobran **120**, que no hacen nada gracias al `if (tid < N)`.</Solucion>
+3. **Variante:** con el bucle `while` y `add<<<4, 64>>>`, N = 1000: ¿qué elementos suma el hilo 0 del bloque 1? <Solucion>tid inicial = 0 + 1·64 = 64. Salto = 64·4 = 256. Suma **64, 320, 576 y 832** (el siguiente, 1088, ya no cumple tid &lt; 1000).</Solucion>
+
+## Errores típicos
+
+- Pasar a `cudaMemcpy` el origen primero: el orden es **(destino, origen, bytes, tipo)**.
+- Olvidar multiplicar por `sizeof(int)`: los tamaños van en **bytes**.
+- Usar `a` (puntero de la CPU) dentro del kernel en vez de `dev_a`.
+- Lanzar `N/H` bloques con división entera y perder el último trozo; usa `(N+H−1)/H`.
+- Quitar el `if (tid < N)`: los hilos sobrantes escriben fuera del vector.
+- Creer que con la GPU siempre gana: para una suma, copiar los datos por el bus puede costar más que sumar en la CPU.
+
+<Quiz client:visible id="u64-suma" preguntas={[
+ {q:'Orden de argumentos de cudaMemcpy:',opts:['origen, destino, bytes, tipo','destino, origen, bytes, tipo','bytes, destino, origen','tipo, bytes, origen, destino'],ok:1},
+ {q:'En add<<<N,1>>>, ¿qué índice usa cada copia del kernel?',opts:['threadIdx.x','blockIdx.x','blockDim.x','gridDim.x'],ok:1},
+ {q:'tid del hilo 3 del bloque 2 con blockDim.x = 8:',opts:['11','19','13','24'],ok:1},
+ {q:'En el bucle grid-stride, tid aumenta en…',opts:['1','blockDim.x','blockDim.x · gridDim.x','N'],ok:2},
+ {q:'N = 1000, 128 hilos por bloque, sin bucle. Bloques correctos:',opts:['7','8','1000','128'],ok:1},
+ {q:'¿Para qué sirve if (tid < N)?',opts:['acelerar','evitar escribir fuera del vector','sincronizar bloques','copiar memoria'],ok:1}
+]} />
+
+<Fuente archivos={['U6.4 Performance-CUDA.pdf (láminas 20–31)', 'Sanders y Kandrot, CUDA by Example (código de las láminas)']} />

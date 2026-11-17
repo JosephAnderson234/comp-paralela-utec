@@ -1,0 +1,131 @@
+---
+title: "GPU y modelo de programación CUDA"
+description: "Host y device, SMs y núcleos, kernels, y cómo se organizan hilos, bloques y grids."
+---
+import CudaFig from '../../../../components/CudaFig.astro';
+import EnSimple from '../../../../components/EnSimple.astro';
+import Quiz from '../../../../components/Quiz.tsx';
+import Solucion from '../../../../components/Solucion.astro';
+import Fuente from '../../../../components/Fuente.astro';
+
+<EnSimple>
+Una CPU es como **un equipo de pocos chefs expertos**: cada uno sabe hacer platos complicados y decidir rápido. Una GPU es como **una cocina con miles de ayudantes** que solo saben hacer una cosa simple, pero todos a la vez: pelar mil papas en el tiempo de una. CUDA es la forma de darle a esos ayudantes **la misma receta** (el *kernel*) y decirle a cada uno **qué papa le toca** (su índice).
+</EnSimple>
+
+## Qué aprendes aquí
+
+Al terminar podrás: (1) decir qué corre en la CPU y qué en la GPU, (2) leer `kernel<<<B, H>>>()` y calcular cuántos hilos lanza, y (3) explicar qué son `threadIdx`, `blockIdx`, `blockDim` y `gridDim`.
+
+## 1. ¿Por qué GPUs? (láminas 2–11)
+
+La idea de la lámina 6: en una aplicación científica, una parte pequeña del código (la lámina habla de ≈5 %) concentra casi todo el cálculo. Esa parte se manda a la GPU, que tiene **miles** de núcleos; el resto, secuencial, sigue en la CPU, que tiene **decenas**.
+
+| | CPU (**host**) | GPU (**device**) |
+|---|---|---|
+| Núcleos | decenas, complejos | miles, simples |
+| Transistores para… | control y caché | cálculo con datos (ALUs) |
+| Bueno para | lógica con muchas decisiones | la misma operación sobre muchos datos |
+| Memoria | memoria del host | memoria global del device (separada) |
+
+<CudaFig fig="hostdevice">
+**Cómo leerlo:** a la izquierda, la CPU gasta mucho chip en control y caché. A la derecha, la GPU llena el chip de núcleos pequeños agrupados en filas (cada fila es un SM). Las dos memorias están **separadas**: para que la GPU vea un dato hay que copiarlo con `cudaMemcpy` por el bus, y esa copia cuesta tiempo.
+</CudaFig>
+
+**Aplicaciones de la lámina 9–10:** imágenes médicas 3D, dinámica de fluidos, dinámica molecular, análisis sísmico y diseño con sistemas multi-GPU.
+
+## 2. Arquitectura (láminas 12–13)
+
+- **SP (*Streaming Processor*)**: un núcleo de la GPU.
+- **SM (*Streaming Multiprocessor*)**: un grupo de SPs que ejecutan **la misma instrucción** sobre datos distintos. El chip de la lámina 12 tiene 16 SMs × 32 SPs = **512 núcleos**.
+- **SIMD** (*Single Instruction, Multiple Data*): una instrucción, muchos datos. Ejemplo de la lámina 13: en vez de hacer A0+B0, luego A1+B1, … (escalar), se hacen las cuatro sumas **con una sola instrucción**.
+
+:::note[Nombre que usa NVIDIA]
+La lámina dice que un SM «es un SIMD». NVIDIA lo llama **SIMT** (*Single Instruction, Multiple Threads*): grupos de 32 hilos (un **warp**) ejecutan juntos la misma instrucción, pero cada hilo tiene sus propios registros y puede tomar su propio `if`. Si los hilos de un warp se separan en un `if`, las dos ramas se ejecutan una tras otra (*divergencia*). Es conocimiento general, no está en las láminas.
+:::
+
+## 3. Primer programa y `nvcc` (láminas 14–15)
+
+Un archivo `.cu` mezcla código de CPU y de GPU. **`nvcc`** los separa: manda la parte de CPU al compilador normal (gcc/g++) y compila la parte de GPU.
+
+```cpp
+__global__ void kernel(void) { }
+
+int main(void) {
+  kernel<<<1, 1>>>();
+  printf("Hello, World!\n");
+  return 0;
+}
+```
+
+```bash
+nvcc -o program source.cu
+```
+
+- **`__global__`**: la función corre en la GPU y se llama desde la CPU. Eso es un **kernel**.
+- **`<<<1, 1>>>`**: es el **lanzamiento** (*kernel launch*): 1 bloque de 1 hilo. Aquí el kernel no hace nada.
+- La lámina 14 muestra `-arch=sm_20` (GPUs Fermi). En GPUs actuales se usa la arquitectura de tu tarjeta, por ejemplo `-arch=sm_86` para una RTX serie 30.
+
+**Propiedades del device (láminas 16–17):** `cudaGetDeviceProperties` llena una `cudaDeviceProp`. Los campos que más se usan en ejercicios son `multiProcessorCount` (número de SMs), `warpSize` (32), `maxThreadsPerBlock` (512 en la GPU de la lámina; 1024 en GPUs modernas) y `maxGridSize`.
+
+## 4. Hilos, bloques y grid (láminas 18–21)
+
+Un kernel lo ejecutan **muchos hilos**, todos con el mismo código. Se organizan en dos niveles:
+
+- **Bloque** (*thread block*): grupo de hilos. Todos los hilos de un bloque corren en **el mismo SM** y pueden compartir memoria `__shared__`.
+- **Grid**: todos los bloques del kernel. Los bloques son **independientes** y su orden de ejecución **no está definido**.
+
+<CudaFig fig="jerarquia">
+**Cómo leerlo:** el grid tiene 3 bloques (gridDim.x = 3) y cada bloque 4 hilos (blockDim.x = 4). El bloque 1 (naranja) se ejecuta entero en un SM. En total hay 3 · 4 = 12 hilos, y cada uno sabe quién es mediante sus índices.
+</CudaFig>
+
+Variables que cada hilo puede leer:
+
+| Variable | Significa | En el dibujo |
+|---|---|---|
+| `threadIdx.x` | mi número dentro del bloque | 0…3 |
+| `blockIdx.x` | número de mi bloque dentro del grid | 0…2 |
+| `blockDim.x` | hilos por bloque | 4 |
+| `gridDim.x` | bloques en el grid | 3 |
+
+También existen `.y` y `.z` para organizar en 2D o 3D (útil con matrices o imágenes):
+
+```cpp
+dim3 dim_grid(100, 100);   // 10 000 bloques
+dim3 dim_block(16, 16);    // 256 hilos por bloque
+kernel<<<dim_grid, dim_block>>>();
+```
+
+**Total de hilos = (bloques) × (hilos por bloque) = 10 000 × 256 = 2 560 000.**
+
+**Calificadores (lámina 21):**
+
+| Palabra | Dónde corre / vive | Quién la llama / ve |
+|---|---|---|
+| `__global__` | función en GPU | se llama desde la CPU (kernel) |
+| `__device__` | función en GPU | se llama solo desde la GPU |
+| `__shared__` | variable en memoria rápida del SM | los hilos de **un** bloque |
+| `__constant__` | variable de solo lectura en GPU | todos los hilos |
+
+## Práctica
+
+1. **Guiado:** `kernel<<<8, 128>>>()`. ¿Cuántos hilos se lanzan y cuántos tiene cada bloque? <Solucion>8 bloques × 128 hilos = **1024 hilos**; cada bloque tiene **128**.</Solucion>
+2. **Autónomo:** con `dim3 g(4, 2)` y `dim3 b(8, 8)`, ¿cuántos bloques y cuántos hilos hay? <Solucion>Bloques: 4·2 = **8**. Hilos por bloque: 8·8 = 64. Total: 8·64 = **512 hilos**.</Solucion>
+3. **Variante:** ¿por qué dos bloques **no** deben depender de que el otro termine primero? <Solucion>Porque CUDA no fija el orden de los bloques: pueden correr en cualquier orden y en SMs distintos. Si el bloque 1 espera un dato del bloque 0, el resultado puede variar o el programa puede quedarse colgado.</Solucion>
+
+## Errores típicos
+
+- Llamar «kernel» a cualquier función de GPU: un kernel es una función `__global__` que se lanza desde la CPU.
+- Pensar que la GPU lee la memoria de la CPU: son memorias distintas; hay que copiar.
+- Multiplicar mal: total de hilos = bloques × hilos por bloque (en cada dimensión).
+- Suponer un orden entre bloques.
+
+<Quiz client:visible id="u64-modelo" preguntas={[
+ {q:'¿Qué es el host?',opts:['la GPU','la CPU y su memoria','un bloque','el compilador'],ok:1},
+ {q:'__global__ indica una función que…',opts:['corre en la CPU','corre en la GPU y se llama desde la CPU','solo llama la GPU','es una variable compartida'],ok:1},
+ {q:'kernel<<<4, 32>>>() lanza…',opts:['4 hilos','32 hilos','36 hilos','128 hilos'],ok:3},
+ {q:'Los hilos de un mismo bloque…',opts:['corren en SMs distintos','corren en el mismo SM','no pueden compartir memoria','se ejecutan en orden fijo'],ok:1},
+ {q:'¿Qué hace nvcc?',opts:['ejecuta el kernel','separa y compila código de host y device','copia memoria','reserva memoria'],ok:1},
+ {q:'Un SM con 32 núcleos ejecutando la misma instrucción sobre datos distintos es…',opts:['MIMD','SISD','SIMD/SIMT','MPI'],ok:2}
+]} />
+
+<Fuente archivos={['U6.4 Performance-CUDA.pdf (láminas 1–21)']} />

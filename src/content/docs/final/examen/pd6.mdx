@@ -1,0 +1,252 @@
+---
+title: "PD06 resuelta: DFS con tareas e isoeficiencia"
+description: "Las dos preguntas de la PD06 2026-II paso a paso: código OpenMP verificado, W y Tp del árbol, elección de m, y la isoeficiencia de la simulación 3D."
+---
+import PD6Fig from '../../../../components/PD6Fig.astro';
+import EnSimple from '../../../../components/EnSimple.astro';
+import Quiz from '../../../../components/Quiz.tsx';
+import Solucion from '../../../../components/Solucion.astro';
+import Fuente from '../../../../components/Fuente.astro';
+
+<EnSimple>
+La PD06 tiene dos partes que se resuelven siempre con la misma **receta**. **Ejercicio 1:** «reparte un árbol entre hilos». Cuenta cuánto trabajo hay por nivel, corta el árbol en un nivel m y mira si los pedazos alcanzan para todos los hilos. **Ejercicio 2:** «¿cuánto debe crecer el problema?». Escribe pT<sub>p</sub>, réstale T<sub>s</sub> para obtener el overhead e iguala el trabajo útil a K veces ese overhead.
+</EnSimple>
+
+Formato (lámina 1): PD06 vale 5 pts y se avanza en clase; la Tarea 5 (2 pts) completa los ejercicios. Las respuestas se pueden intentar antes de abrir cada solución.
+
+## Ejercicio 1 · DFS paralelo con umbral m (3.5 pts)
+
+**Datos:** árbol completo con b ≥ 2 hijos por nodo y profundidad d; raíz en nivel 0. El hijo i de `id` es `b·id + i + 1`. Evaluar un nodo del nivel ℓ cuesta **2<sup>ℓ</sup>** operaciones. Hay p hilos y un umbral m.
+
+<PD6Fig fig="umbral">
+**Cómo leerlo:** b = 3 y m = 2. Por encima de la línea punteada, cada nodo crea una tarea por hijo. En el nivel m = 2 hay b<sup>m</sup> = 9 nodos y cada uno es la raíz de una tarea que recorre **su subárbol** (triángulo) con DFS normal. Esas 9 tareas se reparten entre los p hilos.
+</PD6Fig>
+
+### 1.1 · Paralelizar con tareas (1.5 pts)
+
+**Receta:** (1) `parallel` + `single` para que un hilo empiece en la raíz; (2) si ℓ < m, crear una `task` por hijo y esperar con `taskwait`; (3) si ℓ ≥ m, recorrer en secuencial; (4) consultar `encontrado` antes de cada nodo para cortar la búsqueda; (5) los contadores compartidos se protegen con `atomic`.
+
+<Solucion titulo="Código OpenMP (propio, compilado y probado)">
+
+```cpp
+bool encontrado = false; long long quien = -1;
+
+bool leer() { bool e;
+  #pragma omp atomic read
+  e = encontrado;
+  return e; }
+
+void marcar(long long id) {
+  #pragma omp critical
+  { if (!encontrado) { encontrado = true; quien = id; } }
+}
+
+void dfs_sec(long long id, int nivel) {
+  if (leer()) return;
+  #pragma omp atomic
+  visitados++;
+  evaluar(id, nivel);
+  if (factible(id)) { marcar(id); return; }
+  if (nivel == d) return;
+  for (int i = 0; i < b && !leer(); i++) dfs_sec(hijo(id, i), nivel + 1);
+}
+
+void dfs_par(long long id, int nivel) {
+  if (nivel >= m) { dfs_sec(id, nivel); return; }
+  if (leer()) return;
+  #pragma omp atomic
+  visitados++;
+  evaluar(id, nivel);
+  if (factible(id)) { marcar(id); return; }
+  if (nivel == d) return;
+  for (int i = 0; i < b; i++) {
+    long long v = hijo(id, i);
+    #pragma omp task firstprivate(v, nivel)
+    dfs_par(v, nivel + 1);
+  }
+  #pragma omp taskwait
+}
+
+int main(...) {
+  #pragma omp parallel
+  #pragma omp single
+  dfs_par(0, 0);
+}
+```
+
+Dentro de `evaluar`, las líneas `operaciones += costo` y `resultado ^= acc` también llevan `#pragma omp atomic`, porque varias tareas las actualizan a la vez.
+
+**Comprobación** con b = 3, d = 8, 8 hilos y un objetivo inexistente: el secuencial y el paralelo (m = 2, 3, 4) visitan **9841 nodos** y hacen **2 015 539 operaciones**, exactamente el W de 1.2. Con objetivo = 9000 el secuencial visita 8583 nodos; el paralelo con m = 3 visitó 7208, 4808 y 1792 nodos en tres ejecuciones seguidas. El árbol es tan pequeño que los tiempos (milisegundos) no sirven para medir speedup; la prueba solo comprueba correctitud.
+</Solucion>
+
+**¿Por qué el primer resultado paralelo puede diferir del secuencial?**
+
+<Solucion titulo="Respuesta">
+El DFS secuencial sigue **un orden fijo** (hijo 0 antes que hijo 1, de izquierda a derecha) y devuelve la **primera** ruta válida en ese orden. En la versión paralela, varios subárboles se exploran **a la vez**. La búsqueda se detiene con la primera ruta que **algún hilo alcance en el tiempo**, porque ese hilo activa `encontrado`. Eso depende de:
+
+1. **Cómo el runtime reparte las tareas** entre hilos, que no es determinista: cambia entre ejecuciones (lo muestran los 7208 / 4808 / 1792 nodos de la prueba).
+2. **La profundidad de cada ruta:** un nodo del nivel ℓ cuesta 2<sup>ℓ</sup>. Una ruta poco profunda a la derecha puede terminarse antes que una profunda a la izquierda.
+
+Si hay varias rutas válidas, el paralelo puede devolver otra distinta a la del secuencial, y no siempre la misma. Por la misma razón, el número de nodos visitados también cambia: puede ser menor (se encontró antes) o mayor (se exploró trabajo especulativo a la derecha).
+</Solucion>
+
+### 1.2 · W, W<sub>i</sub>, T<sub>∞</sub> y T<sub>p</sub> (1 pt)
+
+**Receta:** en el nivel ℓ hay b<sup>ℓ</sup> nodos de costo 2<sup>ℓ</sup>, así que cada nivel aporta (2b)<sup>ℓ</sup>. Es una suma geométrica.
+
+<Solucion titulo="Desarrollo (peor caso: se recorre todo el árbol)">
+
+$$W(b,d)=T_s=\sum_{\ell=0}^{d}(2b)^\ell=\frac{(2b)^{d+1}-1}{2b-1}=\Theta\big((2b)^d\big)$$
+
+**Subárbol que empieza en el nivel m.** A profundidad relativa k tiene b<sup>k</sup> nodos, que en el árbol completo están en el nivel m+k:
+
+$$W_i(m,d)=\sum_{k=0}^{d-m}b^k\,2^{m+k}=2^m\,\frac{(2b)^{d-m+1}-1}{2b-1}$$
+
+Comprobación: W = (parte superior) + b<sup>m</sup>·W<sub>i</sub>, con parte superior = ((2b)<sup>m</sup> − 1)/(2b − 1).
+
+**Camino crítico.** Con hilos ilimitados se paga una rama hasta m−1 y luego un subárbol entero, porque desde m ya no se divide:
+
+$$T_\infty=(2^m-1)+W_i(m,d)=\Theta(W_i)$$
+
+**Con p hilos:** primero la parte superior, luego ⌈b<sup>m</sup>/p⌉ «rondas» de subárboles:
+
+$$T_p\approx\sum_{\ell=0}^{m-1}\left\lceil\frac{b^\ell}{p}\right\rceil 2^\ell+\left\lceil\frac{b^m}{p}\right\rceil W_i(m,d)\quad\Rightarrow\quad E\approx\frac{b^m}{p\,\lceil b^m/p\rceil}$$
+
+A esto se suma el costo de crear Σ<sub>ℓ=1..m</sub> b<sup>ℓ</sup> tareas.
+
+**Mini-ejemplo** (b = 2, d = 4, m = 2, p = 4): W = (4⁵ − 1)/3 = 341; W<sub>i</sub> = 4·(4³ − 1)/3 = 84; 5 + 4·84 = 341 ✓; T<sub>p</sub> ≈ 1 + 2 + 84 = 87; S ≈ 3.92; E ≈ 0.98.
+</Solucion>
+
+### 1.3 · ¿Qué m conviene con b = 3, d = 8, p = 8? (1 pt)
+
+**Receta:** para cada m calcula (a) cuántos subárboles hay, b<sup>m</sup>; (b) cuánto pesa cada uno, W<sub>i</sub>; (c) cuántas rondas necesitan 8 hilos, ⌈b<sup>m</sup>/8⌉; (d) cuántas tareas se crean.
+
+<Solucion titulo="Tabla y conclusión">
+Con 2b = 6: W = (6⁹ − 1)/5 = **2 015 539**.
+
+| | m = 2 | m = 3 | m = 4 |
+|---|---|---|---|
+| subárboles 3<sup>m</sup> | 9 | 27 | 81 |
+| W<sub>i</sub> por subárbol | 223 948 | 74 648 | 24 880 |
+| rondas ⌈3<sup>m</sup>/8⌉ | 2 | 4 | 11 |
+| T<sub>p</sub> aprox. | 447 899 | 298 603 | 273 723 |
+| S = W/T<sub>p</sub> | 4.50 | 6.75 | 7.36 |
+| E | 0.56 | 0.84 | 0.92 |
+| tareas creadas | 12 | 39 | 120 |
+
+Todas las cifras se recalcularon con un script, y W coincide con el contador del programa de 1.1.
+
+- **m = 2:** 9 subárboles para 8 hilos. En la 2.ª ronda trabaja **un** hilo y 7 esperan un subárbol enorme, así que E = 0.56.
+- **m = 3:** 27 = 3 rondas completas + 3 sobrantes, E = 0.84.
+- **m = 4:** 81 = 10 rondas + 1. Lo que sobra es pequeño (≈25 mil operaciones), E = 0.92.
+
+**Overhead:** crear una tarea cuesta del orden de microsegundos. 120 tareas son ≈15 por hilo, nada frente a las ≈25 mil operaciones de cada una. Si m siguiera bajando, las tareas se multiplican por 3 y su trabajo se divide entre ≈6, y llegaría un punto en que crear la tarea cuesta lo mismo que hacerla.
+
+**Conclusión: m = 4.** Hay suficientes subárboles (81 ≫ 8) para mantener ocupados los hilos, y cada uno sigue siendo grande. Todo supone recorrer el árbol completo; si `encontrado` corta antes, el resultado depende de dónde está la ruta.
+</Solucion>
+
+## Ejercicio 2 · Isoeficiencia de una simulación 3D (3.5 pts)
+
+**Datos:** T<sub>s</sub> = n³ y
+
+$$T_p(n,p)=\frac{n^3}{p}+6\,\frac{n^2}{p^{2/3}}+12\log_2 p .$$
+
+<PD6Fig fig="cubo">
+**Cómo leerlo:** el cubo n×n×n se parte en p subcubos de lado n/p<sup>1/3</sup>. Cada subcubo intercambia sus **6 caras** con los vecinos: 6·(n/p<sup>1/3</sup>)² = 6n²/p<sup>2/3</sup> datos. Ese es el 2.º término. El 3.º es una sincronización global en árbol (log p pasos).
+</PD6Fig>
+
+### Receta de isoeficiencia (sirve para cualquier T<sub>p</sub>)
+
+1. **Costo:** multiplica T<sub>p</sub> por p.
+2. **Overhead:** T<sub>0</sub> = pT<sub>p</sub> − T<sub>s</sub>.
+3. **Eficiencia:** E = T<sub>s</sub>/(T<sub>s</sub> + T<sub>0</sub>).
+4. **Ecuación:** T<sub>s</sub> = K·T<sub>0</sub> con **K = E/(1 − E)**. Para E = 0.75, K = 3.
+5. **Asintótico:** iguala T<sub>s</sub> a **cada término** de T<sub>0</sub> por separado; el que pida más trabajo manda.
+
+### 2.1 · Costo y overhead (0.5 pts)
+
+<Solucion>
+pT<sub>p</sub> = **n³ + 6n²p<sup>1/3</sup> + 12 p log₂ p**, porque p·n²/p<sup>2/3</sup> = n²p<sup>1/3</sup>.
+
+T<sub>0</sub> = pT<sub>p</sub> − n³ = **6n²p<sup>1/3</sup> + 12 p log₂ p**.
+
+- n³: trabajo útil, igual al secuencial.
+- 6n²p<sup>1/3</sup>: comunicación total entre subdominios. Es la suma de todas las caras: crece con la superficie (n²) y con el número de cortes (p<sup>1/3</sup>).
+- 12 p log₂ p: los p procesadores pagan cada uno 12 log₂ p en sincronizaciones globales.
+</Solucion>
+
+### 2.2 · Eficiencia y ecuación de isoeficiencia para E₀ = 0.75 (0.5 pts)
+
+<Solucion>
+$$E=\frac{n^3}{n^3+6n^2p^{1/3}+12p\log_2p}=\frac{1}{1+\dfrac{6p^{1/3}}{n}+\dfrac{12p\log_2p}{n^3}}$$
+
+Con K = 0.75/0.25 = 3:
+
+$$n^3=3\left(6n^2p^{1/3}+12p\log_2p\right)=18\,n^2p^{1/3}+36\,p\log_2p .$$
+</Solucion>
+
+### 2.3 · W = f(p), término por término (0.5 pts)
+
+<Solucion>
+- **Comunicación:** n³ = 18n²p<sup>1/3</sup> ⇒ n = 18p<sup>1/3</sup> ⇒ W = n³ = 5832·p = **Θ(p)**.
+- **Sincronización:** n³ = 36 p log₂ p ⇒ W = **Θ(p log p)**.
+
+El que pide más trabajo **asintóticamente** es el de sincronización: **W = Θ(p log p)**. En la práctica, 36 p log₂ p supera a 5832 p solo si log₂ p > 162, así que para cualquier p real **manda la comunicación**. Eso se ve en 2.4.
+</Solucion>
+
+### 2.4 · n mínimo para E ≥ 75 % con p = 8, 64, 512 (1 pt)
+
+**Truco para resolver a mano:** reescribe la ecuación como **n²(n − 18p<sup>1/3</sup>) ≥ 36 p log₂ p**. Empieza en n = 18p<sup>1/3</sup> + 1 y sube de uno en uno.
+
+<Solucion>
+| p | p<sup>1/3</sup> | 18p<sup>1/3</sup> | lado derecho 36 p log₂ p | prueba | **n mín.** | W = n³ |
+|---|---|---|---|---|---|---|
+| 8 | 2 | 36 | 864 | 37²·1 = 1369 ≥ 864 ✓ | **37** | 50 653 |
+| 64 | 4 | 72 | 13 824 | 74²·2 = 10 952 ✗; 75²·3 = 16 875 ✓ | **75** | 421 875 |
+| 512 | 8 | 144 | 165 888 | 151²·7 = 159 607 ✗; 152²·8 = 184 832 ✓ | **152** | 3 511 808 |
+
+Comprobado por búsqueda exhaustiva con E calculada directamente.
+
+**Al multiplicar p por 8:** n pasa de 37 → 75 → 152, **≈ ×2** cada vez (como p<sup>1/3</sup>), y W = n³ crece **≈ ×8.3**, un poco más que ×8. Eso es lo esperado si manda la comunicación (W ≈ 5832p), más el aporte pequeño del término log p.
+</Solucion>
+
+### 2.5 · Comunicación optimizada: 6n²/p<sup>2/3</sup> → 6n²/p (1 pt)
+
+<Solucion>
+Nuevo costo: pT<sub>p</sub> = n³ + 6n² + 12 p log₂ p, así que **T<sub>0</sub> = 6n² + 12 p log₂ p**.
+
+- Comunicación: n³ = 3·6n² ⇒ n = 18 **constante**. Ya no exige que el problema crezca con p: W = Θ(1).
+- Sincronización: igual que antes, **W = Θ(p log p)**.
+
+**Nueva isoeficiencia: W = Θ(p log p)**, la **misma clase asintótica** que antes, porque el término que manda asintóticamente (la sincronización) no cambió. Así que **asintóticamente no mejora**.
+
+**En la práctica sí mejora mucho**, porque para p reales mandaba la comunicación. Con la misma búsqueda, el n mínimo para E ≥ 0.75 pasa a:
+
+| p | antes | con la optimización |
+|---|---|---|
+| 8 | 37 | **21** |
+| 64 | 75 | **32** |
+| 512 | 152 | **62** |
+| 4096 | 307 | **128** |
+
+Ahora n crece como (p log p)<sup>1/3</sup> en vez de como 18p<sup>1/3</sup>.
+</Solucion>
+
+## Errores típicos
+
+- Olvidar `taskwait` o el `single`: sin `single`, todos los hilos empiezan en la raíz y repiten el árbol p veces.
+- Contadores `visitados++` sin `atomic`: carrera de datos y conteo incorrecto.
+- Usar W = Θ(b<sup>d</sup>): con costo 2<sup>ℓ</sup> por nodo, la base es **2b**.
+- En isoeficiencia, multiplicar mal p·n²/p<sup>2/3</sup>: da n²p<sup>1/3</sup>, no n²/p<sup>1/3</sup>.
+- Concluir «no mejora nada» en 2.5: no mejora la **clase** asintótica, pero baja mucho el n necesario.
+
+<Quiz client:visible id="pd6" preguntas={[
+ {q:'¿Cuánto trabajo aporta el nivel ℓ del árbol?',opts:['b^ℓ','2^ℓ','(2b)^ℓ','b·ℓ'],ok:2},
+ {q:'Con b = 3 y m = 3, ¿cuántos subárboles hay?',opts:['9','27','81','3'],ok:1},
+ {q:'¿Por qué m = 2 rinde mal con p = 8 y b = 3?',opts:['crea demasiadas tareas','9 subárboles: la 2.ª ronda deja 7 hilos ociosos','no usa atomic','el árbol es pequeño'],ok:1},
+ {q:'T₀ de la simulación 3D original:',opts:['6n²/p^(2/3) + 12 log p','6n²p^(1/3) + 12 p log p','n³/p','6n² + 12 log p'],ok:1},
+ {q:'K para E = 0.75:',opts:['0.75','1/3','3','4'],ok:2},
+ {q:'Tras la optimización 2.5, la isoeficiencia asintótica…',opts:['pasa a Θ(1)','sigue siendo Θ(p log p)','empeora','pasa a Θ(p)'],ok:1}
+]} />
+
+<Fuente archivos={['CS4052-PD6-S02.pdf (PD06 2026-II)', 'ejercicio01.cpp (DFS secuencial del curso)', 'resolución propia: código OpenMP compilado y probado; tablas recalculadas con script']} />

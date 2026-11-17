@@ -1,0 +1,81 @@
+---
+import '../styles/svgfig.css';
+type Fig = 'hostdevice' | 'jerarquia' | 'indice' | 'pasos' | 'gridstride';
+interface Props { fig: Fig }
+const { fig } = Astro.props;
+const A = `url(#cu-${fig})`;
+const defs = `<defs><marker id="cu-${fig}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="head"/></marker></defs>`;
+const pasos = [['1. datos', 'en la CPU'], ['2. cudaMalloc', 'en la GPU'], ['3. cudaMemcpy', 'CPU → GPU'], ['4. kernel', '<<<B, H>>>'], ['5. cudaMemcpy', 'GPU → CPU'], ['6. cudaFree', 'liberar']];
+---
+<figure class="svgfig not-content">
+  <div class="svgfig__scroll">
+    {fig === 'hostdevice' && <svg viewBox="0 0 760 250" role="img" aria-label="Host CPU con pocos núcleos grandes y device GPU con muchos núcleos pequeños unidos por el bus">
+      <Fragment set:html={defs} />
+      <rect x="30" y="30" width="270" height="180" rx="10" class="frame" />
+      <text x="165" y="22" class="cap">host = CPU + su memoria</text>
+      <rect x="45" y="45" width="110" height="60" rx="6" class="c3" /><text x="100" y="80" class="t s b">Control</text>
+      {[0, 1].flatMap((r) => [0, 1].map((c) => <><rect x={170 + c * 60} y={45 + r * 32} width="54" height="28" rx="5" class="c1" /><text x={197 + c * 60} y={64 + r * 32} class="t s">ALU</text></>))}
+      <rect x="45" y="115" width="240" height="34" rx="6" class="c5" /><text x="165" y="137" class="t s b">Caché grande</text>
+      <rect x="45" y="160" width="240" height="38" rx="6" class="box" /><text x="165" y="184" class="t s">DRAM del host</text>
+      <rect x="460" y="30" width="270" height="180" rx="10" class="frame" />
+      <text x="595" y="22" class="cap">device = GPU + su memoria</text>
+      {[0, 1, 2, 3].flatMap((r) => Array.from({ length: 12 }, (_, c) => <rect x={472 + c * 21} y={45 + r * 26} width="17" height="20" rx="3" class={c === 0 ? 'c3' : 'c1'} />))}
+      <text x="595" y="168" class="t s mu">cada fila = un SM (multiprocesador)</text>
+      <rect x="475" y="176" width="240" height="26" rx="6" class="box" /><text x="595" y="194" class="t s">memoria global del device</text>
+      <line x1="300" y1="120" x2="458" y2="120" class="ln" marker-end={A} />
+      <line x1="458" y1="140" x2="302" y2="140" class="ln" marker-end={A} />
+      <text x="380" y="110" class="t s mono">cudaMemcpy</text>
+      <text x="380" y="162" class="t s mu">bus PCIe: lento frente</text><text x="380" y="178" class="t s mu">al cómputo de la GPU</text>
+      <text x="380" y="238" class="t s">CPU: decenas de núcleos con mucho control y caché · GPU: miles de núcleos simples para datos</text>
+    </svg>}
+    {fig === 'jerarquia' && <svg viewBox="0 0 760 250" role="img" aria-label="Un grid de bloques; cada bloque tiene hilos con threadIdx; cada bloque corre en un SM">
+      <rect x="20" y="30" width="330" height="190" rx="10" class="frame" />
+      <text x="185" y="22" class="cap">grid (todo el kernel) · gridDim.x = 3</text>
+      {[0, 1, 2].map((bx) => <>
+        <rect x={34 + bx * 104} y="48" width="96" height="140" rx="8" class={bx === 1 ? 'c2' : 'box'} />
+        <text x={82 + bx * 104} y="68" class="t s b">blockIdx.x={bx}</text>
+        {[0, 1, 2, 3].map((t) => <><rect x={44 + bx * 104} y={78 + t * 26} width="76" height="20" rx="4" class="c1" /><text x={82 + bx * 104} y={92 + t * 26} class="t s mono">thread {t}</text></>)}
+      </>)}
+      <text x="185" y="208" class="t s">blockDim.x = 4 hilos por bloque</text>
+      <rect x="400" y="48" width="140" height="140" rx="8" class="c2" />
+      <text x="470" y="72" class="t s b">bloque 1</text>
+      <text x="470" y="100" class="t s">corre entero</text><text x="470" y="118" class="t s">en un solo SM</text>
+      <text x="470" y="146" class="t s">comparte</text><text x="470" y="164" class="t s mono">__shared__</text>
+      <text x="560" y="72" class="t s l b">Reglas</text>
+      <text x="560" y="98" class="t s l">· todos los hilos ejecutan</text><text x="572" y="116" class="t s l">el mismo kernel</text>
+      <text x="560" y="140" class="t s l">· los bloques son independientes</text>
+      <text x="560" y="164" class="t s l">· su orden no está definido</text>
+      <text x="380" y="240" class="t s">kernel&lt;&lt;&lt;gridDim, blockDim&gt;&gt;&gt;: total de hilos = gridDim.x · blockDim.x = 3 · 4 = 12</text>
+    </svg>}
+    {fig === 'indice' && <svg viewBox="0 0 760 250" role="img" aria-label="Cuatro bloques de cuatro hilos numerados de 0 a 15; el hilo 2 del bloque 2 es el índice 10">
+      {[0, 1, 2, 3].map((bx) => <>
+        <text x="96" y={58 + bx * 42} class="t s r b">block {bx}</text>
+        {[0, 1, 2, 3].map((t) => { const g = t + bx * 4; const hl = bx === 2 && t === 2; return <><rect x={110 + t * 80} y={36 + bx * 42} width="72" height="34" rx="5" class={hl ? 'c4' : 'c1'} /><text x={146 + t * 80} y={51 + bx * 42} class="t s mono">t{t}</text><text x={146 + t * 80} y={65 + bx * 42} class="t s b">{g}</text></>; })}
+      </>)}
+      <text x="270" y="24" class="cap">threadIdx.x →</text>
+      <text x="460" y="70" class="t s l b">tid = threadIdx.x + blockIdx.x · blockDim.x</text>
+      <text x="460" y="100" class="t s l">verde: thread 2 del block 2</text>
+      <text x="460" y="122" class="t s l mono">tid = 2 + 2 · 4 = 10</text>
+      <text x="460" y="156" class="t s l">igual que leer una matriz por filas:</text>
+      <text x="460" y="176" class="t s l">fila = bloque, columna = hilo</text>
+      <text x="380" y="232" class="t s">número grande de cada celda = elemento del vector que procesa ese hilo (único y sin huecos)</text>
+    </svg>}
+    {fig === 'pasos' && <svg viewBox="0 0 760 200" role="img" aria-label="Seis pasos de un programa CUDA de la CPU a la GPU y de vuelta">
+      <Fragment set:html={defs} />
+      {pasos.map((s, i) => <><rect x={14 + i * 124} y="60" width="112" height="70" rx="8" class={i === 3 ? 'c4' : i === 2 || i === 4 ? 'c2' : 'c1'} />
+        <text x={70 + i * 124} y="90" class="t s b">{s[0]}</text><text x={70 + i * 124} y="110" class="t s mono">{s[1]}</text>
+      </>)}
+      {[0, 1, 2, 3, 4].map((i) => <line x1={126 + i * 124} y1="95" x2={138 + i * 124} y2="95" class="ln" marker-end={A} />)}
+      <text x="132" y="44" class="cap">host</text><text x="380" y="44" class="cap">ida · cómputo en GPU · vuelta</text><text x="690" y="44" class="cap">limpieza</text>
+      <text x="380" y="170" class="t s">naranja = copias por el bus (cuestan tiempo) · verde = único paso que corre en la GPU</text>
+    </svg>}
+    {fig === 'gridstride' && <svg viewBox="0 0 760 220" role="img" aria-label="Ocho hilos recorren un vector de veinte elementos saltando de ocho en ocho">
+      {Array.from({ length: 20 }, (_, i) => { const th = i % 8; return <><rect x={20 + i * 36} y="70" width="32" height="40" rx="4" class={`c${(th % 6) + 1}`} /><text x={36 + i * 36} y="86" class="t s mono">{i}</text><text x={36 + i * 36} y="103" class="t s b">h{th}</text></>; })}
+      <text x="380" y="40" class="t s b">N = 20, kernel&lt;&lt;&lt;2, 4&gt;&gt;&gt; ⇒ 8 hilos; paso = blockDim.x · gridDim.x = 8</text>
+      <text x="380" y="140" class="t s">h3 procesa 3, 11 y 19 · h5 procesa 5 y 13 · ningún elemento queda sin hilo ni se repite</text>
+      <text x="380" y="170" class="t s mono">while (tid &lt; N) {'{'} c[tid] = a[tid] + b[tid]; tid += blockDim.x * gridDim.x; {'}'}</text>
+      <text x="380" y="200" class="t s mu">sin el while, los elementos 8…19 nunca se sumarían</text>
+    </svg>}
+  </div>
+  <figcaption><slot /></figcaption>
+</figure>
