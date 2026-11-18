@@ -1,0 +1,95 @@
+---
+interface Props {
+	d: string;
+	n: number[];
+}
+const { d, n } = Astro.props;
+const decks: Record<string, string> = {
+	u41: 'U4.1 OpenMP',
+	u42: 'U4.2 OpenMP',
+	u43: 'U4.3 OpenMP',
+	u44: 'U4.4 OpenMP',
+	u45: 'U4.5 Híbrido',
+	u51: 'U5.1 EDP',
+	u52: 'U5.2 Ordenamiento',
+	u53: 'U5.3 Búsqueda',
+	u54: 'U5.4 Grafos',
+	u61: 'U6.1 Broadcast',
+	u62: 'U6.2 Escalabilidad',
+	u63: 'U6.3 Matrices',
+	u64: 'U6.4 CUDA',
+	pd6: 'PD06',
+};
+const name = decks[d] ?? d;
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const many = n.length > 1;
+---
+<figure class:list={['laminas not-content', { many }]}>
+	<div class="lam-strip">
+		{n.map((k) => (
+			<a class="lam" href={`${base}/laminas/${d}/${k}.webp`} target="_blank" rel="noopener">
+				<img src={`${base}/laminas/${d}/${k}.webp`} alt={`Diapositiva ${k} de ${name}`} loading="lazy" decoding="async" />
+				<span class="lam-cap">{name} · diapositiva {k}</span>
+			</a>
+		))}
+	</div>
+	{many && <figcaption>{n.length} diapositivas · desliza para verlas · clic para ampliar</figcaption>}
+</figure>
+
+<style>
+	.laminas {
+		margin: 1.25rem 0;
+		width: 100%;
+		max-width: 100%;
+		min-width: 0;
+		overflow: hidden;
+	}
+	.lam-strip {
+		width: 100%;
+		max-width: 100%;
+		min-width: 0;
+		display: flex;
+		gap: 0.75rem;
+		overflow-x: auto;
+		scroll-snap-type: x mandatory;
+		padding-bottom: 0.4rem;
+	}
+	.lam {
+		flex: 0 0 100%;
+		scroll-snap-align: start;
+		display: flex;
+		flex-direction: column;
+		border: 1px solid var(--sl-color-gray-5);
+		border-radius: 0.5rem;
+		overflow: hidden;
+		background: #fff;
+		text-decoration: none;
+	}
+	.many .lam {
+		flex-basis: 88%;
+	}
+	.lam img {
+		display: block;
+		width: 100%;
+		height: auto;
+	}
+	.lam-cap {
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-2);
+		background: var(--sl-color-gray-6);
+		padding: 0.3rem 0.6rem;
+	}
+	.laminas figcaption {
+		font-size: var(--sl-text-xs);
+		color: var(--sl-color-gray-3);
+		margin-top: 0.2rem;
+	}
+	@media (min-width: 72rem) {
+		.lam {
+			flex-basis: 80%;
+		}
+		.many .lam {
+			flex-basis: 70%;
+		}
+	}
+</style>

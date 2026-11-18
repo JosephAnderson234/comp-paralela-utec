@@ -8,6 +8,7 @@ import EnSimple from '../../../../components/EnSimple.astro';
 import Quiz from '../../../../components/Quiz.tsx';
 import Solucion from '../../../../components/Solucion.astro';
 import Fuente from '../../../../components/Fuente.astro';
+import Laminas from '../../../../components/Laminas.astro';
 
 <EnSimple>
 En OpenMP todo está en la misma memoria, así que **por defecto todo se comparte**. Las cláusulas de datos responden una sola pregunta: **¿cada hilo trabaja con la variable original o con su propia copia? Y si es copia, ¿con qué valor empieza y qué pasa al final?**
@@ -115,7 +116,7 @@ Thread 3:   a,b,x= 3 0 4.300000
 
 - `x` (threadprivate) **se conserva** en cada hilo entre regiones.
 - `b` era private en la región 1: la global nunca cambió → `0`.
-- `a` era **shared**: los 4 hilos la escribieron a la vez y quedó el valor del último (aquí `3`; la lámina muestra `1`). Es una carrera: **no** se puede predecir.
+- `a` era **shared**: los 4 hilos la escribieron a la vez y quedó el valor del último (aquí `3`; el material muestra `1`). Es una carrera: **no** se puede predecir.
 
 ## `reduction`
 
@@ -144,7 +145,10 @@ for (i = 0; i < n; i++) result += a[i] * b[i];
 Son **dos** `parallel` anidados. Como el paralelismo anidado está apagado por defecto, cada uno de los 4 hilos de ① abre su propio equipo de **1** hilo y ejecuta **el bucle completo**. Salida real: 129 líneas (4 × 32 + 1), siempre «del hilo 0», y el resultado final varió entre **64** y **128** en distintas corridas, porque las 4 reducciones escriben sobre la misma `result` compartida sin sincronizarse. Quitando la línea ① sale `Producto escalar= 64.000000` siempre (32 × 1 × 2). *(Observación propia, al ejecutar el programa.)*
 :::
 
-:::caution[Error de la lámina 24 de U4.2: inicializar mal la variable de reducción]
+:::caution[Error de la diapositiva: inicializar mal la variable de reducción]
+
+<Laminas d="u42" n={[24]} />
+
 ```cpp
 #pragma omp parallel shared(a) private(i)
 {
@@ -216,4 +220,4 @@ Moraleja: con `firstprivate` + `lastprivate` el resultado depende del reparto. `
 	]}
 />
 
-<Fuente archivos={['U4.1 Paralelismo compartido-OMP.pdf (láminas 29–35)', 'U4.2 Paralelismo compartido-OMP.pdf (private, lastprivate, threadprivate, reduction)', 'semana_9/sesionb/Ejemp02_private.c', 'semana_9/sesionb/Ejemp02_lastprivate.c', 'semana_9/sesionb/Ejemp02_threadprivate.c', 'semana_9/Ejemp06_reduction.cpp']} />
+<Fuente archivos={['U4.1 Paralelismo compartido-OMP.pdf', 'U4.2 Paralelismo compartido-OMP.pdf (private, lastprivate, threadprivate, reduction)', 'semana_9/sesionb/Ejemp02_private.c', 'semana_9/sesionb/Ejemp02_lastprivate.c', 'semana_9/sesionb/Ejemp02_threadprivate.c', 'semana_9/Ejemp06_reduction.cpp']} />

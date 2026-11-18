@@ -8,6 +8,7 @@ import EnSimple from '../../../../components/EnSimple.astro';
 import Quiz from '../../../../components/Quiz.tsx';
 import Solucion from '../../../../components/Solucion.astro';
 import Fuente from '../../../../components/Fuente.astro';
+import Laminas from '../../../../components/Laminas.astro';
 
 <EnSimple>
 Una cuerda de guitarra: cada punto sube o baja según **cómo están sus vecinos ahora** y **dónde estaba él mismo hace un instante** (la inercia). Por eso la fórmula de la onda guarda **dos fotos del pasado**: la de ahora (t) y la anterior (t − 1).
@@ -17,7 +18,9 @@ Para paralelizar se hace igual que con Laplace: se parte la cuerda en trozos, un
 
 Este es el **ejercicio 1 de la PD05 2026-I** (3 pts) y el tema más probable de la PD05 de este ciclo: una EDP de U5.1 paralelizada con MPI P2P, con medición de tiempos y una gráfica.
 
-## Discretización (láminas 35–36)
+## Discretización
+
+<Laminas d="u51" n={[35, 36]} />
 
 Ecuación de onda: ∂²u/∂t² = c² · ∂²u/∂x².
 
@@ -31,7 +34,7 @@ Ecuación de onda: ∂²u/∂t² = c² · ∂²u/∂x².
 **Cómo leerlo:** para el punto naranja del futuro se usan 3 puntos del presente (celestes: x−1, x, x+1) y el mismo x del pasado (morado, flecha punteada). En el código esto son **tres arreglos**: `oldval` (t−1), `values` (t) y `newval` (t+1), como en el código del curso. Solo los vecinos x±1 del presente cruzan entre procesos: el halo es de **1 valor por lado**.
 </U5Fig>
 
-:::note[Estabilidad (conocimiento general, no está en las láminas)]
+:::note[Estabilidad (conocimiento general, no está en el material)]
 El esquema explícito es estable solo si **τ = c·Δt/Δx ≤ 1** (condición CFL de Courant-Friedrichs-Lewy). Con τ > 1 la solución explota. Aquí se usa c = 1, Δt = 0.3 y Δx = 1, así que τ = 0.3 y τ² = 0.09.
 :::
 
@@ -235,7 +238,10 @@ Solo K = 10 pasa de 20 (24.08), y lejos de la costa. Con una simulación más la
 **2.** Un compañero paraleliza también el bucle de **pasos de tiempo**: cada proceso hace 250 de los 2000 pasos. ¿Qué está mal?
 
 <Solucion>
-El paso s+1 necesita u en s y en s−1: es una **dependencia verdadera** en el tiempo. El proceso que haga los pasos 251–500 necesita el estado del paso 250, que todavía no existe. Las EDP de evolución reparten el **espacio**, no el tiempo (lámina 31).
+El paso s+1 necesita u en s y en s−1: es una **dependencia verdadera** en el tiempo. El proceso que haga los pasos 251–500 necesita el estado del paso 250, que todavía no existe. Las EDP de evolución reparten el **espacio**, no el tiempo.
+
+<Laminas d="u51" n={[31]} />
+
 </Solucion>
 
 
@@ -253,4 +259,4 @@ El paso s+1 necesita u en s y en s−1: es una **dependencia verdadera** en el t
 	]}
 />
 
-<Fuente archivos={['U5.1 Algoritmos-EDP.pdf (láminas 31–36)', '2026I-CS4052-PD5.pdf (ejercicio 1)', '2026I-pd5-onda_sec.cpp (código del curso, ejecutado)', 'onda_pd5.cpp (solución propia, ejecutada y comparada con el secuencial)', 'Informe de la PD5 del grupo (tiempos de la versión con sin() en cada paso)']} />
+<Fuente archivos={['U5.1 Algoritmos-EDP.pdf', '2026I-CS4052-PD5.pdf (ejercicio 1)', '2026I-pd5-onda_sec.cpp (código del curso, ejecutado)', 'onda_pd5.cpp (solución propia, ejecutada y comparada con el secuencial)', 'Informe de la PD5 del grupo (tiempos de la versión con sin() en cada paso)']} />

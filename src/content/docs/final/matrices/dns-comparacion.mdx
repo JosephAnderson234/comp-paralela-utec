@@ -1,6 +1,6 @@
 ---
 title: "DNS y comparación de métodos"
-description: "Dekel–Nassimi–Sahni con p = N³ procesos en un cubo, la tabla resumen de la lámina 33 y cuál escala mejor."
+description: "Dekel–Nassimi–Sahni con p = N³ procesos en un cubo, la tabla resumen de la diapositiva y cuál escala mejor."
 ---
 import MatFig from '../../../../components/MatFig.astro';
 import EnSimple from '../../../../components/EnSimple.astro';
@@ -8,16 +8,19 @@ import Quiz from '../../../../components/Quiz.tsx';
 import Solucion from '../../../../components/Solucion.astro';
 import Fuente from '../../../../components/Fuente.astro';
 import MatCost from '../../../../components/playgrounds/MatCost.tsx';
+import Laminas from '../../../../components/Laminas.astro';
 
 <EnSimple>
 Fox y Cannon usan un tablero plano: cada casilla repite q veces «multiplico y paso». DNS apila **N tableros** uno encima de otro, formando un cubo. Cada piso calcula **a la vez** un término distinto de la suma, y al final se suman los pisos de arriba abajo. Se gana tiempo porque todo pasa en paralelo, pero se paga en **memoria**: A y B se copian en muchos procesos.
 </EnSimple>
 
-## Algoritmo DNS (láminas 30–32)
+## Algoritmo DNS
 
-La lámina 30 vuelve a la idea de la PRAM (un proceso por cada terna i, k, j), pero con bloques: **p = N³** procesos en un cubo N×N×N y cada matriz partida en bloques de (n/N)×(n/N). El proceso p<sub>ikj</sub> se encarga del producto a<sub>ik</sub>·b<sub>kj</sub> (aquí a<sub>ik</sub> y b<sub>kj</sub> son bloques).
+<Laminas d="u63" n={[30, 31, 32]} />
 
-Con la numeración de la lámina 31, desde 1:
+La diapositiva vuelve a la idea de la PRAM (un proceso por cada terna i, k, j), pero con bloques: **p = N³** procesos en un cubo N×N×N y cada matriz partida en bloques de (n/N)×(n/N). El proceso p<sub>ikj</sub> se encarga del producto a<sub>ik</sub>·b<sub>kj</sub> (aquí a<sub>ik</sub> y b<sub>kj</sub> son bloques).
+
+Con la numeración de la diapositiva, desde 1:
 
 1. Al inicio, p<sub>ik1</sub> tiene a<sub>ik</sub> y p<sub>1kj</sub> tiene b<sub>kj</sub>.
 2. **Broadcast de A:** p<sub>ik1</sub> envía a<sub>ik</sub> a todos los p<sub>ikj</sub>, para j = 1…N.
@@ -29,7 +32,7 @@ Con la numeración de la lámina 31, desde 1:
 **Cómo leerlo:** cada recuadro de color es una capa k del cubo (N = 3). En la capa k, todos los procesos tienen la columna k de A y la fila k de B, gracias a los dos broadcasts. Cada capa produce un término de la suma; la reducción a lo largo de k suma las tres capas y deja C.
 </MatFig>
 
-## Tiempo (lámina 32)
+## Tiempo
 
 Cada broadcast y la reducción recorren una línea de N procesos con mensajes de (n/N)² números:
 
@@ -59,7 +62,9 @@ n = 1024, p = 4096 ⇒ N = 16, bloques de 64×64 = 4096 números. α = 1000 y β
 
 DNS envía mensajes más grandes (4096 contra 256 números), pero **muchos menos** (12 contra 64). Con α grande gana DNS; si α baja, gana Cannon. Con los mismos datos, Fox da E ≈ 0.32.
 
-## Tabla resumen (lámina 33)
+## Tabla resumen
+
+<Laminas d="u63" n={[33]} />
 
 | Algoritmo | (n,p) | Cómputo | Comunicación |
 |---|---|---|---|
@@ -69,7 +74,9 @@ DNS envía mensajes más grandes (4096 contra 256 números), pero **muchos menos
 | Cannon | n < p | O(n³/p) | O(√p·(α + (n²/p)β)) |
 | DNS | n < p | O(n³/p) | O(log p·(α + (n²/p<sup>2/3</sup>)β)) |
 
-La fila «particionamiento total» es el caso PRAM de la lámina 4 (un proceso por producto, p = n³), que cuesta O(1) en productos y O(log n) en sumas.
+La fila «particionamiento total» es el caso PRAM de la diapositiva (un proceso por producto, p = n³), que cuesta O(1) en productos y O(log n) en sumas.
+
+<Laminas d="u63" n={[4]} />
 
 ### Lo que agrega esta web: isoeficiencia y límites
 
@@ -80,7 +87,7 @@ La fila «particionamiento total» es el caso PRAM de la lámina 4 (un proceso p
 | Cannon | Θ(p<sup>1.5</sup>) | n² | Θ(n²) | solo shifts entre vecinos |
 | DNS | Θ(p log³ p) | n³ | Θ(n² p<sup>1/3</sup>) | 2 broadcasts + 1 reducción |
 
-**Cómo leerla:** un W pequeño significa que basta un problema chico para mantener E con muchos procesos. Asintóticamente DNS es el más escalable, pero paga memoria. Cannon es el mejor de los que usan memoria Θ(n²). El modelo de filas/columnas de la lámina (log p) daría Θ(p log p), demasiado optimista (ver la [nota de esa página](/final/matrices/filas-columnas/)).
+**Cómo leerla:** un W pequeño significa que basta un problema chico para mantener E con muchos procesos. Asintóticamente DNS es el más escalable, pero paga memoria. Cannon es el mejor de los que usan memoria Θ(n²). El modelo de filas/columnas del material (log p) daría Θ(p log p), demasiado optimista (ver la [nota de esa página](/final/matrices/filas-columnas/)).
 
 <MatCost client:visible />
 
@@ -106,4 +113,4 @@ La fila «particionamiento total» es el caso PRAM de la lámina 4 (un proceso p
  {q:'¿Qué paga DNS a cambio de escalar mejor?',opts:['más cómputo','más memoria (copias de A y B)','más sincronización','nada'],ok:1}
 ]} />
 
-<Fuente archivos={['U6.3 Performance-matrices.pdf (láminas 29–33)', 'tabla de isoeficiencias y ejemplos: cálculo propio con los modelos de las láminas']} />
+<Fuente archivos={['U6.3 Performance-matrices.pdf', 'tabla de isoeficiencias y ejemplos: cálculo propio con los modelos del material']} />

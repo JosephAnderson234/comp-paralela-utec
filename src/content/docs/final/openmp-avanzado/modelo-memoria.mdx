@@ -8,6 +8,7 @@ import EnSimple from '../../../../components/EnSimple.astro';
 import Quiz from '../../../../components/Quiz.tsx';
 import Solucion from '../../../../components/Solucion.astro';
 import Fuente from '../../../../components/Fuente.astro';
+import Laminas from '../../../../components/Laminas.astro';
 
 <EnSimple>
 Imagina dos cocineros con **una sola pizarra**. Uno escribe "hay pan" y después "hay queso". El otro lee la pizarra. Si lee en orden, nunca debería ver "hay queso" sin "hay pan".
@@ -17,7 +18,7 @@ Pero ahora cada cocinero tiene **su libreta** (la caché), y un asistente (el co
 Esa es la idea de esta página: en paralelo, el orden en que escribes el código **no es** el orden en que otros hilos ven los cambios, salvo que sincronices.
 </EnSimple>
 
-## El problema de la lámina
+## El problema del material
 
 ```cpp title="teoria/ejemplo01_assert.cpp"
 class C {
@@ -66,7 +67,9 @@ número de intercalados = C(2k, k) = (2k)! / (k!)^2  ≈  4^k / sqrt(pi·k)
 
 Para k = 2: C(4, 2) = **6**: ABCD, ACBD, ACDB, CABD, CADB, CDAB. Crece casi como 4^k: por eso no se puede probar un programa paralelo "probando todos los casos".
 
-## Demostración por contradicción (lámina 4)
+## Demostración por contradicción
+
+<Laminas d="u44" n={[4]} />
 
 Supón que el assert falla: b < a, o sea **a = 1 y b = 0**.
 
@@ -75,7 +78,7 @@ Supón que el assert falla: b < a, o sea **a = 1 y b = 0**.
 3. Orden del programa en cada hilo: **A antes que B** y **C antes que D**.
 4. Juntando: A → B → C → D → A. Es un **ciclo**: A tendría que ir antes que sí misma. Contradicción.
 
-Conclusión de la lámina: si cada hilo ejecuta **en el orden del código**, el assert nunca falla.
+Conclusión del material: si cada hilo ejecuta **en el orden del código**, el assert nunca falla.
 
 <AssertInterleavings client:visible />
 
@@ -107,7 +110,9 @@ La demostración asume que cada hilo ejecuta en el orden del código fuente (*pr
 **Cómo leerlo:** arriba, el orden que escribiste: A antes que B en el hilo 1, C antes que D en el hilo 2. Abajo, el orden en que la **memoria compartida** ve esas operaciones en una ejecución que falla: la escritura de x (A) se hace visible **tarde**. El hilo 2 ve y = 1 pero todavía x = 0, así que a = 1, b = 0 y el `assert` falla. Ningún intercalado "en orden" da ese resultado; aparece porque el compilador o el hardware reordenan A y B, que no dependen entre sí.
 </FinalFig>
 
-## Lo que hace el compilador (láminas 5–7)
+## Lo que hace el compilador
+
+<Laminas d="u44" n={[5, 6, 7]} />
 
 Las tres versiones de `f()` son equivalentes **en secuencial**:
 
@@ -134,7 +139,7 @@ void arrive() { x = 2; }
 
 Con `-O3` el compilador ve que en `wait()` nadie cambia `x` dentro del bucle, **saca la lectura** del bucle (ya sabe que x == 1) y lo convierte en un bucle infinito (`jmp` a sí mismo). Aunque otro hilo llame a `arrive()`, `wait()` nunca termina.
 
-Resumen de la lámina 7: los compiladores modernos garantizan un orden **local** (por hilo), no **global**, y con eso consiguen mejoras de 3 a 10×:
+Resumen de la diapositiva: los compiladores modernos garantizan un orden **local** (por hilo), no **global**, y con eso consiguen mejoras de 3 a 10×:
 
 - eliminan o mueven sentencias completas;
 - el **procesador** también reordena accesos a memoria (pipeline: varias instrucciones a la vez);
@@ -237,4 +242,4 @@ Solo dos: si `g()` corre antes que `f()`, **(0, 0)**; si `f()` corre antes, **(1
 	]}
 />
 
-<Fuente archivos={['U4.4 Paralelismo compartido-OMP.pdf (láminas 2–10)', 'semana_10/teoria/ejemplo01_assert.cpp', 'semana_10/teoria/ejemplo01_assert_critical.cpp']} />
+<Fuente archivos={['U4.4 Paralelismo compartido-OMP.pdf', 'semana_10/teoria/ejemplo01_assert.cpp', 'semana_10/teoria/ejemplo01_assert_critical.cpp']} />

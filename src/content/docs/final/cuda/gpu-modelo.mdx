@@ -7,6 +7,7 @@ import EnSimple from '../../../../components/EnSimple.astro';
 import Quiz from '../../../../components/Quiz.tsx';
 import Solucion from '../../../../components/Solucion.astro';
 import Fuente from '../../../../components/Fuente.astro';
+import Laminas from '../../../../components/Laminas.astro';
 
 <EnSimple>
 Una CPU es como **un equipo de pocos chefs expertos**: cada uno sabe hacer platos complicados y decidir rápido. Una GPU es como **una cocina con miles de ayudantes** que solo saben hacer una cosa simple, pero todos a la vez: pelar mil papas en el tiempo de una. CUDA es la forma de darle a esos ayudantes **la misma receta** (el *kernel*) y decirle a cada uno **qué papa le toca** (su índice).
@@ -16,9 +17,11 @@ Una CPU es como **un equipo de pocos chefs expertos**: cada uno sabe hacer plato
 
 Al terminar podrás: (1) decir qué corre en la CPU y qué en la GPU, (2) leer `kernel<<<B, H>>>()` y calcular cuántos hilos lanza, y (3) explicar qué son `threadIdx`, `blockIdx`, `blockDim` y `gridDim`.
 
-## 1. ¿Por qué GPUs? (láminas 2–11)
+## 1. ¿Por qué GPUs?
 
-La idea de la lámina 6: en una aplicación científica, una parte pequeña del código (la lámina habla de ≈5 %) concentra casi todo el cálculo. Esa parte se manda a la GPU, que tiene **miles** de núcleos; el resto, secuencial, sigue en la CPU, que tiene **decenas**.
+<Laminas d="u64" n={[2, 3, 4, 5, 6, 7, 8, 9, 10, 11]} />
+
+La idea de la diapositiva: en una aplicación científica, una parte pequeña del código (el material habla de ≈5 %) concentra casi todo el cálculo. Esa parte se manda a la GPU, que tiene **miles** de núcleos; el resto, secuencial, sigue en la CPU, que tiene **decenas**.
 
 | | CPU (**host**) | GPU (**device**) |
 |---|---|---|
@@ -31,19 +34,23 @@ La idea de la lámina 6: en una aplicación científica, una parte pequeña del 
 **Cómo leerlo:** a la izquierda, la CPU gasta mucho chip en control y caché. A la derecha, la GPU llena el chip de núcleos pequeños agrupados en filas (cada fila es un SM). Las dos memorias están **separadas**: para que la GPU vea un dato hay que copiarlo con `cudaMemcpy` por el bus, y esa copia cuesta tiempo.
 </CudaFig>
 
-**Aplicaciones de la lámina 9–10:** imágenes médicas 3D, dinámica de fluidos, dinámica molecular, análisis sísmico y diseño con sistemas multi-GPU.
+**Aplicaciones de las diapositivas:** imágenes médicas 3D, dinámica de fluidos, dinámica molecular, análisis sísmico y diseño con sistemas multi-GPU.
 
-## 2. Arquitectura (láminas 12–13)
+## 2. Arquitectura
+
+<Laminas d="u64" n={[12, 13]} />
 
 - **SP (*Streaming Processor*)**: un núcleo de la GPU.
-- **SM (*Streaming Multiprocessor*)**: un grupo de SPs que ejecutan **la misma instrucción** sobre datos distintos. El chip de la lámina 12 tiene 16 SMs × 32 SPs = **512 núcleos**.
-- **SIMD** (*Single Instruction, Multiple Data*): una instrucción, muchos datos. Ejemplo de la lámina 13: en vez de hacer A0+B0, luego A1+B1, … (escalar), se hacen las cuatro sumas **con una sola instrucción**.
+- **SM (*Streaming Multiprocessor*)**: un grupo de SPs que ejecutan **la misma instrucción** sobre datos distintos. El chip de la diapositiva tiene 16 SMs × 32 SPs = **512 núcleos**.
+- **SIMD** (*Single Instruction, Multiple Data*): una instrucción, muchos datos. Ejemplo de la diapositiva: en vez de hacer A0+B0, luego A1+B1, … (escalar), se hacen las cuatro sumas **con una sola instrucción**.
 
 :::note[Nombre que usa NVIDIA]
-La lámina dice que un SM «es un SIMD». NVIDIA lo llama **SIMT** (*Single Instruction, Multiple Threads*): grupos de 32 hilos (un **warp**) ejecutan juntos la misma instrucción, pero cada hilo tiene sus propios registros y puede tomar su propio `if`. Si los hilos de un warp se separan en un `if`, las dos ramas se ejecutan una tras otra (*divergencia*). Es conocimiento general, no está en las láminas.
+El material dice que un SM «es un SIMD». NVIDIA lo llama **SIMT** (*Single Instruction, Multiple Threads*): grupos de 32 hilos (un **warp**) ejecutan juntos la misma instrucción, pero cada hilo tiene sus propios registros y puede tomar su propio `if`. Si los hilos de un warp se separan en un `if`, las dos ramas se ejecutan una tras otra (*divergencia*). Es conocimiento general, no está en el material.
 :::
 
-## 3. Primer programa y `nvcc` (láminas 14–15)
+## 3. Primer programa y `nvcc`
+
+<Laminas d="u64" n={[14, 15]} />
 
 Un archivo `.cu` mezcla código de CPU y de GPU. **`nvcc`** los separa: manda la parte de CPU al compilador normal (gcc/g++) y compila la parte de GPU.
 
@@ -63,11 +70,15 @@ nvcc -o program source.cu
 
 - **`__global__`**: la función corre en la GPU y se llama desde la CPU. Eso es un **kernel**.
 - **`<<<1, 1>>>`**: es el **lanzamiento** (*kernel launch*): 1 bloque de 1 hilo. Aquí el kernel no hace nada.
-- La lámina 14 muestra `-arch=sm_20` (GPUs Fermi). En GPUs actuales se usa la arquitectura de tu tarjeta, por ejemplo `-arch=sm_86` para una RTX serie 30.
+- La diapositiva muestra `-arch=sm_20` (GPUs Fermi). En GPUs actuales se usa la arquitectura de tu tarjeta, por ejemplo `-arch=sm_86` para una RTX serie 30.
 
-**Propiedades del device (láminas 16–17):** `cudaGetDeviceProperties` llena una `cudaDeviceProp`. Los campos que más se usan en ejercicios son `multiProcessorCount` (número de SMs), `warpSize` (32), `maxThreadsPerBlock` (512 en la GPU de la lámina; 1024 en GPUs modernas) y `maxGridSize`.
+**Propiedades del device:** `cudaGetDeviceProperties` llena una `cudaDeviceProp`. Los campos que más se usan en ejercicios son `multiProcessorCount` (número de SMs), `warpSize` (32), `maxThreadsPerBlock` (512 en la GPU del material; 1024 en GPUs modernas) y `maxGridSize`.
 
-## 4. Hilos, bloques y grid (láminas 18–21)
+<Laminas d="u64" n={[16, 17]} />
+
+## 4. Hilos, bloques y grid
+
+<Laminas d="u64" n={[18, 19, 20, 21]} />
 
 Un kernel lo ejecutan **muchos hilos**, todos con el mismo código. Se organizan en dos niveles:
 
@@ -97,7 +108,7 @@ kernel<<<dim_grid, dim_block>>>();
 
 **Total de hilos = (bloques) × (hilos por bloque) = 10 000 × 256 = 2 560 000.**
 
-**Calificadores (lámina 21):**
+**Calificadores:**
 
 | Palabra | Dónde corre / vive | Quién la llama / ve |
 |---|---|---|
@@ -128,4 +139,4 @@ kernel<<<dim_grid, dim_block>>>();
  {q:'Un SM con 32 núcleos ejecutando la misma instrucción sobre datos distintos es…',opts:['MIMD','SISD','SIMD/SIMT','MPI'],ok:2}
 ]} />
 
-<Fuente archivos={['U6.4 Performance-CUDA.pdf (láminas 1–21)']} />
+<Fuente archivos={['U6.4 Performance-CUDA.pdf']} />

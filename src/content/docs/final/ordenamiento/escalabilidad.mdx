@@ -1,6 +1,6 @@
 ---
 title: Escalabilidad de los ordenamientos
-description: "Isoeficiencia del bitónico en malla y en hipercubo y de Hyksort (ejercicio 3 de la PD5 resuelto paso a paso), el cruce en p = 2^16 y la tabla resumen de la lámina 36."
+description: "Isoeficiencia del bitónico en malla y en hipercubo y de Hyksort (ejercicio 3 de la PD5 resuelto paso a paso), el cruce en p = 2^16 y la tabla resumen de la diapositiva."
 ---
 import FinalFig from '../../../../components/FinalFig.astro';
 import IsoSort from '../../../../components/playgrounds/IsoSort.tsx';
@@ -8,6 +8,7 @@ import EnSimple from '../../../../components/EnSimple.astro';
 import Quiz from '../../../../components/Quiz.tsx';
 import Solucion from '../../../../components/Solucion.astro';
 import Fuente from '../../../../components/Fuente.astro';
+import Laminas from '../../../../components/Laminas.astro';
 
 <EnSimple>
 "Escalable" quiere decir: si te doy **más procesadores**, ¿cuánto **más grande** tiene que ser el problema para que cada procesador siga igual de ocupado (misma eficiencia)?
@@ -80,9 +81,11 @@ Se iguala W = K·T<sub>o</sub> **término a término** (el término que pida má
 Ejemplo numérico con p = 1024: el bitónico en malla pide n ≈ 2³² ≈ 4·10⁹ datos (con K = 1); Hyksort pide n ≈ p log p ≈ 10⁴.
 </Solucion>
 
-## Tabla resumen (lámina 36, reconstruida)
+## Tabla resumen (reconstruida)
 
-La lámina 36 tiene las celdas desalineadas. Esta es la lectura coherente con las láminas anteriores y con la PD:
+<Laminas d="u52" n={[36]} />
+
+La diapositiva tiene las celdas desalineadas. Esta es la lectura coherente con las diapositivas anteriores y con la PD:
 
 | Algoritmo | Secuencial | Span (p = n) | Con p procesos (Brent / bloques) |
 |---|---|---|---|
@@ -92,10 +95,12 @@ La lámina 36 tiene las celdas desalineadas. Esta es la lectura coherente con la
 | Bitónico | O(n log n) (mejor secuencial) | O(log² n) | O((n/p) log n + log² p) |
 | Heapsort | O(n log n) | difícil de paralelizar | — |
 
-Las dos ideas finales de la lámina:
+Las dos ideas finales del material:
 
 - **Con n > p, el cómputo local (n/p) log(n/p) importa**: es la parte que se reparte bien.
-- **Hay que minimizar la comunicación**, porque es lo que decide la escalabilidad (en el ejemplo de ranking dominaba ×65). La lámina 37 (Axtmann & Sanders 2020, 262 144 núcleos) muestra que el mejor algoritmo cambia según n/p.
+- **Hay que minimizar la comunicación**, porque es lo que decide la escalabilidad (en el ejemplo de ranking dominaba ×65). La diapositiva (Axtmann & Sanders 2020, 262 144 núcleos) muestra que el mejor algoritmo cambia según n/p.
+
+<Laminas d="u52" n={[37]} />
 
 ## Práctica
 
@@ -132,4 +137,4 @@ Hipercubo: log n = K·log² p = 4 · 6² = 144, así que **n = 2¹⁴⁴**, un n
 	]}
 />
 
-<Fuente archivos={['2026I-CS4052-PD5.pdf (ejercicio 3)', 'U5.2 Algoritmos-ordenamiento.pdf (láminas 21, 36–37)', 'U2.1 Diseño en paralelo-performance (isoeficiencia)']} />
+<Fuente archivos={['2026I-CS4052-PD5.pdf (ejercicio 3)', 'U5.2 Algoritmos-ordenamiento.pdf', 'U2.1 Diseño en paralelo-performance (isoeficiencia)']} />

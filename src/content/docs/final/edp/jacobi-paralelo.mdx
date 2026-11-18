@@ -8,6 +8,7 @@ import EnSimple from '../../../../components/EnSimple.astro';
 import Quiz from '../../../../components/Quiz.tsx';
 import Solucion from '../../../../components/Solucion.astro';
 import Fuente from '../../../../components/Fuente.astro';
+import Laminas from '../../../../components/Laminas.astro';
 
 <EnSimple>
 Una fila de 100 personas. La primera tiene 0 °C y la última 100 °C. En cada ronda, cada persona dice "mi valor nuevo es el promedio de los valores **viejos** de mis dos vecinos". Todos pueden calcular **a la vez**, porque solo miran valores viejos.
@@ -108,11 +109,16 @@ Otra opción es `MPI_Isend`/`MPI_Irecv` + `MPI_Waitall`. Además permite **solap
 
 Visto en [EDP y diferencias finitas](/final/edp/fundamentos/): se necesitan 21 980 iteraciones. Las tres versiones paran en `max_iter`, con error 4.17·10⁻⁴ > tol = 10⁻⁶. Que las tres den lo mismo prueba que la **paralelización es correcta**, no que la solución haya convergido.
 
-:::note[Detalle de la lámina 18]
-En la versión resumida de la lámina 18 falta la línea `local_error = max(local_error, |local_u[i] − local_old[i]|)` dentro del bucle. Sin ella, `global_error` siempre vale 0 y el `while` termina después de **una** iteración. El archivo `laplace_mpi.cpp` sí la tiene.
+:::note[Detalle de la diapositiva]
+
+<Laminas d="u51" n={[18]} />
+
+En la versión resumida de la diapositiva falta la línea `local_error = max(local_error, |local_u[i] − local_old[i]|)` dentro del bucle. Sin ella, `global_error` siempre vale 0 y el `while` termina después de **una** iteración. El archivo `laplace_mpi.cpp` sí la tiene.
 :::
 
-## En 2D: ¿franjas o bloques? (láminas 32–34 y U4.5)
+## En 2D: ¿franjas o bloques? (diapositiva y U4.5)
+
+<Laminas d="u51" n={[32, 33, 34]} />
 
 Malla N×N, p procesos y una celda de halo por lado:
 
@@ -122,8 +128,10 @@ Malla N×N, p procesos y una celda de halo por lado:
 | **Bloques** (√p × √p) | 4 mensajes de N/√p valores: 4(t<sub>s</sub> + (N/√p)·t<sub>w</sub>) | (N²/p) / (4N/√p) = **N / 4√p** |
 
 - Con **franjas** el halo por proceso **no baja** al aumentar p: siempre son 2 filas de N.
-- Con **bloques** baja como 1/√p (lámina 13 de U4.5), pero hay 4 vecinos, así que el doble de latencias.
+- Con **bloques** baja como 1/√p, pero hay 4 vecinos, así que el doble de latencias.
 - Los bloques ganan cuando N/(4√p) > N/(2p), es decir, √p > 2, o sea **p > 4**. Con pocos procesos, o con latencia t<sub>s</sub> alta, las franjas son más simples y van igual o mejor.
+
+<Laminas d="u45" n={[13]} />
 
 En C, una franja de filas es memoria **contigua** y se envía tal cual. Una columna de un bloque no lo es: hay que usar un `MPI_Type_vector` (ver [tipos derivados](/mpi/tipos-derivados/)).
 
@@ -144,7 +152,10 @@ Los bloques comunican ≈ 34 % menos, pero con N = 4096 la comunicación es meno
 **2.** ¿Por qué no se puede repartir el bucle `while` (las iteraciones) entre procesos?
 
 <Solucion>
-Porque la iteración k+1 **necesita** el resultado completo de la iteración k: es una dependencia verdadera en el tiempo. Lo que se reparte es el **espacio** (los puntos), y dentro de cada iteración todos los puntos son independientes. Es la misma razón por la que en las EDP parabólicas el tiempo es secuencial (lámina 31).
+Porque la iteración k+1 **necesita** el resultado completo de la iteración k: es una dependencia verdadera en el tiempo. Lo que se reparte es el **espacio** (los puntos), y dentro de cada iteración todos los puntos son independientes. Es la misma razón por la que en las EDP parabólicas el tiempo es secuencial.
+
+<Laminas d="u51" n={[31]} />
+
 </Solucion>
 
 <Quiz
@@ -160,4 +171,4 @@ Porque la iteración k+1 **necesita** el resultado completo de la iteración k: 
 	]}
 />
 
-<Fuente archivos={['U5.1 Algoritmos-EDP.pdf (láminas 17–18, 32–34)', 'U5.1 Algoritmos-EDP-code/laplace_sec.cpp', 'laplace_omp.cpp', 'laplace_mpi.cpp', 'U4.5 Paralelismo-hibrido.pdf (lámina 13)']} />
+<Fuente archivos={['U5.1 Algoritmos-EDP.pdf', 'U5.1 Algoritmos-EDP-code/laplace_sec.cpp', 'laplace_omp.cpp', 'laplace_mpi.cpp', 'U4.5 Paralelismo-hibrido.pdf']} />

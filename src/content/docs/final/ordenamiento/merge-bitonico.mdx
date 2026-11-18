@@ -8,6 +8,7 @@ import EnSimple from '../../../../components/EnSimple.astro';
 import Quiz from '../../../../components/Quiz.tsx';
 import Solucion from '../../../../components/Solucion.astro';
 import Fuente from '../../../../components/Fuente.astro';
+import Laminas from '../../../../components/Laminas.astro';
 
 <EnSimple>
 Una **red de ordenamiento** es una receta fija de comparaciones: "compara la posición 0 con la 1, la 2 con la 3…". No depende de los datos, así que **todas las comparaciones de un paso se pueden hacer a la vez**.
@@ -15,13 +16,17 @@ Una **red de ordenamiento** es una receta fija de comparaciones: "compara la pos
 Una secuencia **bitónica** es como una montaña: sube y luego baja (por ejemplo 1 4 7 8 6 3). La gracia es que una montaña se ordena muy fácil: comparas la primera mitad con la segunda y quedan dos montañas más chicas, una toda por debajo de la otra. Repites hasta tener montañas de 2 elementos.
 </EnSimple>
 
-## Merge en paralelo (láminas 22–25)
+## Merge en paralelo
+
+<Laminas d="u52" n={[22, 23, 24, 25]} />
 
 Problema: **mezclar** A = (a₁ … a<sub>n</sub>) y B = (b₁ … b<sub>n</sub>), ya ordenadas, en C ordenada de 2n elementos (supuestos: mismo tamaño y n potencia de 2).
 
-Con n = 2 (lámina 24) hacen falta 3 comparadores. P1 compara los menores: min(a₁, b₁) = c₁. P2 compara los mayores: max(a₂, b₂) = c₄. P3 ordena los dos del medio (c₂, c₃).
+Con n = 2 hacen falta 3 comparadores. P1 compara los menores: min(a₁, b₁) = c₁. P2 compara los mayores: max(a₂, b₂) = c₄. P3 ordena los dos del medio (c₂, c₃).
 
-## Odd-even merge de Batcher (láminas 26–28)
+## Odd-even merge de Batcher
+
+<Laminas d="u52" n={[26, 27, 28]} />
 
 Para mezclar dos secuencias de n:
 
@@ -30,7 +35,7 @@ Para mezclar dos secuencias de n:
 3. Juntar: c₁ = d₁, c<sub>2n</sub> = e<sub>n</sub>, y para i = 1 … n − 1:
    **c<sub>2i</sub> = min(d<sub>i+1</sub>, e<sub>i</sub>)**, **c<sub>2i+1</sub> = max(d<sub>i+1</sub>, e<sub>i</sub>)**.
 
-<Solucion titulo="Ejemplo completo de la lámina 25: A = {3, 5, 7, 9}, B = {2, 4, 6, 8}">
+<Solucion titulo="Ejemplo completo de la diapositiva: A = {3, 5, 7, 9}, B = {2, 4, 6, 8}">
 **Impares:** A → (3, 7), B → (2, 6). Mezclados: **d = (2, 3, 6, 7)**.
 
 **Pares:** A → (5, 9), B → (4, 8). Mezclados: **e = (4, 5, 8, 9)**.
@@ -44,11 +49,15 @@ Para mezclar dos secuencias de n:
 **C = (2, 3, 4, 5, 6, 7, 8, 9)** ✓. El último paso son 3 comparaciones **independientes**: se hacen en un solo paso paralelo.
 </Solucion>
 
-**Complejidad del mergesort paralelo** (lámina 29): mezclar dos secuencias de n tiene profundidad O(log n), y el mergesort hace log n niveles de mezcla. Por tanto el **span es O(log² n)**, con trabajo O(n log n) en el modelo PRAM **CREW**. Con el merge de Cole se llega a O(log n log log n).
+**Complejidad del mergesort paralelo**: mezclar dos secuencias de n tiene profundidad O(log n), y el mergesort hace log n niveles de mezcla. Por tanto el **span es O(log² n)**, con trabajo O(n log n) en el modelo PRAM **CREW**. Con el merge de Cole se llega a O(log n log log n).
+
+<Laminas d="u52" n={[29]} />
 
 *Conocimiento general:* como **red** de comparadores fija, el odd-even mergesort de Batcher usa O(n log² n) comparadores, igual que el bitónico.
 
-## Ordenamiento bitónico (láminas 30–33)
+## Ordenamiento bitónico
+
+<Laminas d="u52" n={[30, 31, 32, 33]} />
 
 **Secuencia bitónica:** a₀ < a₁ < … < a<sub>i</sub> > a<sub>i+1</sub> > … > a<sub>n−1</sub>, es decir, primero crece y después decrece. También cuenta una rotación cíclica de una secuencia así.
 
@@ -60,7 +69,7 @@ Para mezclar dos secuencias de n:
 
 Aplicándolo recursivamente (n/2, n/4, …, 2) una secuencia bitónica queda ordenada en **log n** pasos paralelos: es la **mezcla bitónica**.
 
-**Para ordenar una entrada cualquiera** (lámina 33): todo par de números es bitónico. Se ordenan pares (alternando creciente y decreciente), así cada 4 forman una secuencia bitónica. Se mezclan los bloques de 4 (alternando), y cada 8 son bitónicos, y así sucesivamente.
+**Para ordenar una entrada cualquiera**: todo par de números es bitónico. Se ordenan pares (alternando creciente y decreciente), así cada 4 forman una secuencia bitónica. Se mezclan los bloques de 4 (alternando), y cada 8 son bitónicos, y así sucesivamente.
 
 <BitonicNet client:visible />
 
@@ -106,9 +115,11 @@ Con n = 2²² enteros al azar (salida verificada igual a la de `std::sort`):
 
 **Con 8 hilos el bitónico sigue siendo más lento que `std::sort` con un solo hilo.** Hace 253 · 2²¹ ≈ 5.3·10⁸ comparaciones, contra ≈ n log n ≈ 9.2·10⁷ de un buen secuencial (≈ 6 veces más trabajo), y además recorre el arreglo completo 253 veces. Escala (S(8) = 3.5 respecto a sí mismo), pero contra el mejor secuencial S = 0.75. Es la diferencia entre **speedup relativo** y **speedup absoluto**.
 
-## Heapsort (láminas 34–35)
+## Heapsort
 
-O(n log n) con un montículo (heap): se extrae la raíz (el máximo), se lleva el último elemento a la raíz y se "hunde". Cada extracción depende de la anterior, porque el heap cambia. Es una cadena secuencial de n pasos, y por eso es **difícil de paralelizar** (lámina 35).
+<Laminas d="u52" n={[34, 35]} />
+
+O(n log n) con un montículo (heap): se extrae la raíz (el máximo), se lleva el último elemento a la raíz y se "hunde". Cada extracción depende de la anterior, porque el heap cambia. Es una cadena secuencial de n pasos, y por eso es **difícil de paralelizar**.
 
 ## Práctica
 
@@ -167,4 +178,4 @@ Pares (a<sub>i</sub>, a<sub>i+4</sub>): (2, 4), (6, 3), (7, 1), (5, 0).
 	]}
 />
 
-<Fuente archivos={['U5.2 Algoritmos-ordenamiento.pdf (láminas 22–35)', 'bitonico.cpp (solución propia, ejecutada)']} />
+<Fuente archivos={['U5.2 Algoritmos-ordenamiento.pdf', 'bitonico.cpp (solución propia, ejecutada)']} />

@@ -8,12 +8,15 @@ import Quiz from '../../../../components/Quiz.tsx';
 import Solucion from '../../../../components/Solucion.astro';
 import Fuente from '../../../../components/Fuente.astro';
 import FloydStepper from '../../../../components/playgrounds/FloydStepper.tsx';
+import Laminas from '../../../../components/Laminas.astro';
 
 <EnSimple>
 Si viajas de una ciudad i a otra j, pregúntate: **«¿me conviene pasar por k?»**. Floyd hace esa misma pregunta para cada pareja de ciudades, probando una ciudad intermedia nueva en cada ronda. Así encuentra las rutas más cortas entre **todos** los pares.
 </EnSimple>
 
-## Recurrencia y una matriz pequeña (láminas 25–29)
+## Recurrencia y una matriz pequeña
+
+<Laminas d="u54" n={[25, 26, 27, 28, 29]} />
 
 Sea D<sup>(k)</sup>[i,j] la distancia más corta de i a j permitiendo como intermediarios solo los vértices 1…k. D<sup>(0)</sup>=A, la matriz de pesos directos; ∞ indica que no existe arista. Si una ruta óptima pasa por k, se divide en i→k y k→j:
 
@@ -21,7 +24,7 @@ $$d^{(k)}_{ij}=\min\left(d^{(k-1)}_{ij},\ d^{(k-1)}_{ik}+d^{(k-1)}_{kj}\right).$
 
 Cada celda de la ronda k lee **la matriz anterior**. En este ejemplo hay una arista negativa, pero ningún ciclo negativo; de existir un ciclo negativo, «ruta más corta» puede no estar definida.
 
-Matriz inicial de la lámina 29, filas y columnas 1,2,3:
+Matriz inicial de la diapositiva, filas y columnas 1,2,3:
 
 | D⁰ | 1 | 2 | 3 |
 |---|---:|---:|---:|
@@ -35,7 +38,7 @@ Matriz inicial de la lámina 29, filas y columnas 1,2,3:
 
 <FloydStepper client:visible />
 
-### Segundo ejemplo de la lámina 26
+### Segundo ejemplo de la diapositiva
 
 La matriz directa A de seis vértices y la matriz final, **verificadas por programa propio**:
 
@@ -50,11 +53,13 @@ La matriz directa A de seis vértices y la matriz final, **verificadas por progr
 
 Ejemplo de una celda: 0→3 pasa por 1; A[0,1]+A[1,3]=2+1=3. Luego 0→4 pasa por 3: 3+3=6, y 0→5 pasa por 4: 6+3=9.
 
-:::caution[Erratas en la lámina 29]
+:::caution[Erratas en la diapositiva]
 La fórmula impresa para D³[1,2] tiene un corchete duplicado; debe leerse D²[1,3]+D²[3,2]. Además, el cálculo escrito para D¹[3,2] no cambia la celda: ya valía −3. Se muestran arriba solo las mejoras reales.
 :::
 
-## Trabajo y paralelo PRAM (lámina 30)
+## Trabajo y paralelo PRAM
+
+<Laminas d="u54" n={[30]} />
 
 Hay n valores de k, y para cada uno n² celdas independientes. Supuesto: una suma y comparación por celda cuestan un paso; ∞ se trata como ausencia de ruta. Por tanto **W=Θ(n³)**, **T<sub>∞</sub>=Θ(n)** si las n² celdas se actualizan juntas y, con p procesadores, **T<sub>p</sub>=O(n³/p+n)**. El bucle k conserva el orden porque D<sup>(k)</sup> depende de D<sup>(k−1)</sup>; los bucles i,j sí se reparten.
 
@@ -76,7 +81,9 @@ inf 5 6 2 4 0
 
 No son tiempos medidos; solo se comprobó el resultado.
 
-## Bloques 2-D y comunicación (láminas 31–35)
+## Bloques 2-D y comunicación
+
+<Laminas d="u54" n={[31, 32, 33, 34, 35]} />
 
 Con p procesos organizados en **√p × √p**, cada uno guarda un bloque de **(n/√p) × (n/√p)**. En la ronda k recibe el segmento de fila k para su columna y el segmento de columna k para su fila; luego actualiza sus celdas locales.
 
@@ -84,11 +91,11 @@ Con p procesos organizados en **√p × √p**, cada uno guarda un bloque de **(
 **Cómo leerlo:** hay cuatro bloques de un ejemplo propio (p=4). El bloque con k comparte su segmento de fila hacia la derecha y de columna hacia abajo; todos los bloques actualizan sus celdas con ambos segmentos. Los números P00…P11 son procesos.
 </GrafosFig>
 
-:::caution[Posible error en las láminas 31 y 33]
-La lámina 31 escribe bloques «n/p × n/p» y p×p subbloques aunque indica p procesos: para p procesos en dos dimensiones son **√p×√p bloques** de **n/√p por lado**. La lámina 33 da T<sub>comm</sub>=O((n²/p) log p) y E≈1/(1+log p/n). En el análisis estándar de Grama et al., sección 10.4.2, cada broadcast de una ronda comunica n/√p elementos por una fila o columna de √p procesos: **O((n/√p) log p)** por ronda y **O((n²/√p) log p)** en n rondas, si se cobra β por elemento y se ignora α. Así, T<sub>p</sub>≈n³/p+n² log p/√p, pT<sub>p</sub>≈n³+n²√p log p y **E≈1/(1+√p log p/n)**. La diferencia es el tamaño de cada segmento comunicado. Para un examen que pida reproducir el modelo de la lámina, usa su fórmula e indica este matiz.
+:::caution[Posible error en las diapositivas]
+La diapositiva escribe bloques «n/p × n/p» y p×p subbloques aunque indica p procesos: para p procesos en dos dimensiones son **√p×√p bloques** de **n/√p por lado**. La diapositiva da T<sub>comm</sub>=O((n²/p) log p) y E≈1/(1+log p/n). En el análisis estándar de Grama et al., sección 10.4.2, cada broadcast de una ronda comunica n/√p elementos por una fila o columna de √p procesos: **O((n/√p) log p)** por ronda y **O((n²/√p) log p)** en n rondas, si se cobra β por elemento y se ignora α. Así, T<sub>p</sub>≈n³/p+n² log p/√p, pT<sub>p</sub>≈n³+n²√p log p y **E≈1/(1+√p log p/n)**. La diferencia es el tamaño de cada segmento comunicado. Para un examen que pida reproducir el modelo del material, usa su fórmula e indica este matiz.
 :::
 
-En el análisis estándar, E constante pide n=Θ(√p log p). Como W=n³, la frontera de isoeficiencia en trabajo es **W=Θ(p<sup>1.5</sup> log³ p)**. En el modelo de la lámina, n=Θ(log p), una conclusión mucho más optimista. Ambas expresiones son **modelos**; no son benchmarks.
+En el análisis estándar, E constante pide n=Θ(√p log p). Como W=n³, la frontera de isoeficiencia en trabajo es **W=Θ(p<sup>1.5</sup> log³ p)**. En el modelo del material, n=Θ(log p), una conclusión mucho más optimista. Ambas expresiones son **modelos**; no son benchmarks.
 
 ## Práctica
 
@@ -101,7 +108,7 @@ En el análisis estándar, E constante pide n=Θ(√p log p). Como W=n³, la fro
 - Paralelizar k como si las rondas fueran independientes.
 - Leer un valor recién actualizado cuando la recurrencia exige D<sup>(k−1)</sup>.
 - Decir que cada proceso guarda n/p por lado: guarda n/√p por lado.
-- Mezclar la eficiencia del modelo de la lámina con la del análisis estándar sin decir cuál se usa.
+- Mezclar la eficiencia del modelo del material con la del análisis estándar sin decir cuál se usa.
 
 <Quiz client:visible id="u54-floyd" preguntas={[
  {q:'¿Qué pregunta hace cada actualización?',opts:['¿pasar por k mejora i→j?','¿qué vértice entra al MST?','¿cuántos colores hay?','¿qué proceso termina primero?'],ok:0},
@@ -111,4 +118,4 @@ En el análisis estándar, E constante pide n=Θ(√p log p). Como W=n³, la fro
  {q:'Con p procesos en bloques 2-D, el lado de un bloque es…',opts:['n/p','n/√p','√n/p','n²/p'],ok:1},
  {q:'E estándar bajo el modelo de comunicación indicado:',opts:['1/(1+log p/n)','1/(1+√p log p/n)','p/n','1'],ok:1}
 ]} />
-<Fuente archivos={['U5.4 Algoritmos-grafos.pdf (láminas 25–35)', 'Grama et al., sección 10.4.2 (análisis estándar de comunicación)', 'programa propio: floyd_omp.cpp (compilado y ejecutado)']} />
+<Fuente archivos={['U5.4 Algoritmos-grafos.pdf', 'Grama et al., sección 10.4.2 (análisis estándar de comunicación)', 'programa propio: floyd_omp.cpp (compilado y ejecutado)']} />

@@ -8,12 +8,15 @@ import Quiz from '../../../../components/Quiz.tsx';
 import Solucion from '../../../../components/Solucion.astro';
 import Fuente from '../../../../components/Fuente.astro';
 import BroadcastCompare from '../../../../components/playgrounds/BroadcastCompare.tsx';
+import Laminas from '../../../../components/Laminas.astro';
 
 <EnSimple>
 Una persona avisa una noticia a todos: eso es *broadcast* (difusión). Si todos entregan un resultado para juntarlo, es **reducción**. Para mensajes cortos conviene pasar la noticia por un árbol; para uno grande conviene cortarlo en partes y pasar las partes como una cadena de baldes.
 </EnSimple>
 
-## Reducción y su árbol (láminas 2–5)
+## Reducción y su árbol
+
+<Laminas d="u61" n={[2, 3, 4, 5]} />
 
 Una **operación asociativa** permite agrupar sin cambiar el resultado, como suma, máximo o mínimo. Por eso una reducción puede usar un árbol inverso al del broadcast: la información se junta en vez de repartirse. Supuesto: una combinación de dos escalares cuesta un paso.
 
@@ -28,7 +31,9 @@ En PRAM con n=p=8, números 1…8, los bits del índice deciden quién envía en
 
 T=log₂8=3 rondas; el trabajo de sumas es 7. Si n>p, cada proceso primero suma n/p elementos y luego reduce p resultados: **T<sub>p</sub>≈n/p+log p**, W≈n y **E≈1/(1+p log p/n)**. En memoria distribuida, para un vector de n elementos enviado completo por cada nivel, T≈log p(α+nβ). Aquí **α=Tstart** es costo fijo de iniciar un mensaje y **β=Tbyte** es costo por elemento transmitido; T(m)=α+mβ. Las constantes de cómputo se omiten en este modelo.
 
-## Broadcast lineal y binomial (láminas 6–7)
+## Broadcast lineal y binomial
+
+<Laminas d="u61" n={[6, 7]} />
 
 En el lineal, el origen envía la copia completa, una tras otra, a p−1 procesos: **T=(p−1)(α+nβ)**. En el **árbol binomial**, los procesos que ya tienen el mensaje lo reenvían; el número de copias se duplica por ronda: **T=log₂p(α+nβ)** para p potencia de dos.
 
@@ -36,7 +41,9 @@ En el lineal, el origen envía la copia completa, una tras otra, a p−1 proceso
 **Cómo leerlo:** el proceso 0 parte con el mensaje. Sigue el número pequeño de cada arista: en las rondas 1, 2 y 3 aparecen 1, 2 y 4 nuevos receptores. Con p=8, el camino más largo tiene log₂8=3 envíos.
 </U6Fig>
 
-## Pipeline lineal: dividir para solapar (láminas 8–10)
+## Pipeline lineal: dividir para solapar
+
+<Laminas d="u61" n={[8, 9, 10]} />
 
 Se divide el mensaje de n elementos en k trozos. Un enlace tarda α+nβ/k por trozo. El primer trozo necesita p−1 enlaces; cada trozo posterior añade una etapa: **T(k)=(p+k−2)(α+nβ/k)**.
 
@@ -46,24 +53,28 @@ Se divide el mensaje de n elementos en k trozos. Un enlace tarda α+nβ/k por tr
 
 **Derivación del tamaño óptimo:** sea a=nβ. Expande T(k)=a(p−2)/k+a+α(p−2)+αk. La derivada es −a(p−2)/k²+α. Igualarla a cero da **k\*=√(n(p−2)β/α)**; se redondea a un entero ≥1. Sustituir la raíz produce T\*≈nβ+pα+2√(npαβ) cuando p es grande (la expresión exacta conserva p−2 en la raíz y en el término α). Ejemplo propio calculado: n=10⁶, p=64, α=10⁻⁵, β=10⁻⁹ ⇒ k\*=√6200≈78.74; comparar enteros cercanos da **k=79**.
 
-## Árboles con trozos (láminas 11–21)
+## Árboles con trozos
 
-Para un árbol binario de profundidad d, la lámina 12 modela **T(k)=(2d+3(k−1))(α+nβ/k)**. Expandiendo los términos que dependen de k: nβ(2d−3)/k+3αk; la derivada da **k\*=√(n(2d−3)β/(3α))**. Su forma dominante es T\*≈2dα+3nβ+O(√(ndαβ)).
+<Laminas d="u61" n={[11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]} />
 
-El árbol Fibonacci de la lámina 15 da **T≈dα+2nβ+O(√(ndαβ))**; la clase presenta esa aproximación sin derivarla. En la variante de la lámina 16 se da una expresión parecida con un término que depende de p; aquí se conserva la fórmula de la lámina, sin atribuirle una derivación nueva.
+Para un árbol binario de profundidad d, la diapositiva modela **T(k)=(2d+3(k−1))(α+nβ/k)**. Expandiendo los términos que dependen de k: nβ(2d−3)/k+3αk; la derivada da **k\*=√(n(2d−3)β/(3α))**. Su forma dominante es T\*≈2dα+3nβ+O(√(ndαβ)).
+
+El árbol Fibonacci de la diapositiva da **T≈dα+2nβ+O(√(ndαβ))**; la clase presenta esa aproximación sin derivarla. En la variante de la diapositiva se da una expresión parecida con un término que depende de p; aquí se conserva la fórmula del material, sin atribuirle una derivación nueva.
 
 En el **2-3 broadcast** dos árboles trabajan a la vez: los nodos internos de A son hojas de B y viceversa. Así se usa mejor la capacidad de envío de cada proceso. Su modelo es **T(k)=(2d+k−1)(α+nβ/k)**. Al expandir, los términos variables son nβ(2d−1)/k+αk: **k\*=√(n(2d−1)β/α)**, y T\*≈2 log p·α+nβ+O(√(n log p·αβ)).
 
 <U6Fig fig="dosarboles">
-**Cómo leerlo:** compara los dos dibujos: un nodo que reenvía en A (celeste) es hoja en B (naranja). Los árboles complementarios reparten el envío del mensaje en vez de dejar a las hojas inactivas. Es un esquema propio de la idea de la lámina 18.
+**Cómo leerlo:** compara los dos dibujos: un nodo que reenvía en A (celeste) es hoja en B (naranja). Los árboles complementarios reparten el envío del mensaje en vez de dejar a las hojas inactivas. Es un esquema propio de la idea de la diapositiva.
 </U6Fig>
 
-## Hipercubo y ESBT (láminas 22–27)
+## Hipercubo y ESBT
+
+<Laminas d="u61" n={[22, 23, 24, 25, 26, 27]} />
 
 Un **hipercubo** de dimensión d tiene p=2<sup>d</sup> procesos identificados por d bits. Los *edge-disjoint spanning binomial trees* (ESBT, árboles binomiales de expansión sin aristas compartidas) permiten modelar **T(k)=(d+k)(α+nβ/k)**. La parte variable es ndβ/k+αk; por derivación, **k\*=√(ndβ/α)** y **T\*=dα+nβ+2√(ndαβ)** en este modelo continuo.
 
-:::caution[Factor en la aproximación de la lámina 26]
-La tabla de la lámina resume el término de raíz sin escribir el factor 2. La derivación exacta de (d+k)(α+nβ/k) sí da **2√(ndαβ)**. En notación O, ambos tienen el mismo orden; al comparar valores del modelo conviene conservar el 2.
+:::caution[Factor en la aproximación de la diapositiva]
+La tabla del material resume el término de raíz sin escribir el factor 2. La derivación exacta de (d+k)(α+nβ/k) sí da **2√(ndαβ)**. En notación O, ambos tienen el mismo orden; al comparar valores del modelo conviene conservar el 2.
 :::
 
 | Método | Modelo dominante | Conviene cuando… |
@@ -80,9 +91,11 @@ Para **n pequeño** manda el término de arranque: el binomial paga solo log p·
 
 <BroadcastCompare client:visible />
 
-## MPI y práctica real (láminas 28–32)
+## MPI y práctica real
 
-MPI puede elegir distintos algoritmos según n y p mediante funciones de decisión (MPICH/Open MPI), y la interfaz **MPI_T** permite consultar o ajustar variables de la implementación. La lámina 31 advierte que esas decisiones **no garantizan el óptimo**. Para mensajes cortos, la lámina usa un árbol mínimo/binomial y T≈log p(α+nβ). Para *scatter/gather* (repartir y reunir), el texto de la fórmula de la lámina 32 es difícil de leer; como **conocimiento general**, un scatter binomial idealizado cuesta aproximadamente α log p+βn(p−1)/p. En Big Data, la lámina aproxima un broadcast como 2nβ si α es pequeño; Hadoop transmite mediante HDFS. Esas expresiones dependen de plataforma, topología y tamaño.
+<Laminas d="u61" n={[28, 29, 30, 31, 32]} />
+
+MPI puede elegir distintos algoritmos según n y p mediante funciones de decisión (MPICH/Open MPI), y la interfaz **MPI_T** permite consultar o ajustar variables de la implementación. La diapositiva advierte que esas decisiones **no garantizan el óptimo**. Para mensajes cortos, el material usa un árbol mínimo/binomial y T≈log p(α+nβ). Para *scatter/gather* (repartir y reunir), el texto de la fórmula de la diapositiva es difícil de leer; como **conocimiento general**, un scatter binomial idealizado cuesta aproximadamente α log p+βn(p−1)/p. En Big Data, el material aproxima un broadcast como 2nβ si α es pequeño; Hadoop transmite mediante HDFS. Esas expresiones dependen de plataforma, topología y tamaño.
 
 ## Práctica
 
@@ -105,4 +118,4 @@ MPI puede elegir distintos algoritmos según n y p mediante funciones de decisi�
  {q:'¿Cuál tiene término principal nβ para mensajes largos?',opts:['binomial','lineal','ESBT','ninguno'],ok:2},
  {q:'El modelo de ESBT tras optimizar k contiene…',opts:['√(ndαβ)','2√(ndαβ)','p√n','ninguna raíz'],ok:1}
 ]} />
-<Fuente archivos={['U6.1 Performance-BCast.pdf (láminas 2–32)']} />
+<Fuente archivos={['U6.1 Performance-BCast.pdf']} />

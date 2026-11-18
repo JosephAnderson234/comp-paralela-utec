@@ -8,6 +8,7 @@ import Quiz from '../../../../components/Quiz.tsx';
 import Solucion from '../../../../components/Solucion.astro';
 import Fuente from '../../../../components/Fuente.astro';
 import BusquedaArbol from '../../../../components/playgrounds/BusquedaArbol.tsx';
+import Laminas from '../../../../components/Laminas.astro';
 
 <EnSimple>
 Hay dos formas de que un equipo busque un objeto perdido en un edificio:
@@ -18,7 +19,9 @@ Hay dos formas de que un equipo busque un objeto perdido en un edificio:
 Los **clusters** mezclan las dos: varios equipos, cada equipo con su lupa, y dentro del equipo se reparten los pisos.
 </EnSimple>
 
-## Descomposición del dominio (láminas 24–26)
+## Descomposición del dominio
+
+<Laminas d="u53" n={[24, 25, 26]} />
 
 Se parte el **espacio de búsqueda** (el árbol) y cada procesador busca en sus subárboles a la vez. El problema: los subárboles pueden tener tamaños muy distintos y es difícil saberlo **antes** de explorarlos. Por eso suele hacer falta **balance de carga dinámico** (ver [la página de balance](/final/busqueda/balance-carga/)).
 
@@ -29,14 +32,16 @@ T_p = O\big(\underbrace{b^k}_{\text{generar la frontera}} + \underbrace{b^{d-k}}
 $$
 
 <BusqFig fig="pbk">
-**Cómo leerlo:** a la izquierda, la parte gris (hasta el nivel k) la hace un solo proceso; debajo, cada triángulo es el subárbol de un proceso. Si el árbol está balanceado, todos terminan juntos. A la derecha, el árbol no está balanceado: se corta **más profundo** para tener muchos subárboles pequeños y repartir varios por proceso, así los grandes y los chicos se compensan (lámina 26).
+**Cómo leerlo:** a la izquierda, la parte gris (hasta el nivel k) la hace un solo proceso; debajo, cada triángulo es el subárbol de un proceso. Si el árbol está balanceado, todos terminan juntos. A la derecha, el árbol no está balanceado: se corta **más profundo** para tener muchos subárboles pequeños y repartir varios por proceso, así los grandes y los chicos se compensan.
 </BusqFig>
 
 <Solucion titulo="Práctica: b = 3, d = 10, p = 9">
 k = log₃ 9 = 2. T<sub>p</sub> = O(3² + 3⁸) = O(9 + 6561) ≈ 6570 nodos frente a T<sub>s</sub> ≈ 3¹⁰ = 59 049. S ≈ 59 049 / 6570 ≈ **9**, E ≈ 1: con árbol balanceado la parte secuencial (9 nodos) es despreciable.
 </Solucion>
 
-## Parallel Window Search, PWS (láminas 27–28)
+## Parallel Window Search, PWS
+
+<Laminas d="u53" n={[27, 28]} />
 
 *Powley y Korf (1991).* Cada proceso recibe una **copia completa del árbol** y un **umbral de costo distinto** (su "ventana"). Cada uno hace un DFS limitado (como una ronda de [IDA\*](/final/busqueda/dfs-bnb/)) en paralelo. Hay que **esperar a que todos terminen** para saber el resultado.
 
@@ -56,7 +61,9 @@ while solución = ∅:
 
 **Costo:** los procesos repiten la parte alta del árbol (trabajo **redundante**). PWS solo gana si de verdad ahorra rondas.
 
-## Distributed Tree Search, DTS (láminas 29–30)
+## Distributed Tree Search, DTS
+
+<Laminas d="u53" n={[29, 30]} />
 
 *Kumar y Rao (1990).* Todos los procesos usan el **mismo umbral**, pero cada uno recibe un **subárbol distinto**. Hay que fijar el nivel de partición; hasta ese nivel el cálculo es secuencial.
 
@@ -71,7 +78,9 @@ return la sol de menor c_i, y next = mín next_i
 
 **Sin trabajo redundante**, pero el tiempo lo fija el subárbol **más grande**.
 
-## Búsqueda adaptiva por clusters (lámina 31)
+## Búsqueda adaptiva por clusters
+
+<Laminas d="u53" n={[31]} />
 
 *Cook (1997).* Los p procesos se agrupan en clusters. **Cada cluster tiene su umbral** (como PWS) y **dentro del cluster se reparte el árbol** (como DTS).
 
@@ -82,7 +91,9 @@ return la sol de menor c_i, y next = mín next_i
 **Cómo leerlo:** en PWS cada proceso tiene el árbol entero (gris) y su parte coloreada llega hasta su umbral B + iΔ: las partes de arriba se solapan, eso es trabajo repetido. En DTS el árbol se corta en franjas de colores, todas hasta el mismo umbral B. En clusters, cada triángulo es un cluster con su propio umbral, repartido entre sus 3 procesos.
 </BusqFig>
 
-## Complejidades (lámina 32)
+## Complejidades
+
+<Laminas d="u53" n={[32]} />
 
 | Método | T(n, p) | E(n, p) |
 |---|---|---|
@@ -94,12 +105,12 @@ return la sol de menor c_i, y next = mín next_i
 
 - **b<sup>d</sup>/p**: el trabajo útil (el árbol) repartido.
 - **b<sup>k</sup>**: generar la frontera hasta el nivel de partición k, en secuencia (DTS).
-- **b<sup>m</sup>**: la parte que se repite por el umbral/ventana m (PWS). *Lectura propia: la lámina no define m; en la participación 9 los umbrales también se llaman m.*
+- **b<sup>m</sup>**: la parte que se repite por el umbral/ventana m (PWS). *Lectura propia: el material no define m; en la participación 9 los umbrales también se llaman m.*
 - **log p**: juntar los resultados al final (el `TASKWAIT` y quedarse con el mínimo es una reducción).
 
 Las tres eficiencias tienen la misma forma que vimos en el parcial: **E = 1 / (1 + overhead/trabajo)**. Se mantiene alta mientras b<sup>d</sup> (el árbol) crezca más rápido que p·(overhead).
 
-**Cuándo usar cada uno** (lámina 32):
+**Cuándo usar cada uno**:
 
 | Método | Bueno para… | Por qué |
 |---|---|---|
@@ -107,7 +118,9 @@ Las tres eficiencias tienen la misma forma que vimos en el parcial: **E = 1 / (1
 | PWS | búsquedas heurísticas **profundas** (IDA\* con muchas rondas) | ahorra rondas; la repetición pesa poco frente a lo que ahorra |
 | Clusters | máquinas **multinodo** | combina ambas ventajas: PWS entre nodos, DTS dentro |
 
-## Performance: depende de dónde está la meta (lámina 33)
+## Performance: depende de dónde está la meta
+
+<Laminas d="u53" n={[33]} />
 
 *Cook y Varnell (1998)*, con p = 10, b = 6, d = 10. Sea **a** la fracción de nodos que hay que expandir (en la última ronda) antes de encontrar la solución. El speedup de PWS es aproximadamente:
 
@@ -117,7 +130,7 @@ $$
 
 - Si la meta aparece **pronto** (a pequeño), PWS gana mucho: con a = 0.05 y b = 6, S = 1 + 1/0.25 = **5**.
 - Si aparece **tarde** (a → 1), S → 1 + 1/5 = **1.2**: casi no gana.
-- En la figura de la lámina, la curva de PWS cae suavemente al moverse la meta a la derecha, mientras que la de DTS tiene **picos**: DTS gana mucho cuando la meta cae al **principio** del subárbol de algún proceso (ese proceso la encuentra enseguida) y poco en el resto.
+- En la figura del material, la curva de PWS cae suavemente al moverse la meta a la derecha, mientras que la de DTS tiene **picos**: DTS gana mucho cuando la meta cae al **principio** del subárbol de algún proceso (ese proceso la encuentra enseguida) y poco en el resto.
 
 **Conclusión práctica:** ninguno domina siempre. Depende de la forma del árbol y de dónde esté la solución, y eso no se sabe antes de buscar.
 
@@ -150,4 +163,4 @@ La resolución completa, con todas las tablas, está en [Participación 9 resuel
 	]}
 />
 
-<Fuente archivos={['U5.3 Algoritmos-busqueda.pdf (láminas 24–33)']} />
+<Fuente archivos={['U5.3 Algoritmos-busqueda.pdf']} />

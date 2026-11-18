@@ -9,6 +9,7 @@ import EnSimple from '../../../../components/EnSimple.astro';
 import Quiz from '../../../../components/Quiz.tsx';
 import Solucion from '../../../../components/Solucion.astro';
 import Fuente from '../../../../components/Fuente.astro';
+import Laminas from '../../../../components/Laminas.astro';
 
 <EnSimple>
 - **critical** es **un solo baño con llave** para todo el edificio: aunque quieras otro baño, haces la misma fila.
@@ -103,7 +104,7 @@ for (int i = 0; i < INP_SIZE; i++) {
 }
 ```
 
-La lámina propone dos arreglos:
+El material propone dos arreglos:
 
 1. **`critical`** alrededor de `hist[key]++`. Funciona, pero **no es eficiente**: hay 2²⁰ bins y un solo candado. Dos hilos que van a bins distintos igual hacen fila.
 2. **Un lock por bin** (`omp_lock_t lock[HIST_SIZE]`): solo chocan los hilos que van al **mismo** bin.
@@ -112,8 +113,11 @@ La lámina propone dos arreglos:
 
 <HistogramLocks client:visible />
 
-:::caution[Error en la lámina 21]
-En el código de la lámina, los locks se indexan con `i` (la posición del dato) en vez de `key` (el bin):
+:::caution[Error en la diapositiva]
+
+<Laminas d="u44" n={[21]} />
+
+En el código del material, los locks se indexan con `i` (la posición del dato) en vez de `key` (el bin):
 
 ```cpp
 omp_set_lock(&(lock[i]));     // ✗ i va hasta INP_SIZE = 2^26, pero hay HIST_SIZE = 2^20 locks
@@ -126,7 +130,7 @@ Tiene **dos** problemas: se sale del arreglo de locks (`i` llega a 2²⁶) y no 
 
 ## Los filósofos comensales
 
-N filósofos en una mesa redonda con **N tenedores**, uno entre cada par. Para comer, cada uno necesita **los dos** tenedores que tiene al lado. Algoritmo de la lámina:
+N filósofos en una mesa redonda con **N tenedores**, uno entre cada par. Para comer, cada uno necesita **los dos** tenedores que tiene al lado. Algoritmo del material:
 
 1. piensa hasta que el tenedor izquierdo esté libre, y lo toma;
 2. piensa hasta que el derecho esté libre, y lo toma;
@@ -153,7 +157,7 @@ omp_lock_t forks[N];
 }
 ```
 
-La lámina pregunta: *"Hay un problema de concurrencia en el código, ¿cómo lo solucionaría?"*
+El material pregunta: *"Hay un problema de concurrencia en el código, ¿cómo lo solucionaría?"*
 
 <Philosophers client:visible />
 
@@ -233,4 +237,4 @@ Las dos rompen la **espera circular**.
 	]}
 />
 
-<Fuente archivos={['U4.4 Paralelismo compartido-OMP.pdf (láminas 12–21)', 'semana_10/teoria/ejemplo02_suma_prod_critical.cpp', 'semana_10/teoria/ejemplo03_atomic.cpp', 'semana_10/teoria/ejemplo03_critical.cpp', 'semana_10/teoria/ejemplo03_lock.cpp', 'semana_10/teoria/ejemplo04_filosofos.cpp']} />
+<Fuente archivos={['U4.4 Paralelismo compartido-OMP.pdf', 'semana_10/teoria/ejemplo02_suma_prod_critical.cpp', 'semana_10/teoria/ejemplo03_atomic.cpp', 'semana_10/teoria/ejemplo03_critical.cpp', 'semana_10/teoria/ejemplo03_lock.cpp', 'semana_10/teoria/ejemplo04_filosofos.cpp']} />

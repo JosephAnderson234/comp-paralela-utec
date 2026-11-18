@@ -1,12 +1,13 @@
 ---
 title: "Participación 9 resuelta: PWS vs DTS"
-description: "El ejercicio de búsqueda de U5.3 (láminas 34–37) paso a paso: conteo de aristas por subárbol, DFS secuencial, PWS con umbrales m = 1, 2, 3, DTS con partición en dos momentos, speedup, eficiencia y análisis."
+description: "El ejercicio de búsqueda de U5.3 paso a paso: conteo de aristas por subárbol, DFS secuencial, PWS con umbrales m = 1, 2, 3, DTS con partición en dos momentos, speedup, eficiencia y análisis."
 ---
 import EnSimple from '../../../../components/EnSimple.astro';
 import Quiz from '../../../../components/Quiz.tsx';
 import Solucion from '../../../../components/Solucion.astro';
 import Fuente from '../../../../components/Fuente.astro';
 import BusquedaArbol from '../../../../components/playgrounds/BusquedaArbol.tsx';
+import Laminas from '../../../../components/Laminas.astro';
 
 <EnSimple>
 El ejercicio da un árbol con tres soluciones parciales (s1, s2, s3) y pide contar **pasos** (aristas recorridas) con tres estrategias: un solo proceso, PWS y DTS. Luego, speedup y eficiencia.
@@ -18,7 +19,9 @@ El truco para no perderse: **primero cuenta las aristas de cada subárbol** (una
 Es una resolución **propia** (la del grupo para la participación, revisada y verificada con un programa que recorre el árbol). Los conteos de aristas y los pasos del DFS coinciden con la ejecución. Donde el enunciado deja lugar a otra interpretación, está indicado.
 :::
 
-## Enunciado (láminas 34–37)
+## Enunciado
+
+<Laminas d="u53" n={[34, 35, 36, 37]} />
 
 El DAG muestra el árbol de búsqueda con tres soluciones parciales s1, s2, s3. Cada nodo cuesta O(1). Se pide la cantidad de pasos (aristas) para encontrar la **solución global**:
 
@@ -154,7 +157,9 @@ S = T<sub>s</sub> / T<sub>p</sub>, E = S / p, con T<sub>s</sub> = 35.
 - **Desbalance:** los subárboles de nivel 2 tienen 8, 4, 3, 5, 6 y 0 aristas. El promedio es 26/6 ≈ 4.3, pero manda el mayor (8). P5 recibe s3 directamente y queda ocioso desde el paso 5.
 - **Tramo secuencial:** generar la frontera cuesta 5 de los 13 pasos (38 %). Es el término b<sup>k</sup> de la complejidad de DTS.
 
-Por eso la eficiencia baja de 0.69 a 0.45 aunque el speedup suba. Es el compromiso de las láminas 24–26: partir más profundo da más procesos y más speedup, pero el árbol no balanceado y el tramo secuencial limitan la eficiencia. Para mejorarla haría falta **balance de carga dinámico**: por ejemplo, que P5 y P2, que terminan pronto, pidan a P0 parte del subárbol a1.
+Por eso la eficiencia baja de 0.69 a 0.45 aunque el speedup suba. Es el compromiso de las diapositivas: partir más profundo da más procesos y más speedup, pero el árbol no balanceado y el tramo secuencial limitan la eficiencia. Para mejorarla haría falta **balance de carga dinámico**: por ejemplo, que P5 y P2, que terminan pronto, pidan a P0 parte del subárbol a1.
+
+<Laminas d="u53" n={[24, 25, 26]} />
 
 **Si se mide hasta tener las tres soluciones** (no hasta que todos terminan): DTS con dos momentos las tiene en el paso 10 (S = 3.5) y con uno en el paso 11 (S = 3.18). PWS sigue en 35.
 
@@ -196,4 +201,4 @@ Que la profundidad de la solución fuera **desconocida** y la búsqueda necesita
 	]}
 />
 
-<Fuente archivos={['U5.3 Algoritmos-busqueda.pdf (láminas 27–37)', 'participacion9_busqueda.pdf', 'programa propio: dfs_tareas.cpp']} />
+<Fuente archivos={['U5.3 Algoritmos-busqueda.pdf', 'participacion9_busqueda.pdf', 'programa propio: dfs_tareas.cpp']} />

@@ -8,6 +8,7 @@ import Quiz from '../../../../components/Quiz.tsx';
 import Solucion from '../../../../components/Solucion.astro';
 import Fuente from '../../../../components/Fuente.astro';
 import CudaIndex from '../../../../components/playgrounds/CudaIndex.tsx';
+import Laminas from '../../../../components/Laminas.astro';
 
 <EnSimple>
 Sumar dos vectores es como corregir un examen de N preguntas con N ayudantes: cada uno revisa **una** pregunta. Antes hay que **fotocopiar** el examen y llevarlo a la sala de ayudantes (copiar a la GPU), y al final **traer** las notas de vuelta (copiar a la CPU). Si hay más preguntas que ayudantes, cada ayudante revisa una, salta N ayudantes más adelante y revisa otra.
@@ -17,13 +18,17 @@ Sumar dos vectores es como corregir un examen de N preguntas con N ayudantes: ca
 
 Escribir un programa CUDA completo que sume `c = a + b`, calcular a mano qué elemento procesa cada hilo y elegir `<<<bloques, hilos>>>` sin dejar elementos fuera.
 
-## 1. La receta de siempre (lámina 20)
+## 1. La receta de siempre
+
+<Laminas d="u64" n={[20]} />
 
 <CudaFig fig="pasos">
 **Cómo leerlo:** casi todo programa CUDA de examen sigue estos 6 pasos. Solo el paso 4 corre en la GPU. Los pasos 3 y 5 copian por el bus y son los que suelen dominar el tiempo cuando el cálculo es poco (como en una suma).
 </CudaFig>
 
-## 2. Versión en C (lámina 22)
+## 2. Versión en C
+
+<Laminas d="u64" n={[22]} />
 
 ```c
 void add(int *a, int *b, int *c) {
@@ -37,7 +42,9 @@ void add(int *a, int *b, int *c) {
 
 Con a[i] = −i y b[i] = i², la salida es 0, 0, 2, 6, 12, 20, 30, 42, 56, 72 (i² − i). Un solo «trabajador» recorre todo el vector.
 
-## 3. Versión CUDA completa (láminas 23–26)
+## 3. Versión CUDA completa
+
+<Laminas d="u64" n={[23, 24, 25, 26]} />
 
 ```cpp
 #include <cstdio>
@@ -83,27 +90,33 @@ Léelo con la receta:
 | 5 | `cudaMemcpy(c, dev_c, bytes, cudaMemcpyDeviceToHost)` | copia GPU → CPU |
 | 6 | `cudaFree` | libera la memoria de la GPU |
 
-Dentro del kernel, `tid = blockIdx.x`: como cada bloque tiene un solo hilo, **el número de bloque es el elemento**. La lámina 27 lo muestra con N = 4: el bloque 0 suma el elemento 0, el bloque 1 el 1, etc., todos a la vez. El `if (tid < N)` protege por si se lanzan más bloques que elementos.
+Dentro del kernel, `tid = blockIdx.x`: como cada bloque tiene un solo hilo, **el número de bloque es el elemento**. La diapositiva lo muestra con N = 4: el bloque 0 suma el elemento 0, el bloque 1 el 1, etc., todos a la vez. El `if (tid < N)` protege por si se lanzan más bloques que elementos.
 
-:::note[Código de las láminas, no ejecutado aquí]
-Este código es el de las láminas (del libro *CUDA by Example*). No se compiló en esta web porque no había un compilador CUDA disponible. Si tienes `nvcc`: `nvcc -o suma suma.cu && ./suma` debe imprimir las 10 sumas de la sección 2. Los programas reales también deberían revisar el `cudaError_t` que devuelve cada llamada.
+<Laminas d="u64" n={[27]} />
+
+:::note[Código del material, no ejecutado aquí]
+Este código es el del material (del libro *CUDA by Example*). No se compiló en esta web porque no había un compilador CUDA disponible. Si tienes `nvcc`: `nvcc -o suma suma.cu && ./suma` debe imprimir las 10 sumas de la sección 2. Los programas reales también deberían revisar el `cudaError_t` que devuelve cada llamada.
 :::
 
-## 4. Hilos **y** bloques: el índice global (lámina 28)
+## 4. Hilos **y** bloques: el índice global
+
+<Laminas d="u64" n={[28]} />
 
 Un bloque tiene un límite de hilos (`maxThreadsPerBlock`) y el grid un límite de bloques (`maxGridSize`). Para usar muchos hilos se combinan:
 
 $$\texttt{tid} = \texttt{threadIdx.x} + \texttt{blockIdx.x}\cdot\texttt{blockDim.x}$$
 
 <CudaFig fig="indice">
-**Cómo leerlo:** filas = bloques, columnas = hilos dentro del bloque, con blockDim.x = 4. Recorriendo por filas, cada celda recibe un número distinto de 0 a 15. Es la cuenta de la lámina 28: el hilo 2 del bloque 2 tiene tid = 2 + 2·4 = **10**.
+**Cómo leerlo:** filas = bloques, columnas = hilos dentro del bloque, con blockDim.x = 4. Recorriendo por filas, cada celda recibe un número distinto de 0 a 15. Es la cuenta de la diapositiva: el hilo 2 del bloque 2 tiene tid = 2 + 2·4 = **10**.
 </CudaFig>
 
 **Truco para el examen:** es la misma fórmula que convierte (fila, columna) en posición de un arreglo guardado por filas: posición = columna + fila · ancho.
 
-## 5. Vectores de cualquier tamaño (láminas 29–30)
+## 5. Vectores de cualquier tamaño
 
-Si lanzas N/128 bloques de 128 hilos, el máximo es 65 535 bloques (límite de la lámina) y te quedas en 65 535 · 128 = **8 388 480** elementos. La solución es que cada hilo **salte** el total de hilos del grid y procese varios elementos:
+<Laminas d="u64" n={[29, 30]} />
+
+Si lanzas N/128 bloques de 128 hilos, el máximo es 65 535 bloques (límite del material) y te quedas en 65 535 · 128 = **8 388 480** elementos. La solución es que cada hilo **salte** el total de hilos del grid y procese varios elementos:
 
 ```cpp
 __global__ void add(int *a, int *b, int *c) {
@@ -121,8 +134,8 @@ __global__ void add(int *a, int *b, int *c) {
 
 Con este kernel se puede lanzar un número **fijo** de hilos, por ejemplo `add<<<128, 128>>>`, para cualquier N.
 
-:::caution[Cómo leer la lámina 30]
-La lámina dice que con `add<<<128,128>>>` «la única condición es que N/128 no sea mayor a 65535». Con el bucle `while` de la lámina 29 esa condición **ya no hace falta**: 128 bloques fijos cubren cualquier N saltando de 16 384 en 16 384. La condición N/128 ≤ 65 535 corresponde a la versión **sin** bucle, que lanza N/128 bloques. Además, en GPUs modernas el límite de `gridDim.x` es 2³¹−1, no 65 535 (conocimiento general).
+:::caution[Cómo leer la diapositiva]
+El material dice que con `add<<<128,128>>>` «la única condición es que N/128 no sea mayor a 65535». Con el bucle `while` de la diapositiva esa condición **ya no hace falta**: 128 bloques fijos cubren cualquier N saltando de 16 384 en 16 384. La condición N/128 ≤ 65 535 corresponde a la versión **sin** bucle, que lanza N/128 bloques. Además, en GPUs modernas el límite de `gridDim.x` es 2³¹−1, no 65 535 (conocimiento general).
 :::
 
 **¡Cuidado con la división entera!** Si N = 1000 y lanzas `N/128 = 7` bloques sin bucle, cubres solo 7·128 = 896 elementos. La forma correcta de redondear hacia arriba es:
@@ -160,4 +173,4 @@ Ahí sobran 1024 − 1000 = 24 hilos, y el `if (tid < N)` evita que escriban fue
  {q:'¿Para qué sirve if (tid < N)?',opts:['acelerar','evitar escribir fuera del vector','sincronizar bloques','copiar memoria'],ok:1}
 ]} />
 
-<Fuente archivos={['U6.4 Performance-CUDA.pdf (láminas 20–31)', 'Sanders y Kandrot, CUDA by Example (código de las láminas)']} />
+<Fuente archivos={['U6.4 Performance-CUDA.pdf', 'Sanders y Kandrot, CUDA by Example (código del material)']} />

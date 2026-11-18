@@ -62,7 +62,7 @@ En `Ejemp01_hello_omp.cpp`, si `id` es **compartida**, todos los hilos escriben 
 **Cómo leerlo:** a la izquierda los 4 hilos tienen cada uno su **pila** (ahí viven las variables privadas, como `id` o el índice `i`), pero todos apuntan a **la misma memoria**: si dos escriben a la vez la misma variable hay carrera. A la derecha cada proceso MPI tiene **su propia memoria**; para que otro vea un dato hay que mandarlo en un mensaje.
 </FinalFig>
 
-La lámina "OMP vs MPI" lo resume con una curva rendimiento vs esfuerzo: OpenMP sube rápido pero se aplana (se acaban los núcleos). MPI cuesta más al inicio ("el código no funciona" durante un tramo) pero llega más alto, y **OpenMP + MPI** (programación **híbrida**) llega todavía más arriba.
+El material "OMP vs MPI" lo resume con una curva rendimiento vs esfuerzo: OpenMP sube rápido pero se aplana (se acaban los núcleos). MPI cuesta más al inicio ("el código no funciona" durante un tramo) pero llega más alto, y **OpenMP + MPI** (programación **híbrida**) llega todavía más arriba.
 
 :::tip[En el examen…]
 Si preguntan cuándo usar cada uno: **OpenMP** para paralelizar rápido dentro de un nodo; **MPI** cuando el problema no cabe o no escala en un nodo; **híbrido** en clústeres de nodos multinúcleo (MPI entre nodos, OpenMP dentro de cada nodo).
@@ -147,4 +147,4 @@ Garantizado: A es la primera y D la última (el join es una barrera). Las tres B
 	]}
 />
 
-<Fuente archivos={['U4.1 Paralelismo compartido-OMP.pdf (láminas 2–12)', 'semana_9/Ejemp01_hello_omp.cpp']} />
+<Fuente archivos={['U4.1 Paralelismo compartido-OMP.pdf', 'semana_9/Ejemp01_hello_omp.cpp']} />

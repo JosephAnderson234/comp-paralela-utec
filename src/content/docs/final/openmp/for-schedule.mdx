@@ -8,6 +8,7 @@ import EnSimple from '../../../../components/EnSimple.astro';
 import Quiz from '../../../../components/Quiz.tsx';
 import Solucion from '../../../../components/Solucion.astro';
 import Fuente from '../../../../components/Fuente.astro';
+import Laminas from '../../../../components/Laminas.astro';
 
 <EnSimple>
 Tienes 16 cajas que cargar y 4 personas. Puedes **asignar de antemano** 4 cajas a cada una (*static*), o dejar las cajas en una pila y que **cada quien tome otra cuando termina** la suya (*dynamic*). Lo primero no cuesta organizar, pero si algunas cajas pesan más, alguien termina mucho después. Lo segundo se adapta, pero cada "voy por otra" cuesta un poco.
@@ -126,7 +127,9 @@ Se forma un solo bucle de 2 × 3 = 6 iteraciones. `lastprivate` deja los valores
 
 ## Ejercicio
 
-En la lámina 21 de U4.1 aparece `#pragma omp parallel for … schedule(static, chunk)` seguido de un bloque con `#pragma omp section`. ¿Qué está mal y cómo se corrige?
+En la diapositiva aparece `#pragma omp parallel for … schedule(static, chunk)` seguido de un bloque con `#pragma omp section`. ¿Qué está mal y cómo se corrige?
+
+<Laminas d="u41" n={[21]} />
 
 <Solucion>
 
@@ -138,7 +141,7 @@ for (i = 0; i < N; i++)
     c[i] = a[i] + b[i];
 ```
 
-(Respuesta propia: la lámina lo muestra así, sin marcarlo como error.)
+(Respuesta propia: el material lo muestra así, sin marcarlo como error.)
 
 </Solucion>
 
@@ -181,4 +184,4 @@ El ideal sería 120/4 = 30. Repartir por turnos mezcla iteraciones baratas y car
 	]}
 />
 
-<Fuente archivos={['U4.1 Paralelismo compartido-OMP.pdf (láminas 13–17, 21)', 'U4.3 Paralelismo compartido-OMP.pdf (nowait, collapse)', 'semana_9/Ejemp02_omp_for.cpp']} />
+<Fuente archivos={['U4.1 Paralelismo compartido-OMP.pdf', 'U4.3 Paralelismo compartido-OMP.pdf (nowait, collapse)', 'semana_9/Ejemp02_omp_for.cpp']} />

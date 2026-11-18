@@ -8,6 +8,7 @@ import EnSimple from '../../../../components/EnSimple.astro';
 import Quiz from '../../../../components/Quiz.tsx';
 import Solucion from '../../../../components/Solucion.astro';
 import Fuente from '../../../../components/Fuente.astro';
+import Laminas from '../../../../components/Laminas.astro';
 
 <EnSimple>
 Piensa en una empresa con varias **oficinas** en ciudades distintas.
@@ -18,13 +19,15 @@ Piensa en una empresa con varias **oficinas** en ciudades distintas.
 **Paralelismo híbrido** = un proceso MPI por oficina (nodo o socket) y, dentro de él, varios hilos OpenMP. Usas correo solo cuando hace falta salir de la oficina.
 </EnSimple>
 
-## Por qué hace falta (láminas 2–6)
+## Por qué hace falta
+
+<Laminas d="u45" n={[2, 3, 4, 5, 6]} />
 
 - **Ley de Moore:** la potencia de los supercomputadores sigue creciendo, pero ya no por relojes más rápidos sino por **más núcleos**. Un nodo actual tiene 2 sockets de 52 a 96 núcleos (Intel Xeon Max 9470, AMD EPYC 9004) y hasta 8 sockets en Sapphire Rapids.
 - **Cómputo vs. memoria:** los FLOPs crecieron mucho más rápido que el ancho de banda de la memoria y de la red. Mover datos es el cuello de botella.
 - **Energía:** la potencia dinámica de un chip CMOS crece como el **cubo** de la frecuencia: `P_dyn(f) ≈ α · f³`. Subir el reloj ya no compensa.
 
-La consecuencia (lámina 6) es usar **muchos núcleos lentos** en vez de pocos rápidos ("*the chickens and the ox*"), aprovechar la memoria **local** de cada nodo (híbrido) y lograr mucho paralelismo. Para el programador eso significa conocer mejor el hardware y escribir código más complejo.
+La consecuencia es usar **muchos núcleos lentos** en vez de pocos rápidos ("*the chickens and the ox*"), aprovechar la memoria **local** de cada nodo (híbrido) y lograr mucho paralelismo. Para el programador eso significa conocer mejor el hardware y escribir código más complejo.
 
 ## Paradigmas de programación
 
@@ -34,7 +37,9 @@ La consecuencia (lámina 6) es usar **muchos núcleos lentos** en vez de pocos r
 | Se sincronizan porque compiten por los datos | Solo usan sus variables locales |
 | Los hilos pertenecen a un proceso | Cada proceso tiene uno o más hilos |
 
-Según la lámina 7: MPI sigue predominando; el híbrido **MPI + OpenMP (+ CUDA)** se usa cada vez más en supercomputadores; y aparecen lenguajes PGAS (*Partitioned Global Address Space*: GASPI, Coarray Fortran, UPC, Chapel).
+Según la diapositiva: MPI sigue predominando; el híbrido **MPI + OpenMP (+ CUDA)** se usa cada vez más en supercomputadores; y aparecen lenguajes PGAS (*Partitioned Global Address Space*: GASPI, Coarray Fortran, UPC, Chapel).
+
+<Laminas d="u45" n={[7]} />
 
 ## Paralelismo híbrido
 
@@ -46,14 +51,18 @@ MPI se usa para la comunicación **entre procesos** y OpenMP **dentro** de cada 
 | Mejor balance de carga (los hilos se reparten el trabajo del proceso) | Hay que hacer bien **las dos** cosas: MPI y OpenMP |
 | Mejor uso de memoria (menos copias de datos y de halos) | Efectos **NUMA**: un hilo que lee la memoria del otro socket es más lento |
 
-Algoritmos que se benefician (lámina 11):
+Algoritmos que se benefician:
+
+<Laminas d="u45" n={[11]} />
 
 1. los que tienen **escalabilidad MPI limitada**;
 2. los que necesitan **balance de carga dinámico**;
 3. los que corren en hardware con **poca memoria** por núcleo y mucha comunicación MPI;
 4. las aplicaciones de **paralelismo masivo**.
 
-## Modos de operación (lámina 16)
+## Modos de operación
+
+<Laminas d="u45" n={[16]} />
 
 Para un nodo de 16 núcleos hay un espectro:
 
@@ -124,10 +133,15 @@ Peekaboo desde el hilo 2 de un total de 4 y desde el proceso 0 de un total de 2 
 8 líneas (2 × 4) en **orden no determinista**: los dos procesos y sus hilos corren a la vez.
 
 :::tip[El número óptimo de hilos]
-Según la lámina 19, el mejor reparto procesos × hilos **depende de la arquitectura** y hay que encontrarlo midiendo.
+Según la diapositiva, el mejor reparto procesos × hilos **depende de la arquitectura** y hay que encontrarlo midiendo.
+
+<Laminas d="u45" n={[19]} />
+
 :::
 
-## Máquinas híbridas (lámina 20)
+## Máquinas híbridas
+
+<Laminas d="u45" n={[20]} />
 
 Una máquina de 268 nodos con 8 núcleos cada uno puede usarse como:
 
@@ -207,9 +221,11 @@ Es el programa de la [práctica matriz × vector](/mpi/practica-matvec/) del par
 **Lo nuevo:**
 
 - **`MPI_THREAD_FUNNELED`**: los niveles de soporte de hilos son `SINGLE` < `FUNNELED` < `SERIALIZED` < `MULTIPLE`. Aquí basta FUNNELED porque todas las llamadas MPI están **fuera** de las regiones paralelas, en el hilo maestro. Lo correcto es comprobar que `provided ≥` el nivel pedido.
-- **First touch (efecto NUMA):** en Linux, una página de memoria se asigna en el banco de memoria del socket del hilo que la **escribe primero**. Si `MPI_Scatter`, que corre en el hilo maestro, escribiera `A_loc` primero, toda la matriz quedaría en el socket del maestro, y los hilos del otro socket leerían memoria remota (más lenta). Por eso cada hilo pone a 0 **sus** filas con el mismo `schedule(static)` que usará después. Es la "desventaja: efectos NUMA" de la lámina 10, resuelta en el código.
+- **First touch (efecto NUMA):** en Linux, una página de memoria se asigna en el banco de memoria del socket del hilo que la **escribe primero**. Si `MPI_Scatter`, que corre en el hilo maestro, escribiera `A_loc` primero, toda la matriz quedaría en el socket del maestro, y los hilos del otro socket leerían memoria remota (más lenta). Por eso cada hilo pone a 0 **sus** filas con el mismo `schedule(static)` que usará después. Es la "desventaja: efectos NUMA" de la diapositiva, resuelta en el código.
 - **`OMP_PROC_BIND=close OMP_PLACES=cores`** fija cada hilo a un núcleo, para que no migre y pierda esa localidad.
 - **`reps = 50`**: la matriz se reparte **una vez** (N² datos) y se multiplica 50 veces. El comentario del código separa "Cómputo (por producto)" de "Comunicación (una vez)".
+
+<Laminas d="u45" n={[10]} />
 
 Medido al ejecutarlo en una laptop de 8 núcleos y 12 hilos (N = 4096, 50 productos), una corrida por configuración:
 
@@ -226,16 +242,20 @@ Cómo leerlo:
 - ⚠️ **El 11.2 GFLOP/s de 8 × 1 no es fiable.** El tiempo lo mide **solo el rank 0** y los `MPI_Barrier` del código están comentados. Cada proceso empieza a calcular apenas recibe su parte, así que el rank 0 no mide a los demás. Para comparar bien hay que descomentar las barreras y reducir con `MPI_MAX` el tiempo de todos (*observación propia*).
 - Matriz × vector hace 2 flops por cada double leído de A: está **limitado por memoria**, no por cálculo. Con pocos GFLOP/s el ancho de banda ya se satura.
 
-## ¿Por qué el híbrido no siempre es más eficiente? (lámina 26)
+## ¿Por qué el híbrido no siempre es más eficiente?
+
+<Laminas d="u45" n={[26]} />
 
 - OpenMP escala con el paralelismo implícito, pero solo hasta el **límite de hardware** de un nodo.
 - Durante la comunicación MPI, **todos los hilos esperan** (*idle*) menos uno.
 - Crear muchos hilos tiene un **costo**.
 - Faltan librerías y compiladores optimizados para OpenMP.
 
-Ejemplo de la lámina 25 (ecuación de Poisson 3D en un IBM Blue Gene de 10 240 nodos × 4 núcleos): las versiones **nuevas** (optimizadas), tanto MPI puro como MPI + OMP, escalan mucho mejor que las viejas, y entre ellas la **híbrida nueva** es ligeramente mejor. La mejora viene sobre todo de **optimizar el código**, no solo de agregar OpenMP.
+Ejemplo de la diapositiva (ecuación de Poisson 3D en un IBM Blue Gene de 10 240 nodos × 4 núcleos): las versiones **nuevas** (optimizadas), tanto MPI puro como MPI + OMP, escalan mucho mejor que las viejas, y entre ellas la **híbrida nueva** es ligeramente mejor. La mejora viene sobre todo de **optimizar el código**, no solo de agregar OpenMP.
 
-La lámina también menciona códigos reales: SPHYNX y SPH-EXA (hidrodinámica SPH) y el problema de N cuerpos con OMP vs HPX, híbrido y MPI + CUDA.
+<Laminas d="u45" n={[25]} />
+
+El material también menciona códigos reales: SPHYNX y SPH-EXA (hidrodinámica SPH) y el problema de N cuerpos con OMP vs HPX, híbrido y MPI + CUDA.
 
 ## Ejercicio
 
@@ -260,7 +280,7 @@ Sin `num_threads(4)`, cada proceso usa `OMP_NUM_THREADS = 8` hilos: 6 × 8 = **4
 - Usar `MPI_Init` en un programa con hilos que llaman a MPI: hay que pedir el nivel con `MPI_Init_thread` (como mínimo `MPI_THREAD_FUNNELED` si solo el maestro llama a MPI).
 - Pedir más procesos × hilos que núcleos (**sobresuscripción**): los hilos se turnan el núcleo y el tiempo empeora.
 - No igualar `OMP_NUM_THREADS` a `--cpus-per-task` en Slurm: o sobran núcleos ociosos o hay sobresuscripción.
-- Suponer que el híbrido siempre gana al MPI puro (la lámina 26 explica por qué no).
+- Suponer que el híbrido siempre gana al MPI puro (la diapositiva explica por qué no).
 
 ## Práctica extra
 
@@ -283,4 +303,4 @@ Tienes 2 nodos de 16 núcleos y quieres 4 procesos MPI por nodo, con todos los n
 	]}
 />
 
-<Fuente archivos={['U4.5 Paralelismo-hibrido.pdf (láminas 2–26)', 'semana_11/matvec_hibrido.cpp']} />
+<Fuente archivos={['U4.5 Paralelismo-hibrido.pdf', 'semana_11/matvec_hibrido.cpp']} />

@@ -7,6 +7,7 @@ import EnSimple from '../../../../components/EnSimple.astro';
 import Quiz from '../../../../components/Quiz.tsx';
 import Solucion from '../../../../components/Solucion.astro';
 import Fuente from '../../../../components/Fuente.astro';
+import Laminas from '../../../../components/Laminas.astro';
 
 <EnSimple>
 Piensa en una plancha de metal con un borde caliente y los otros fríos. ¿Qué temperatura tiene cada punto cuando todo se estabiliza? Cada punto termina con **el promedio de sus vecinos**.
@@ -18,19 +19,31 @@ Para el curso, lo importante es lo paralelo: cada casilla solo mira a sus vecina
 
 ## Qué es una EDP
 
-Una **ecuación diferencial parcial** (EDP) relaciona una función de varias variables, por ejemplo u(x, y) o u(x, t), con sus derivadas parciales. Modela calor, difusión, fluidos, ondas y potenciales gravitacionales o eléctricos (lámina 2).
+Una **ecuación diferencial parcial** (EDP) relaciona una función de varias variables, por ejemplo u(x, y) o u(x, t), con sus derivadas parciales. Modela calor, difusión, fluidos, ondas y potenciales gravitacionales o eléctricos.
 
-## Los tres tipos (láminas 5–6)
+<Laminas d="u51" n={[2]} />
+
+## Los tres tipos
+
+<Laminas d="u51" n={[5, 6]} />
 
 <U5Fig fig="tipos">
-**Cómo leerlo:** la diferencia que importa en paralelo es si aparece el **tiempo**. Las elípticas no lo tienen: se itera hasta que la solución converge. Las parabólicas e hiperbólicas avanzan paso a paso en el tiempo, y ese avance **no se puede paralelizar** (lámina 31): solo se reparte el **espacio**.
+**Cómo leerlo:** la diferencia que importa en paralelo es si aparece el **tiempo**. Las elípticas no lo tienen: se itera hasta que la solución converge. Las parabólicas e hiperbólicas avanzan paso a paso en el tiempo, y ese avance **no se puede paralelizar**: solo se reparte el **espacio**.
+
+<Laminas d="u51" n={[31]} />
+
 </U5Fig>
 
-:::caution[Signo en la lámina 6]
-La lámina escribe la ecuación de onda como ∂²u/∂t² = −c² ∂²u/∂x², con signo menos. El signo correcto es **+**: ∂²u/∂t² = c² ∂²u/∂x². Con el signo menos la ecuación no describe una onda: es inestable y crece sin control. La lámina 35 ya la escribe con +.
+:::caution[Signo en la diapositiva]
+El material escribe la ecuación de onda como ∂²u/∂t² = −c² ∂²u/∂x², con signo menos. El signo correcto es **+**: ∂²u/∂t² = c² ∂²u/∂x². Con el signo menos la ecuación no describe una onda: es inestable y crece sin control. La diapositiva ya la escribe con +.
+
+<Laminas d="u51" n={[35]} />
+
 :::
 
-## De la derivada a la resta: diferencias finitas (láminas 4, 7–8)
+## De la derivada a la resta: diferencias finitas
+
+<Laminas d="u51" n={[4, 7, 8]} />
 
 **Idea:** la derivada es una pendiente. En una malla con separación h, la aproximas restando valores vecinos.
 
@@ -42,7 +55,9 @@ La lámina escribe la ecuación de onda como ∂²u/∂t² = −c² ∂²u/∂x�
 
 Salen de la serie de Taylor: si sumas u(x₀+h) y u(x₀−h), los términos de orden impar se cancelan y queda u(x₀+h) + u(x₀−h) = 2u(x₀) + h²·u″(x₀) + O(h⁴). Al despejar u″ sale la fórmula de la segunda derivada.
 
-## Laplace 2D paso a paso (láminas 7–16)
+## Laplace 2D paso a paso
+
+<Laminas d="u51" n={[9, 10, 11, 12, 13, 14, 15, 16]} />
 
 Ecuación de Laplace (equilibrio de temperatura): ∂²u/∂x² + ∂²u/∂y² = 0.
 
@@ -56,19 +71,23 @@ Ecuación de Laplace (equilibrio de temperatura): ∂²u/∂x² + ∂²u/∂y² 
 
 3. **Despejar** u<sub>i,j</sub>: u<sub>i,j</sub> = ¼ · (suma de los 4 vecinos).
 
-4. **Frontera:** si un vecino está en el borde, su valor es **conocido** y pasa al lado derecho (lámina 15): −4u<sub>2,4</sub> + u<sub>3,4</sub> + u<sub>2,3</sub> + u<sub>2,5</sub> = −u<sub>1,4</sub>.
+4. **Frontera:** si un vecino está en el borde, su valor es **conocido** y pasa al lado derecho: −4u<sub>2,4</sub> + u<sub>3,4</sub> + u<sub>2,3</sub> + u<sub>2,5</sub> = −u<sub>1,4</sub>.
 
-Una ecuación por punto interior: con N×N puntos hay **N² ecuaciones con N² incógnitas** (en 3D con 1000³ puntos, 10⁹ ecuaciones, lámina 24). Nadie resuelve eso por eliminación gaussiana: se **itera**.
+Una ecuación por punto interior: con N×N puntos hay **N² ecuaciones con N² incógnitas** (en 3D con 1000³ puntos, 10⁹ ecuaciones). Nadie resuelve eso por eliminación gaussiana: se **itera**.
+
+<Laminas d="u51" n={[24]} />
 
 <U5Fig fig="stencil">
 **Cómo leerlo:** el punto naranja se recalcula con los 4 celestes. Este patrón fijo de vecinos se llama **stencil** de 5 puntos. Como cada punto solo depende de vecinos cercanos, el problema se reparte bien: un proceso solo necesita los puntos de sus bordes que tienen otros procesos.
 </U5Fig>
 
-:::note[Una observación sobre la lámina 9]
-La lámina escribe el paso como Δu = (promedio de vecinos) − u<sup>n</sup>, y luego u<sup>n+1</sup> = u<sup>n</sup> + Δu. Las dos formas dan lo mismo: u<sup>n+1</sup> = promedio de vecinos. El código de la lámina usa directamente la segunda.
+:::note[Una observación sobre la diapositiva]
+El material escribe el paso como Δu = (promedio de vecinos) − u<sup>n</sup>, y luego u<sup>n+1</sup> = u<sup>n</sup> + Δu. Las dos formas dan lo mismo: u<sup>n+1</sup> = promedio de vecinos. El código del material usa directamente la segunda.
 :::
 
-### Poisson: Laplace con fuente (láminas 23–25)
+### Poisson: Laplace con fuente
+
+<Laminas d="u51" n={[23, 25]} />
 
 ∇²u = S(x, y). La fuente S es la masa, la carga o una fuente de calor. Con el mismo procedimiento:
 
@@ -76,7 +95,9 @@ u<sup>k+1</sup><sub>i,j</sub> = ¼ · ( u<sup>k</sup><sub>i+1,j</sub> + u<sup>k<
 
 Tipos de frontera: **Dirichlet** fija el valor (u = f en el borde). **Neumann** fija la derivada normal (∂u/∂n = g, por ejemplo "no sale calor").
 
-## Jacobi vs Gauss-Seidel (láminas 25–26)
+## Jacobi vs Gauss-Seidel
+
+<Laminas d="u51" n={[26]} />
 
 | | Jacobi | Gauss-Seidel |
 |---|---|---|
@@ -87,7 +108,7 @@ Tipos de frontera: **Dirichlet** fija el valor (u = f en el borde). **Neumann** 
 
 **Criterio de parada:** diff = max |u<sup>k+1</sup> − u<sup>k</sup>| < ε. En paralelo, cada proceso calcula su máximo local y luego se hace un `MPI_Allreduce` con `MPI_MAX`.
 
-## Complejidad: T(N) = k · m · N² (lámina 26)
+## Complejidad: T(N) = k · m · N²
 
 - **N:** puntos por dimensión (N² en total en 2D).
 - **m:** operaciones por punto (≈ 5 en el stencil: 3 sumas, 1 multiplicación y la diferencia del error).
@@ -140,4 +161,4 @@ A 10·10⁹ op/s: 2.15·10¹² / 10¹⁰ ≈ **215 s**. Por eso estos problemas 
 	]}
 />
 
-<Fuente archivos={['U5.1 Algoritmos-EDP.pdf (láminas 2–31)', 'U5.1 Algoritmos-EDP-code/laplace_sec.cpp']} />
+<Fuente archivos={['U5.1 Algoritmos-EDP.pdf', 'U5.1 Algoritmos-EDP-code/laplace_sec.cpp']} />

@@ -8,16 +8,19 @@ import Quiz from '../../../../components/Quiz.tsx';
 import Solucion from '../../../../components/Solucion.astro';
 import Fuente from '../../../../components/Fuente.astro';
 import P10Calc from '../../../../components/playgrounds/P10Calc.tsx';
+import Laminas from '../../../../components/Laminas.astro';
 
 <EnSimple>
 Antes de abrir la solución, piensa en dos gastos: **hacer cuentas** y **pasar resultados**. Con más procesos, el primero baja, pero el segundo sube. El número óptimo está donde la suma de ambos gastos es menor. La participación todavía es un ejercicio para intentar: usa las pistas y abre la solución después.
 </EnSimple>
 
-## Enunciado y supuestos (lámina 33)
+## Enunciado y supuestos
+
+<Laminas d="u62" n={[33]} />
 
 > «Calcule T<sub>p</sub>, y la cantidad óptima de procesos para una topología lineal y de hipercubo en los siguientes casos: Caso 1: producto escalar de vectores. El producto escalar de dos vectores a, b ∈ ℝⁿ es la suma de los productos de los correspondientes elementos de cada vector. Idealmente, r=n/p. Caso 2: producto matriz-vector. El producto A×b=c, con A∈ℝⁿˣⁿ y b∈ℝⁿ, puede realizarse particionando la matriz por fila o por columna. Consideramos que n es múltiplo de p…»
 
-El símbolo final del tiempo de cómputo se perdió en la lámina; aquí llamamos **τ** al tiempo de **una suma o multiplicación**. Un mensaje de m elementos cuesta **α+mβ**, donde α es arranque y β transferencia por elemento. Suponemos p divide n, procesos sincronizados, sin solapamiento de cómputo y mensajes, y una reducción de escalares que suma en cada salto (costo τ). Estas son **suposiciones del modelo** y lo que sigue es **resolución propia**, no una solución oficial ni tiempos medidos.
+El símbolo final del tiempo de cómputo se perdió en el material; aquí llamamos **τ** al tiempo de **una suma o multiplicación**. Un mensaje de m elementos cuesta **α+mβ**, donde α es arranque y β transferencia por elemento. Suponemos p divide n, procesos sincronizados, sin solapamiento de cómputo y mensajes, y una reducción de escalares que suma en cada salto (costo τ). Estas son **suposiciones del modelo** y lo que sigue es **resolución propia**, no una solución oficial ni tiempos medidos.
 
 <U6Fig fig="reduccion">
 **Cómo leerlo:** el dibujo de la izquierda representa ocho procesos identificados por bits; la red permite combinar resultados por dimensiones en tres rondas. Compara con una cadena, que necesita siete enlaces secuenciales si la raíz está en un extremo. La figura sirve para el producto escalar, donde cada proceso aporta un escalar.
@@ -88,4 +91,4 @@ El simulador permite cambiar los supuestos numéricos y ver cómo se mueve el m�
  {q:'En partición por columnas, ¿qué se reduce?',opts:['un bit','un escalar','vectores parciales de n valores','solo índices'],ok:2},
  {q:'El p* continuo de filas/hipercubo puede superar n. Entonces…',opts:['se usa igual','se limita a procesos factibles y se compara T','se borra la comunicación','la fórmula es una medición'],ok:1}
 ]} />
-<Fuente archivos={['U6.2 Performance-escalabilidad.pdf (lámina 33)', 'resolución propia: modelos y comprobación numérica']} />
+<Fuente archivos={['U6.2 Performance-escalabilidad.pdf', 'resolución propia: modelos y comprobación numérica']} />

@@ -6,6 +6,7 @@ tableOfContents: false
 import Flashcards from '../../../../components/Flashcards.tsx';
 import Quiz from '../../../../components/Quiz.tsx';
 import Fuente from '../../../../components/Fuente.astro';
+import Laminas from '../../../../components/Laminas.astro';
 
 ## Chuleta de directivas
 
@@ -31,9 +32,11 @@ Según U4.1, las directivas que **no aceptan cláusulas** son: `master`, `critic
 1. **Variable compartida que debía ser privada** (el `id` de Ejemp01, la `r` de Ejemp03_critical) ⇒ condición de carrera.
 2. **`private` sin inicializar**: la copia empieza con basura (usa `firstprivate` si necesitas el valor original).
 3. **`critical` dentro del bucle** cuando bastaba acumular en privado y proteger una vez al final (o usar `reduction`).
-4. **Inicializar la variable de `reduction` con `master`** sin barrera (lámina 24 de U4.2).
+4. **Inicializar la variable de `reduction` con `master`** sin barrera.
 5. **`nowait` entre bucles dependientes** con un `schedule` que no garantiza el mismo reparto (solo es seguro con `static` y las mismas iteraciones).
 6. **Dos `parallel` anidados por accidente** (Ejemp06): cada hilo externo repite todo el bucle.
+
+<Laminas d="u42" n={[24]} />
 
 <Quiz
 	client:visible

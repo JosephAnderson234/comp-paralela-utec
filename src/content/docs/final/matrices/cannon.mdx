@@ -8,19 +8,22 @@ import Quiz from '../../../../components/Quiz.tsx';
 import Solucion from '../../../../components/Solucion.astro';
 import Fuente from '../../../../components/Fuente.astro';
 import FoxCannon from '../../../../components/playgrounds/FoxCannon.tsx';
+import Laminas from '../../../../components/Laminas.astro';
 
 <EnSimple>
 Cannon es como una **rueda de baile**: antes de empezar, cada fila de A se corre unos puestos a la izquierda y cada columna de B unos puestos hacia arriba, para que cada pareja quede bien emparejada. Desde ahí nadie grita a toda la fila (no hay broadcast): en cada compás todos multiplican y pasan su A a la izquierda y su B hacia arriba. Solo se habla con vecinos.
 </EnSimple>
 
-## Mismo tablero, otra coreografía (láminas 20–21)
+## Mismo tablero, otra coreografía
+
+<Laminas d="u63" n={[20, 21]} />
 
 El reparto es igual que en Fox: malla q×q con **q = √p**, bloques de (n/q)×(n/q), y P<sub>ij</sub> calcula C<sub>ij</sub> = Σ<sub>s</sub> A<sub>is</sub>B<sub>sj</sub>. La diferencia es cómo llegan los bloques:
 
 1. **Alineación inicial** (una vez): la fila i de A se desplaza **i** posiciones a la izquierda y la columna j de B **j** posiciones hacia arriba, de forma circular.
 2. **q iteraciones:** cada P<sub>ij</sub> hace C<sub>ij</sub> += A·B con los bloques que tiene; luego A se desplaza 1 a la izquierda y B 1 hacia arriba.
 
-La lámina 21 dice «(i−1) posiciones» y «(j−1) posiciones» porque numera filas y columnas desde 1. Con numeración desde 0, como en el código, son **i** y **j**: la fila 0 no se mueve.
+La diapositiva dice «(i−1) posiciones» y «(j−1) posiciones» porque numera filas y columnas desde 1. Con numeración desde 0, como en el código, son **i** y **j**: la fila 0 no se mueve.
 
 <MatFig fig="cannon">
 **Cómo leerlo:** a la izquierda, cada P<sub>ij</sub> tiene A<sub>ij</sub> y B<sub>ij</sub>, y solo la diagonal tiene índices internos que coinciden. A la derecha, tras la alineación, todas las celdas tienen A<sub>i,s</sub> y B<sub>s,j</sub> con el mismo s = (i+j) mod 3, así que el primer producto ya es útil **sin comunicar más**.
@@ -41,11 +44,15 @@ Como s recorre todos los valores mod q en q iteraciones, C<sub>ij</sub> queda co
 | 1 | 1 | A₁₁B₁₂ |
 | 2 | 2 | A₁₂B₂₂ |
 
-Compara con Fox: P(1,2) suma **los mismos tres productos**, solo que en otro orden. Las láminas 22–25 muestran ese mismo recorrido en una malla 4×4.
+Compara con Fox: P(1,2) suma **los mismos tres productos**, solo que en otro orden. Las diapositivas muestran ese mismo recorrido en una malla 4×4.
+
+<Laminas d="u63" n={[22, 23, 24, 25]} />
 
 <FoxCannon client:visible />
 
-## Complejidad (lámina 26)
+## Complejidad
+
+<Laminas d="u63" n={[26]} />
 
 - **Cómputo:** T<sub>comp</sub> = q·(n²/p)·(n/q) = **n³/p**.
 - **Alineación:** T¹<sub>comm</sub> = O(α + (n²/p)β), un envío directo por matriz en una malla con conexiones circulares.
@@ -53,13 +60,15 @@ Compara con Fox: P(1,2) suma **los mismos tres productos**, solo que en otro ord
 
 $$T_p=O\!\left(\frac{n^3}{p}+\sqrt p\left(\alpha+\frac{n^2}{p}\beta\right)\right),\qquad E=O\!\left(\frac{1}{1+\frac{p^{3/2}}{n^3}\alpha+\frac{\sqrt p}{n}\beta}\right).$$
 
-Comprobación: pT<sub>p</sub> = n³ + p<sup>3/2</sup>α + √p·n²β; al dividir n³ entre eso sale la E de la lámina (que omite α y β).
+Comprobación: pT<sub>p</sub> = n³ + p<sup>3/2</sup>α + √p·n²β; al dividir n³ entre eso sale la E del material (que omite α y β).
 
 **Isoeficiencia (propia):** el término β pide n = Θ(√p) ⇒ **W = n³ = Θ(p<sup>1.5</sup>)**; el término α da lo mismo. Es mejor que Fox (Θ(p<sup>1.5</sup> log³ p)) porque cambia cada broadcast de log q pasos por un único envío a un vecino.
 
 **Memoria:** cada proceso guarda siempre solo un bloque de A, uno de B y uno de C (3n²/p números). Fox necesita además un buffer para el A difundido.
 
-Las láminas 27–28 comparan con mediciones y la 29 concluye que los tres algoritmos (1-D, Fox y Cannon) **son comparables en performance** en el rango que midió el profesor. El modelo dice lo mismo para p pequeño. Las diferencias aparecen al crecer p con n fijo (ver [DNS y comparación](/final/matrices/dns-comparacion/)).
+Las diapositivas comparan con mediciones y la conclusión es que los tres algoritmos (1-D, Fox y Cannon) **son comparables en performance** en el rango que midió el profesor. El modelo dice lo mismo para p pequeño. Las diferencias aparecen al crecer p con n fijo (ver [DNS y comparación](/final/matrices/dns-comparacion/)).
+
+<Laminas d="u63" n={[27, 28, 29]} />
 
 ## Código MPI (propio, verificado)
 
@@ -87,7 +96,7 @@ for (int l = 0; l < q; l++) {
 
 - Saltarse la alineación: sin ella, solo la diagonal multiplica bloques compatibles en el primer paso.
 - Desplazar A hacia arriba y B a la izquierda (al revés): A viaja por **filas**, B por **columnas**.
-- Usar (i−1) con índices desde 0: la regla de la lámina asume numeración desde 1.
+- Usar (i−1) con índices desde 0: la regla del material asume numeración desde 1.
 - Decir que Cannon usa broadcast: solo usa envíos punto a punto entre vecinos.
 
 <Quiz client:visible id="u63-cannon" preguntas={[
@@ -99,4 +108,4 @@ for (int l = 0; l < q; l++) {
  {q:'Ventaja de Cannon frente a Fox:',opts:['menos cómputo','sin broadcasts ni buffer extra de A','admite p = n³','no necesita malla'],ok:1}
 ]} />
 
-<Fuente archivos={['U6.3 Performance-matrices.pdf (láminas 20–29)', 'programa propio matmul_mpi.cpp (compilado y ejecutado con p = 4, 9, 16)']} />
+<Fuente archivos={['U6.3 Performance-matrices.pdf', 'programa propio matmul_mpi.cpp (compilado y ejecutado con p = 4, 9, 16)']} />

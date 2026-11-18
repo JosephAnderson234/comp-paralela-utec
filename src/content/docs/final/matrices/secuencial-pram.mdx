@@ -7,12 +7,15 @@ import EnSimple from '../../../../components/EnSimple.astro';
 import Quiz from '../../../../components/Quiz.tsx';
 import Solucion from '../../../../components/Solucion.astro';
 import Fuente from '../../../../components/Fuente.astro';
+import Laminas from '../../../../components/Laminas.astro';
 
 <EnSimple>
 Piensa en una hoja de cálculo C donde cada casilla se llena «cruzando» una fila de A con una columna de B: multiplicas pareja por pareja y sumas todo. Si C tiene n×n casillas y cada una pide n multiplicaciones, son **n³** cuentas. Paralelizar es repartir esas cuentas; el problema real, que verás en las páginas siguientes, es **llevar los datos** a quien hace cada cuenta.
 </EnSimple>
 
-## El problema (láminas 2–3)
+## El problema
+
+<Laminas d="u63" n={[2, 3]} />
 
 C = A·B con A de m×n y B de n×l. Cada elemento es un producto interno:
 
@@ -22,7 +25,7 @@ $$c_{ij}=\sum_{k=0}^{n-1} a_{ik}\,b_{kj},\qquad 0\le i<m,\ 0\le j<l.$$
 **Cómo leerlo:** la fila i de A (naranja) y la columna j de B (celeste) producen una sola casilla de C (verde). Hay m·l casillas y cada una necesita n productos, de ahí Θ(m·n·l).
 </MatFig>
 
-El código secuencial de la lámina 3 son tres bucles anidados:
+El código secuencial de la diapositiva son tres bucles anidados:
 
 ```c
 for (int i = 0; i < m; i++)
@@ -35,7 +38,9 @@ for (int i = 0; i < m; i++)
 
 **T<sub>s</sub> = O(m·n·l)**; para matrices cuadradas, **T<sub>s</sub> = Θ(n³)**. Ejemplo: n = 1000 son 10⁹ multiplicaciones-suma. Este n³ es el **W** (trabajo útil) que usarás en todas las eficiencias de esta sección.
 
-## PRAM con p = n³ (lámina 4)
+## PRAM con p = n³
+
+<Laminas d="u63" n={[4]} />
 
 Si hay un proceso por cada terna (i, k, j):
 
@@ -50,9 +55,11 @@ Entonces:
 | S(n) | n³ / log n | T<sub>s</sub>/T<sub>p</sub> |
 | E(n) | 1 / log n | S/p = (n³/log n)/n³ |
 
-**Ejemplo trabajado (propio):** n = 8 ⇒ p = 512 procesos, T = 1 + log₂8 = 4 pasos (la lámina cuenta solo el término log n = 3). Con T = log n: S = 512/3 ≈ 171 y E = 1/3 ≈ 0.33. Es rapidísimo, pero dos de cada tres procesos están ociosos en promedio: la reducción en árbol apaga la mitad de los sumadores en cada nivel.
+**Ejemplo trabajado (propio):** n = 8 ⇒ p = 512 procesos, T = 1 + log₂8 = 4 pasos (el material cuenta solo el término log n = 3). Con T = log n: S = 512/3 ≈ 171 y E = 1/3 ≈ 0.33. Es rapidísimo, pero dos de cada tres procesos están ociosos en promedio: la reducción en árbol apaga la mitad de los sumadores en cada nivel.
 
-## Brent: p < n³ (lámina 5)
+## Brent: p < n³
+
+<Laminas d="u63" n={[5]} />
 
 Con menos procesos, cada uno simula varios de la PRAM. Por el principio de Brent:
 
@@ -60,7 +67,7 @@ $$T_p(n)=O\!\left(\frac{n^3}{p}+\log n\right),$$
 
 y a cada proceso le tocan n²/p elementos de C. Si p ≤ n³/log n, el término n³/p domina y **E ≈ 1**: en la PRAM la eficiencia se recupera usando menos procesos.
 
-:::note[¿Por qué la lámina dice «escalabilidad limitada»?]
+:::note[¿Por qué el material dice «escalabilidad limitada»?]
 La PRAM supone que todos leen cualquier a<sub>ik</sub> o b<sub>kj</sub> sin costo. En memoria distribuida, cada dato vive en **un** proceso y moverlo cuesta α + mβ (arranque + tamaño, ver [Broadcast](/final/performance-u6/broadcast/)). Las páginas siguientes son exactamente eso: distintas formas de organizar ese movimiento.
 :::
 
@@ -85,4 +92,4 @@ La PRAM supone que todos leen cualquier a<sub>ik</sub> o b<sub>kj</sub> sin cost
  {q:'¿Qué ignora la PRAM y vuelve «limitada» su escalabilidad real?',opts:['las sumas','el costo de mover datos','los productos','la memoria de C'],ok:1}
 ]} />
 
-<Fuente archivos={['U6.3 Performance-matrices.pdf (láminas 2–5)']} />
+<Fuente archivos={['U6.3 Performance-matrices.pdf']} />

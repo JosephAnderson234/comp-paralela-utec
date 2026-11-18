@@ -8,6 +8,7 @@ import EnSimple from '../../../../components/EnSimple.astro';
 import Quiz from '../../../../components/Quiz.tsx';
 import Solucion from '../../../../components/Solucion.astro';
 import Fuente from '../../../../components/Fuente.astro';
+import Laminas from '../../../../components/Laminas.astro';
 
 <EnSimple>
 Imagina un mapa grande partido en pedazos, uno por persona. Para pintar el borde de tu pedazo necesitas ver un poquito del pedazo del vecino, así que **copias** esa franja en tu hoja: eso es el **halo**.
@@ -21,9 +22,13 @@ Una **región de halo** es una copia **local** de datos que pertenecen a otro pr
 
 Esto ya apareció en el parcial: el [intercambio de halos en Foster (PCAM)](/fundamentos/foster/).
 
-Según la lámina 12, con **OpenMP** dentro del nodo se reduce el tamaño de los halos que hay que almacenar: los hilos comparten la memoria del proceso y no necesitan copias entre ellos. Menos halo significa **menos memoria** y **menos comunicación**.
+Según la diapositiva, con **OpenMP** dentro del nodo se reduce el tamaño de los halos que hay que almacenar: los hilos comparten la memoria del proceso y no necesitan copias entre ellos. Menos halo significa **menos memoria** y **menos comunicación**.
 
-## Cuánto halo hay (lámina 13)
+<Laminas d="u45" n={[12]} />
+
+## Cuánto halo hay
+
+<Laminas d="u45" n={[13]} />
 
 Malla 2D de M×N celdas por proceso, con una celda de halo alrededor:
 
@@ -45,7 +50,9 @@ En general, si el número de procesos crece como O(P), el halo por proceso baja 
 
 <HaloRatio client:visible />
 
-## En 3D (lámina 14)
+## En 3D
+
+<Laminas d="u45" n={[14]} />
 
 Un subdominio de n³ celdas con una capa de halo ocupa (n + 2)³:
 
@@ -70,9 +77,13 @@ En un nodo de c núcleos con un dominio de L×L celdas:
 
 El híbrido guarda y comunica √c veces menos halo (con c = 16, 4 veces menos).
 
-La lámina 15 lo muestra en un caso real: la descomposición de dominio del código **Smilei** (simulación de plasmas *Particle-in-Cell*, Derouillat et al. 2017), donde los dominios MPI cambian de forma para seguir la carga de partículas.
+La diapositiva lo muestra en un caso real: la descomposición de dominio del código **Smilei** (simulación de plasmas *Particle-in-Cell*, Derouillat et al. 2017), donde los dominios MPI cambian de forma para seguir la carga de partículas.
 
-## Ejemplo: ecuación de Poisson 3D con Jacobi (láminas 24–25)
+<Laminas d="u45" n={[15]} />
+
+## Ejemplo: ecuación de Poisson 3D con Jacobi
+
+<Laminas d="u45" n={[24, 25]} />
 
 Se resuelve la ecuación de Poisson en el cubo [0,1]³ con valor 0 en el borde:
 
@@ -151,4 +162,4 @@ Cada vez que se multiplica por 4 el número de procesos, la proporción de comun
 	]}
 />
 
-<Fuente archivos={['U4.5 Paralelismo-hibrido.pdf (láminas 12–15, 24–25)']} />
+<Fuente archivos={['U4.5 Paralelismo-hibrido.pdf']} />

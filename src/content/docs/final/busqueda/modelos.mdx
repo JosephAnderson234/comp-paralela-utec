@@ -8,6 +8,7 @@ import Quiz from '../../../../components/Quiz.tsx';
 import Solucion from '../../../../components/Solucion.astro';
 import Fuente from '../../../../components/Fuente.astro';
 import BusquedaPAria from '../../../../components/playgrounds/BusquedaPAria.tsx';
+import Laminas from '../../../../components/Laminas.astro';
 
 <EnSimple>
 **Buscar** es como revisar cajones hasta encontrar las llaves: te basta con **una** que cumpla. **Optimizar** es como elegir el vuelo más barato: tienes que estar seguro de que **ninguno** es mejor, así que en principio miras todos (o demuestras que los que no miraste no pueden ganar).
@@ -15,25 +16,29 @@ import BusquedaPAria from '../../../../components/playgrounds/BusquedaPAria.tsx'
 En paralelo, la idea básica es **repartir los cajones** entre varias personas. El problema es que no todos los cajones tienen el mismo tamaño, y que cuando alguien encuentra las llaves los demás deberían **dejar de buscar**. De eso trata toda la unidad.
 </EnSimple>
 
-## Búsqueda vs optimización (láminas 2–5)
+## Búsqueda vs optimización
+
+<Laminas d="u53" n={[2, 3, 4, 5]} />
 
 | | Búsqueda (decisión) | Optimización discreta |
 |---|---|---|
 | Entrada | conjunto S = \{x₀, …, x<sub>n−1</sub>\} y un predicado P | tupla (S, f): soluciones y función de costo f : S → ℝ |
 | Qué se pide | **algún** x<sub>i</sub> con P(x<sub>i</sub>) = 1 | x<sub>opt</sub> con f(x<sub>opt</sub>) ≤ f(x) para **todo** x ∈ S, sujeto a g(x) ≥ 0 |
 | Cuándo para | al primer éxito | cuando se exploró (o se descartó) todo |
-| Ejemplo de la lámina | crucigrama (caso 2) | 8-puzzle con mínimo de movimientos (caso 1), programación lineal entera |
+| Ejemplo del material | crucigrama (caso 2) | 8-puzzle con mínimo de movimientos (caso 1), programación lineal entera |
 
 **Variables de decisión** son las x₁, …, xₙ que el algoritmo elige; la **condición funcional** g(x) ≥ 0 son las restricciones que deben cumplir.
 
-### Mínimo local vs global (lámina 5)
+### Mínimo local vs global
 
 - y es **mínimo global** si f(y) < f(x) para todo x de S.
 - y es **mínimo local** si f(y) ≤ f(x) para todo x en una **vecindad** de y.
 
-La mayoría de métodos encuentran un mínimo **local**. Para aspirar al global, la lámina propone lanzar la búsqueda desde **varios puntos espaciados** y comparar los mínimos: eso es naturalmente paralelo, porque cada arranque es independiente (como el Montecarlo del parcial).
+La mayoría de métodos encuentran un mínimo **local**. Para aspirar al global, el material propone lanzar la búsqueda desde **varios puntos espaciados** y comparar los mínimos: eso es naturalmente paralelo, porque cada arranque es independiente (como el Montecarlo del parcial).
 
-### Qué estrategia paralela usa cada algoritmo (lámina 6)
+### Qué estrategia paralela usa cada algoritmo
+
+<Laminas d="u53" n={[6]} />
 
 | Categoría | Algoritmo | Cómo se paraleliza |
 |---|---|---|
@@ -44,7 +49,9 @@ La mayoría de métodos encuentran un mínimo **local**. Para aspirar al global,
 | Optimización discreta | backtracking | explorar **ramas** a la vez |
 | Optimización discreta | A\* | expandir **estados** a la vez |
 
-## Búsqueda lineal en paralelo (lámina 7)
+## Búsqueda lineal en paralelo
+
+<Laminas d="u53" n={[7]} />
 
 Secuencial: T₁(n) = Θ(n). En paralelo cada proceso revisa n/p elementos y al final se combinan las respuestas con un **OR** en árbol.
 
@@ -63,10 +70,15 @@ for (int i = 0; i < n; i++) hay = hay || (a[i] == x);
 ```
 
 :::caution[Lo que este código no hace: parar al encontrar]
-Un `parallel for` recorre **todo** el arreglo aunque el elemento esté en la posición 0. Para cortar antes hay que usar una bandera compartida que cada hilo revise (`#pragma omp cancel for` necesita `OMP_CANCELLATION=true`) o, en MPI, avisar a los demás procesos. La lámina 38 lo dice para búsqueda en general: "si un proceso encuentra la solución, todos los procesos terminan".
+Un `parallel for` recorre **todo** el arreglo aunque el elemento esté en la posición 0. Para cortar antes hay que usar una bandera compartida que cada hilo revise (`#pragma omp cancel for` necesita `OMP_CANCELLATION=true`) o, en MPI, avisar a los demás procesos. La diapositiva lo dice para búsqueda en general: "si un proceso encuentra la solución, todos los procesos terminan".
+
+<Laminas d="u53" n={[38]} />
+
 :::
 
-## Búsqueda binaria con p procesadores (láminas 8–9)
+## Búsqueda binaria con p procesadores
+
+<Laminas d="u53" n={[8, 9]} />
 
 Se tiene un arreglo **ordenado**. En vez de 1 pivote (la mitad), se ponen **p − 1 pivotes** que parten el intervalo en p regiones. Todos los procesadores comparan su pivote con x **en el mismo paso**, y queda solo la región que puede contener x.
 
@@ -85,7 +97,7 @@ $$
 
 5. **Eficiencia:** E<sub>p</sub> = S<sub>p</sub>/p = **log p / p**, que tiende a 0 al crecer p.
 
-**Interpretación:** con 16 procesadores la búsqueda es solo 4 veces más rápida. Es un ejemplo claro de que **más procesadores no implica más rendimiento proporcional**: la búsqueda binaria ya es muy barata y no hay casi trabajo que repartir. Por eso la lámina 6 dice que su estrategia útil es atender **muchas consultas** a la vez (cada procesador resuelve una búsqueda distinta), no acelerar una sola.
+**Interpretación:** con 16 procesadores la búsqueda es solo 4 veces más rápida. Es un ejemplo claro de que **más procesadores no implica más rendimiento proporcional**: la búsqueda binaria ya es muy barata y no hay casi trabajo que repartir. Por eso la diapositiva dice que su estrategia útil es atender **muchas consultas** a la vez (cada procesador resuelve una búsqueda distinta), no acelerar una sola.
 
 **Medido** con un programa propio (búsqueda p-aria con OpenMP, n = 2²⁰):
 
@@ -107,7 +119,7 @@ log₈ 4096 = 12/3 = **4** iteraciones (la binaria hace 12). S = 12/4 = **3** = 
 2. Tienes 1 000 consultas sobre el mismo arreglo ordenado y 8 procesadores. ¿Qué conviene más: 8 procesadores por consulta o 1 procesador por consulta?
 
 <Solucion>
-**1 por consulta.** Repartiendo las consultas, cada procesador hace 125 búsquedas binarias completas, sin comunicación: S ≈ 8, E ≈ 1. Usando los 8 en cada consulta, S = log₂ 8 = 3 y E = 0.375. Es la "estrategia de múltiples consultas" de la lámina 6.
+**1 por consulta.** Repartiendo las consultas, cada procesador hace 125 búsquedas binarias completas, sin comunicación: S ≈ 8, E ≈ 1. Usando los 8 en cada consulta, S = log₂ 8 = 3 y E = 0.375. Es la "estrategia de múltiples consultas" de la diapositiva.
 </Solucion>
 
 ## Errores típicos
@@ -129,4 +141,4 @@ log₈ 4096 = 12/3 = **4** iteraciones (la binaria hace 12). S = 12/4 = **3** = 
 	]}
 />
 
-<Fuente archivos={['U5.3 Algoritmos-busqueda.pdf (láminas 2–9)']} />
+<Fuente archivos={['U5.3 Algoritmos-busqueda.pdf']} />

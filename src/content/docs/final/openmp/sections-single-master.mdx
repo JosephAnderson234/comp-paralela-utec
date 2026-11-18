@@ -132,7 +132,7 @@ En `Ejemp01_master.c`, ¿qué pasaría si `toobig = 0` se hiciera con `master` e
 
 <Solucion>
 
-`master` **no tiene barrera**: otros hilos podrían empezar el siguiente `for` con `reduction(+:toobig)` antes de que el hilo 0 ponga `toobig = 0`. La lámina de U4.2 sobre `reduction` muestra exactamente ese error: la inicialización tiene que quedar **antes** de la reducción, con una `barrier` después del `master`, usando `single` (que trae barrera) o inicializando antes de la región paralela.
+`master` **no tiene barrera**: otros hilos podrían empezar el siguiente `for` con `reduction(+:toobig)` antes de que el hilo 0 ponga `toobig = 0`. El material de U4.2 sobre `reduction` muestra exactamente ese error: la inicialización tiene que quedar **antes** de la reducción, con una `barrier` después del `master`, usando `single` (que trae barrera) o inicializando antes de la región paralela.
 
 </Solucion>
 
@@ -167,4 +167,4 @@ S<sub>máx</sub> = 4/2 = **2**, aunque haya 3 hilos: el tiempo nunca baja de la 
 	]}
 />
 
-<Fuente archivos={['U4.1 Paralelismo compartido-OMP.pdf (láminas 18–22, 25)', 'U4.2 Paralelismo compartido-OMP.pdf (master, barrier)', 'U4.3 Paralelismo compartido-OMP.pdf (sections, single)', 'semana_9/Ejemp03_sections_omp.cpp', 'semana_9/Ejemp04_single_omp.cpp', 'semana_9/sesionb/Ejemp01_master.c']} />
+<Fuente archivos={['U4.1 Paralelismo compartido-OMP.pdf', 'U4.2 Paralelismo compartido-OMP.pdf (master, barrier)', 'U4.3 Paralelismo compartido-OMP.pdf (sections, single)', 'semana_9/Ejemp03_sections_omp.cpp', 'semana_9/Ejemp04_single_omp.cpp', 'semana_9/sesionb/Ejemp01_master.c']} />

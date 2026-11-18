@@ -7,16 +7,21 @@ import EnSimple from '../../../../components/EnSimple.astro';
 import Quiz from '../../../../components/Quiz.tsx';
 import Solucion from '../../../../components/Solucion.astro';
 import Fuente from '../../../../components/Fuente.astro';
+import Laminas from '../../../../components/Laminas.astro';
 
 <EnSimple>
 Imagina p cocineros sentados en ronda. Cada uno tiene **su** receta fija (franja de A) y en el centro gira una bandeja de ingredientes (franjas de B). En cada vuelta, cada cocinero usa el ingrediente que tiene delante y pasa la bandeja al vecino. Después de p vueltas, todos usaron todos los ingredientes. Es simple, pero la bandeja da **p** vueltas: con muchos cocineros, se pasa más tiempo girando que cocinando.
 </EnSimple>
 
-## La idea (lámina 6)
+## La idea
+
+<Laminas d="u63" n={[6]} />
 
 Con p = n: el proceso m tiene la **fila m de A** y una **columna de B**. En cada iteración hace un producto interno (un elemento de C) y envía su columna de B al proceso **(m+1) mod n**. Tras n iteraciones cada proceso calculó toda su fila de C.
 
-Con p < n (lámina 7): A se parte en **p franjas horizontales** de n/p filas y B en **p franjas verticales** de n/p columnas. En cada iteración, el proceso calcula un bloque (n/p)×(n/p) de C, que cuesta (n/p)·(n/p)·n = n³/p² operaciones; tras p iteraciones lleva **n³/p**.
+Con p < n: A se parte en **p franjas horizontales** de n/p filas y B en **p franjas verticales** de n/p columnas. En cada iteración, el proceso calcula un bloque (n/p)×(n/p) de C, que cuesta (n/p)·(n/p)·n = n³/p² operaciones; tras p iteraciones lleva **n³/p**.
+
+<Laminas d="u63" n={[7]} />
 
 <MatFig fig="anillo">
 **Cómo leerlo:** A no se mueve nunca (naranja). La franja de B (celeste) avanza un proceso a la derecha en cada paso y la del último vuelve al primero. En el paso s, P<sub>m</sub> tiene la franja (m−s) mod p y calcula el bloque C<sub>m,(m−s) mod p</sub>.
@@ -32,19 +37,21 @@ Con p < n (lámina 7): A se parte en **p franjas horizontales** de n/p filas y B
 
 Cada fila de la tabla es un **paso en paralelo**; cada columna, el trabajo de un proceso. Al final cada P<sub>m</sub> completó su fila m de C. Las diagonales de C se llenan una por paso.
 
-## Tiempo y eficiencia del modelo de la lámina 7
+## Tiempo y eficiencia del modelo de la diapositiva
 
-Cómputo: **T<sub>comp</sub> = O(n³/p)**. La lámina cobra la comunicación como **T<sub>comm</sub> = O(log p·(α + (n²/p)β))**, porque cada mensaje lleva una franja de n·(n/p) = n²/p números. Entonces:
+Cómputo: **T<sub>comp</sub> = O(n³/p)**. El material cobra la comunicación como **T<sub>comm</sub> = O(log p·(α + (n²/p)β))**, porque cada mensaje lleva una franja de n·(n/p) = n²/p números. Entonces:
 
 $$T_p=O\!\left(\frac{n^3}{p}+\log p\left(\alpha+\frac{n^2}{p}\beta\right)\right),\qquad E=O\!\left(\frac{1}{1+\frac{p\log p}{n^3}\alpha+\frac{\log p}{n}\beta}\right).$$
 
-Para obtener E: pT<sub>p</sub> = n³ + p log p·α + n² log p·β, y E = n³/(pT<sub>p</sub>). La lámina omite α y β en E; aquí se dejan para ver qué término viene de cada costo.
+Para obtener E: pT<sub>p</sub> = n³ + p log p·α + n² log p·β, y E = n³/(pT<sub>p</sub>). El material omite α y β en E; aquí se dejan para ver qué término viene de cada costo.
 
-:::caution[Ojo con el log p de la lámina 7]
-El anillo que describe la lámina 6 hace **p−1 envíos sucesivos** de n²/p números, así que el conteo directo es T<sub>comm</sub> = (p−1)(α + (n²/p)β) ≈ pα + n²β. Incluso un *all-gather* en árbol, que junta las p franjas en log p rondas, transfiere en total n²(p−1)/p números por proceso: el término β no puede bajar de ≈ n²β. Con el anillo, pT<sub>p</sub> ≈ n³ + p²α + p·n²β y **E ≈ 1/(1 + p²α/n³ + pβ/n)**. Si el examen pide la fórmula de la lámina, úsala y menciona este matiz.
+:::caution[Ojo con el log p de la diapositiva]
+El anillo que describe la diapositiva hace **p−1 envíos sucesivos** de n²/p números, así que el conteo directo es T<sub>comm</sub> = (p−1)(α + (n²/p)β) ≈ pα + n²β. Incluso un *all-gather* en árbol, que junta las p franjas en log p rondas, transfiere en total n²(p−1)/p números por proceso: el término β no puede bajar de ≈ n²β. Con el anillo, pT<sub>p</sub> ≈ n³ + p²α + p·n²β y **E ≈ 1/(1 + p²α/n³ + pβ/n)**. Si el examen pide la fórmula del material, úsala y menciona este matiz.
 :::
 
-Las láminas 8 y 9 comparan la complejidad teórica con mediciones del profesor; la forma de las curvas coincide, pero los números corresponden a su equipo y no se reproducen aquí.
+Las diapositivas comparan la complejidad teórica con mediciones del profesor; la forma de las curvas coincide, pero los números corresponden a su equipo y no se reproducen aquí.
+
+<Laminas d="u63" n={[8, 9]} />
 
 ### Isoeficiencia (propia)
 
@@ -69,7 +76,7 @@ Con el conteo del anillo, **W = Θ(p³)**: la peor isoeficiencia de la sección 
 
 - Mover A y B a la vez: en esta descomposición A queda fija y solo gira B.
 - Contar el cómputo por paso como n²/p: un bloque (n/p)×(n/p) con productos internos de largo n cuesta n³/p².
-- Usar log p para el anillo sin decir que es el modelo de la lámina: el anillo hace p−1 envíos.
+- Usar log p para el anillo sin decir que es el modelo del material: el anillo hace p−1 envíos.
 - Olvidar la restricción p ≤ n.
 
 <Quiz client:visible id="u63-filas" preguntas={[
@@ -81,4 +88,4 @@ Con el conteo del anillo, **W = Θ(p³)**: la peor isoeficiencia de la sección 
  {q:'Límite de procesos en esta descomposición:',opts:['p ≤ n','p ≤ n²','p ≤ n³','sin límite'],ok:0}
 ]} />
 
-<Fuente archivos={['U6.3 Performance-matrices.pdf (láminas 6–9)']} />
+<Fuente archivos={['U6.3 Performance-matrices.pdf']} />

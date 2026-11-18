@@ -8,12 +8,15 @@ import Quiz from '../../../../components/Quiz.tsx';
 import Solucion from '../../../../components/Solucion.astro';
 import Fuente from '../../../../components/Fuente.astro';
 import PrimParalelo from '../../../../components/playgrounds/PrimParalelo.tsx';
+import Laminas from '../../../../components/Laminas.astro';
 
 <EnSimple>
 Imagina construir una red de cables entre cinco casas. **Prim** elige siempre el cable más barato que conecta una casa nueva a la red. **Dijkstra** busca el viaje más corto desde una casa inicial. En paralelo, cada equipo vigila parte de las casas, propone su mejor opción y todos acuerdan cuál agregar.
 </EnSimple>
 
-## Prim: árbol recubridor mínimo (láminas 16–19)
+## Prim: árbol recubridor mínimo
+
+<Laminas d="u54" n={[16, 17, 18, 19]} />
 
 Un *árbol recubridor mínimo* (MST) une todos los vértices de un grafo no dirigido con el menor peso total y sin ciclos. Prim guarda un conjunto VT de vértices ya agregados. Para cada v fuera de VT, d[v] es la arista más barata desde VT y parent[v] es el extremo que la ofrece. Con **matriz de adyacencia**, buscar y actualizar los n candidatos durante n rondas cuesta Θ(n²) en secuencia.
 
@@ -53,7 +56,9 @@ peso=9
 
 Aquí `999` es el centinela que representa ∞; `-1` significa que el proceso no tiene candidato. El programa verifica el resultado, **no mide rendimiento**.
 
-## Tiempo y eficiencia (láminas 20–21)
+## Tiempo y eficiencia
+
+<Laminas d="u54" n={[20, 21]} />
 
 Sea n el número de vértices, p≤n procesos y cada comparación/actualización local un paso; una reducción entre p procesos cuesta O(log p) pasos en este modelo idealizado, sin contar latencia real de red.
 
@@ -64,13 +69,15 @@ Sea n el número de vértices, p≤n procesos y cada comparación/actualización
 5. **Eficiencia:** E=S/p≈**1/(1+p log p/n)**.
 6. **E constante:** p log p/n debe ser constante, luego n=Θ(p log p); como W=n², la **isoeficiencia en trabajo** es W=Θ(p² log² p). Esa última expresión es sobre W, no sobre n.
 
-:::caution[Notación de crecimiento en la lámina 20]
-La lámina concluye «para E=O(1), n=O(p log p)». Si se quiere **mantener E acotada por debajo** al crecer p, la condición es n=Ω(p log p); en la frontera de isoeficiencia se escribe n=Θ(p log p). La O sola solo da una cota superior y no garantiza eficiencia constante.
+:::caution[Notación de crecimiento en la diapositiva]
+El material concluye «para E=O(1), n=O(p log p)». Si se quiere **mantener E acotada por debajo** al crecer p, la condición es n=Ω(p log p); en la frontera de isoeficiencia se escribe n=Θ(p log p). La O sola solo da una cota superior y no garantiza eficiencia constante.
 :::
 
-Con listas de adyacencia y un *heap* (cola de prioridad) binario, el costo secuencial es O(m log n); con heap de Fibonacci, O(m+n log n), donde m es número de aristas (*conocimiento general*, también indicado en lámina 21). Prim con matriz es especialmente razonable en grafos densos, donde m≈n².
+Con listas de adyacencia y un *heap* (cola de prioridad) binario, el costo secuencial es O(m log n); con heap de Fibonacci, O(m+n log n), donde m es número de aristas (*conocimiento general*, también indicado en diapositiva). Prim con matriz es especialmente razonable en grafos densos, donde m≈n².
 
-## Dijkstra: cambia la actualización (láminas 22–24)
+## Dijkstra: cambia la actualización
+
+<Laminas d="u54" n={[22, 23, 24]} />
 
 Dijkstra calcula la ruta más corta **desde un origen** a todos los vértices cuando los pesos son no negativos. También elige el d mínimo global en cada ronda; aquí d[v] es la **distancia total desde el origen**, no una arista. La partición y la reducción pueden ser las mismas que en Prim.
 
@@ -103,4 +110,4 @@ Dijkstra calcula la ruta más corta **desde un origen** a todos los vértices cu
  {q:'Para E constante, n debe crecer al menos como…',opts:['log p','p','p log p','p² log² p'],ok:2},
  {q:'Peso del MST del ejemplo:',opts:['7','8','9','10'],ok:2}
 ]} />
-<Fuente archivos={['U5.4 Algoritmos-grafos.pdf (láminas 16–24)', 'programa propio: prim_omp.cpp (compilado y ejecutado)']} />
+<Fuente archivos={['U5.4 Algoritmos-grafos.pdf', 'programa propio: prim_omp.cpp (compilado y ejecutado)']} />

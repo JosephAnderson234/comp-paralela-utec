@@ -7,12 +7,15 @@ import EnSimple from '../../../../components/EnSimple.astro';
 import Quiz from '../../../../components/Quiz.tsx';
 import Solucion from '../../../../components/Solucion.astro';
 import Fuente from '../../../../components/Fuente.astro';
+import Laminas from '../../../../components/Laminas.astro';
 
 <EnSimple>
 La PD06 tiene dos partes que se resuelven siempre con la misma **receta**. **Ejercicio 1:** «reparte un árbol entre hilos». Cuenta cuánto trabajo hay por nivel, corta el árbol en un nivel m y mira si los pedazos alcanzan para todos los hilos. **Ejercicio 2:** «¿cuánto debe crecer el problema?». Escribe pT<sub>p</sub>, réstale T<sub>s</sub> para obtener el overhead e iguala el trabajo útil a K veces ese overhead.
 </EnSimple>
 
-Formato (lámina 1): PD06 vale 5 pts y se avanza en clase; la Tarea 5 (2 pts) completa los ejercicios. Las respuestas se pueden intentar antes de abrir cada solución.
+Formato: PD06 vale 5 pts y se avanza en clase; la Tarea 5 (2 pts) completa los ejercicios. Las respuestas se pueden intentar antes de abrir cada solución.
+
+<Laminas d="pd6" n={[1]} />
 
 ## Ejercicio 1 · DFS paralelo con umbral m (3.5 pts)
 

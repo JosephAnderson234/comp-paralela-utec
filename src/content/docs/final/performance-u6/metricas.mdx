@@ -8,16 +8,19 @@ import Quiz from '../../../../components/Quiz.tsx';
 import Solucion from '../../../../components/Solucion.astro';
 import Fuente from '../../../../components/Fuente.astro';
 import IsoCalc from '../../../../components/playgrounds/IsoCalc.tsx';
+import Laminas from '../../../../components/Laminas.astro';
 
 <EnSimple>
 Dos personas pueden presumir de teclear muchas letras por segundo, pero quien termina el informe antes es quien fue **más rápido para ese trabajo**. Lo mismo pasa con MIPS: contar instrucciones por segundo no basta; hay que mirar cuánto tarda el programa completo. Para crecer a más procesos, además hay que vigilar cuánto trabajo extra cuesta coordinarlos.
 </EnSimple>
 
-## Tiempo, ciclos y MIPS (láminas 2–4)
+## Tiempo, ciclos y MIPS
 
-La lámina usa **tiempo real = T<sub>user</sub>+T<sub>system</sub>**: tiempo de CPU en el programa más tiempo de CPU en servicios del sistema. El tiempo *idle* es tiempo ocioso y se analiza aparte. Para instrucciones de un tipo, **T<sub>CPU</sub>=n<sub>instr</sub>·CPI·t<sub>cycle</sub>**, donde CPI (*cycles per instruction*, ciclos por instrucción) es el promedio y t<sub>cycle</sub>=1/f. Con varios tipos se suman sus ciclos. **MIPS** son millones de instrucciones por segundo: n<sub>instr</sub>/(T<sub>CPU</sub>·10⁶)=f/(CPI·10⁶).
+<Laminas d="u62" n={[2, 3, 4]} />
 
-**Ejemplo de la lámina 4.** f=2 GHz ⇒ t<sub>cycle</sub>=0.5 ns. Los tipos I1,I2,I3 cuestan 1,2,3 ciclos respectivamente:
+El material usa **tiempo real = T<sub>user</sub>+T<sub>system</sub>**: tiempo de CPU en el programa más tiempo de CPU en servicios del sistema. El tiempo *idle* es tiempo ocioso y se analiza aparte. Para instrucciones de un tipo, **T<sub>CPU</sub>=n<sub>instr</sub>·CPI·t<sub>cycle</sub>**, donde CPI (*cycles per instruction*, ciclos por instrucción) es el promedio y t<sub>cycle</sub>=1/f. Con varios tipos se suman sus ciclos. **MIPS** son millones de instrucciones por segundo: n<sub>instr</sub>/(T<sub>CPU</sub>·10⁶)=f/(CPI·10⁶).
+
+**Ejemplo de la diapositiva.** f=2 GHz ⇒ t<sub>cycle</sub>=0.5 ns. Los tipos I1,I2,I3 cuestan 1,2,3 ciclos respectivamente:
 
 | Compilador | Instrucciones I1,I2,I3 (×10⁹) | Ciclos (×10⁹) | Tiempo | Instrucciones totales | MIPS |
 |---|---|---:|---:|---:|---:|
@@ -26,7 +29,9 @@ La lámina usa **tiempo real = T<sub>user</sub>+T<sub>system</sub>**: tiempo de 
 
 C2 informa más MIPS y **tarda más**. Para comparar programas completos, usa tiempo con la misma entrada y equipo; MIPS puede favorecer un código que hace más instrucciones baratas.
 
-## FLOPS y benchmarks (láminas 5–10)
+## FLOPS y benchmarks
+
+<Laminas d="u62" n={[5, 6, 7, 8, 9, 10]} />
 
 **MFLOPS** son millones de operaciones de coma flotante por segundo: n<sub>flop</sub>/(T<sub>CPU</sub>·10⁶). Multiplicación de matrices clásica de N×N hace aproximadamente **2N³ FLOPs**: por cada una de N² celdas hay N productos y N−1 sumas, esto es N²(2N−1)≈2N³. Si N=100, son aproximadamente 2·100³=**2 000 000 FLOPs**; a 0.01 s serían 200 MFLOPS (*ejemplo propio de cálculo, no benchmark*). NumPy suele llamar bibliotecas BLAS implementadas en código compilado; comparar el lenguaje por sí solo ignora esa biblioteca.
 
@@ -36,7 +41,9 @@ C2 informa más MIPS y **tarda más**. Para comparar programas completos, usa ti
 | *Kernel* (núcleo) | Livermore Loops, Linpack/HPL | bucles o álgebra lineal de aplicaciones reales |
 | Aplicaciones completas | SPEC, EEMBC | programas enteros, útiles si se parecen a tu carga |
 
-## Speedup, eficiencia y overhead (láminas 11–14)
+## Speedup, eficiencia y overhead
+
+<Laminas d="u62" n={[11, 12, 13, 14]} />
 
 **Speedup** S=T<sub>s</sub>/T<sub>p</sub>; **eficiencia** E=S/p=T<sub>s</sub>/(pT<sub>p</sub>). T<sub>s</sub> debe ser el mejor algoritmo secuencial comparable, o debe declararse cuál se usó. Repasa también [las métricas del parcial](/performance/metricas/).
 
@@ -48,15 +55,17 @@ $$E=\frac{W}{W+T_0}=\frac{1}{1+T_0/W},\qquad W=kT_0,\quad k=\frac{E}{1-E}.$$
 **Cómo leerlo:** la barra completa es pT<sub>p</sub>, el costo pagado por todos los procesos. La parte celeste W produce el resultado; la naranja T₀ es coordinación y trabajo adicional. Para mantener E constante, W debe crecer en proporción a T₀.
 </U6Fig>
 
-Ejemplo propio: E=0.8 ⇒ k=0.8/0.2=4, así que W=4T₀. Si al duplicar p el overhead se triplica, el trabajo debe triplicarse para sostener E=0.8. Si salen varias restricciones, se exige n=Ω(max f<sub>i</sub>(p)): con p=100, n≥p exige n≥100 y n≥√p solo exige n≥10, por lo que manda la primera (lámina 14). **Escalabilidad débil** fija n/p constante (modelo de Gustafson); **isoeficiencia** pregunta qué crecimiento de trabajo exige E fija, sin imponer esa forma particular.
+Ejemplo propio: E=0.8 ⇒ k=0.8/0.2=4, así que W=4T₀. Si al duplicar p el overhead se triplica, el trabajo debe triplicarse para sostener E=0.8. Si salen varias restricciones, se exige n=Ω(max f<sub>i</sub>(p)): con p=100, n≥p exige n≥100 y n≥√p solo exige n≥10, por lo que manda la primera. **Escalabilidad débil** fija n/p constante (modelo de Gustafson); **isoeficiencia** pregunta qué crecimiento de trabajo exige E fija, sin imponer esa forma particular.
 
 <IsoCalc client:visible />
 
-## Energía y comparación relativa (láminas 15–16)
+## Energía y comparación relativa
+
+<Laminas d="u62" n={[15, 16]} />
 
 Si cada proceso consume potencia P<sub>n</sub> durante T<sub>p</sub>, la energía del modelo es **CE=pP<sub>n</sub>T<sub>p</sub>=P<sub>n</sub>T<sub>s</sub>/E**. Se supone potencia constante por proceso; más eficiencia reduce energía para un trabajo T<sub>s</sub> fijo, pero un problema más grande puede aumentar T<sub>s</sub>.
 
-La tabla de la lámina 16 usa **p=8, T₈=100 min como base**, no T<sub>s</sub>:
+La tabla de la diapositiva usa **p=8, T₈=100 min como base**, no T<sub>s</sub>:
 
 | p | T<sub>p</sub> (min) | S relativo=100/T<sub>p</sub> | E relativo=S/(p/8) |
 |---:|---:|---:|---:|
@@ -67,12 +76,14 @@ La tabla de la lámina 16 usa **p=8, T₈=100 min como base**, no T<sub>s</sub>:
 
 Ejemplo: p=32 equivale a cuatro veces el tamaño de la base; S=100/35≈2.86 y E=2.86/4≈0.71. La clase recuerda mirar que T<sub>p</sub> **no sea demasiado pequeño**: si el trabajo se vuelve diminuto por proceso, la coordinación puede dominar.
 
-## Dos despejes de isoeficiencia (láminas 17–18)
+## Dos despejes de isoeficiencia
+
+<Laminas d="u62" n={[17, 18]} />
 
 **Suma de n números.** Con T<sub>p</sub>=n/p+log₂p y W=n, se tiene pT<sub>p</sub>=n+p log₂p y T₀=p log₂p. Para E fija, n=k p log₂p. Si p=4, n=64: T₀=4·2=8, E=64/(64+8)=**0.889**, no 0.8. Para pasar a p=16 preservando esa E, k=n/T₀=8 y n=8·16·4=**512**.
 
-:::caution[Valor de la lámina 17]
-La lámina escribe E=0.8 para p=4,n=64. Ese valor sale si se cuentan **2log₂p** pasos de combinación por nivel, como en el modelo de Grama: T<sub>p</sub>=n/p+2log₂p. Entonces T₀=2p log₂p=16, E=64/(64+16)=0.8 y k=4. En p=16, n=4·(2·16·4)=**512** igualmente. Ambas convenciones llevan al mismo factor de crecimiento; declara cuál usas.
+:::caution[Valor de la diapositiva]
+El material escribe E=0.8 para p=4,n=64. Ese valor sale si se cuentan **2log₂p** pasos de combinación por nivel, como en el modelo de Grama: T<sub>p</sub>=n/p+2log₂p. Entonces T₀=2p log₂p=16, E=64/(64+16)=0.8 y k=4. En p=16, n=4·(2·16·4)=**512** igualmente. Ambas convenciones llevan al mismo factor de crecimiento; declara cuál usas.
 :::
 
 **Segundo overhead:** T₀=p<sup>3/2</sup>+p<sup>3/4</sup>W<sup>3/4</sup>. Para E fija, W=kT₀. Primer término por separado: W≥k p<sup>3/2</sup>. Segundo: W≥k p<sup>3/4</sup>W<sup>3/4</sup>; dividir por W<sup>3/4</sup> da W<sup>1/4</sup>≥k p<sup>3/4</sup>; elevar a 4 da W≥k⁴p³. El mayor crecimiento manda: **W=Θ(p³)** en la frontera, para k fijo.
@@ -95,7 +106,7 @@ La lámina escribe E=0.8 para p=4,n=64. Ese valor sale si se cuentan **2log₂p*
  {q:'Aproximación de FLOPs para multiplicar matrices N×N:',opts:['N','N²','2N³','N⁴'],ok:2},
  {q:'T₀ se define como…',opts:['W−pTₚ','pTₚ−W','Tₛ/Tₚ','p/Pₙ'],ok:1},
  {q:'Para E=0.8, k vale…',opts:['0.2','1','4','8'],ok:2},
- {q:'En la tabla de la lámina 16, la base es…',opts:['secuencial','p=8, T₈=100','p=16','p=64'],ok:1},
- {q:'En la lámina 18, ¿qué término manda la isoeficiencia?',opts:['p³','p³ᐟ²','√p','log p'],ok:0}
+ {q:'En la tabla de la diapositiva, la base es…',opts:['secuencial','p=8, T₈=100','p=16','p=64'],ok:1},
+ {q:'En la diapositiva, ¿qué término manda la isoeficiencia?',opts:['p³','p³ᐟ²','√p','log p'],ok:0}
 ]} />
-<Fuente archivos={['U6.2 Performance-escalabilidad.pdf (láminas 2–18)']} />
+<Fuente archivos={['U6.2 Performance-escalabilidad.pdf']} />
